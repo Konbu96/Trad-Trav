@@ -1,7 +1,6 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import SearchBar from "./components/SearchBar";
 import BottomNavigation from "./components/BottomNavigation";
 
 // Leafletはクライアントサイドのみで動作するため、dynamic importを使用
@@ -20,11 +19,8 @@ const MapView = dynamic(() => import("./components/MapView"), {
 export default function Home() {
   return (
     <div className="relative w-screen h-screen overflow-hidden">
-      {/* マップ（全画面） */}
+      {/* マップ（検索バー含む） */}
       <MapView />
-      
-      {/* 上部の検索バー */}
-      <SearchBar />
       
       {/* 下部のナビゲーション */}
       <BottomNavigation />
