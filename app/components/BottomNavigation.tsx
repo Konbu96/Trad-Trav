@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import type { ScreenType } from "../page";
 
 interface NavItem {
-  id: string;
+  id: ScreenType;
   label: string;
   icon: React.ReactNode;
 }
@@ -32,16 +32,17 @@ const navItems: NavItem[] = [
     ),
   },
   {
-    id: "navigation",
-    label: "交通ナビ",
+    id: "map",
+    label: "マップ",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="3 11 22 2 13 21 11 13 3 11" />
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+        <circle cx="12" cy="10" r="3" />
       </svg>
     ),
   },
   {
-    id: "post",
+    id: "posts",
     label: "投稿",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -51,7 +52,7 @@ const navItems: NavItem[] = [
     ),
   },
   {
-    id: "ai-chat",
+    id: "chat",
     label: "AIチャット",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -64,9 +65,12 @@ const navItems: NavItem[] = [
   },
 ];
 
-export default function BottomNavigation() {
-  const [activeTab, setActiveTab] = useState("navigation");
+interface BottomNavigationProps {
+  currentScreen: ScreenType;
+  onScreenChange: (screen: ScreenType) => void;
+}
 
+export default function BottomNavigation({ currentScreen, onScreenChange }: BottomNavigationProps) {
   return (
     <div className="absolute bottom-0 left-0 right-0 z-50 safe-area-bottom">
       <nav 
@@ -77,11 +81,11 @@ export default function BottomNavigation() {
       >
         <ul className="flex justify-around items-center" style={{ paddingTop: "10px", paddingBottom: "12px" }}>
           {navItems.map((item) => {
-            const isActive = activeTab === item.id;
+            const isActive = currentScreen === item.id;
             return (
               <li key={item.id} className="flex-1">
                 <button
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => onScreenChange(item.id)}
                   className={`w-full flex flex-col items-center gap-1 py-2 transition-colors ${
                     isActive ? "text-blue-600" : "text-gray-500"
                   }`}
@@ -101,4 +105,3 @@ export default function BottomNavigation() {
     </div>
   );
 }
-

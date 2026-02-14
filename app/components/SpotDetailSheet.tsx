@@ -1,7 +1,22 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import type { Spot } from "../data/spots";
+import type { Spot, SpotInfoType } from "../data/spots";
+import {
+  ClockIcon,
+  LocationIcon,
+  GlobeIcon,
+  PhoneIcon,
+  PriceIcon,
+  ParkingIcon,
+  AccessIcon,
+  ClosedDaysIcon,
+  ReservationIcon,
+  InfoIcon,
+  CloseIcon,
+  StarIcon,
+  PhotoIcon,
+} from "./icons";
 
 interface SpotDetailSheetProps {
   spot: Spot | null;
@@ -13,17 +28,7 @@ function StarRating({ rating }: { rating: number }) {
   return (
     <div className="flex gap-1">
       {[1, 2, 3, 4, 5].map((star) => (
-        <svg
-          key={star}
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill={star <= rating ? "#FBBF24" : "none"}
-          stroke={star <= rating ? "#FBBF24" : "#D1D5DB"}
-          strokeWidth="2"
-        >
-          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-        </svg>
+        <StarIcon key={star} size={16} filled={star <= rating} />
       ))}
     </div>
   );
@@ -71,8 +76,96 @@ function TabButton({
   );
 }
 
-// 概要タブ
+// 情報リストアイテム（共通コンポーネント）
+function InfoListItem({ 
+  icon, 
+  children, 
+  href,
+  isLast = false,
+  alignTop = false
+}: { 
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  href?: string;
+  isLast?: boolean;
+  alignTop?: boolean;
+}) {
+  const isLink = !!href && href.startsWith("http");
+  
+  const baseStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: alignTop ? "flex-start" : "center",
+    gap: "14px",
+    padding: "14px 16px",
+    borderBottom: isLast ? "none" : "1px solid #e5e7eb",
+    textDecoration: "none",
+  };
+
+  const content = (
+    <>
+      <div style={{ flexShrink: 0, marginTop: alignTop ? "2px" : 0 }}>{icon}</div>
+      <div style={{ 
+        flex: 1, 
+        fontSize: "15px", 
+        color: isLink ? "#2563eb" : "#1f2937", 
+        lineHeight: "1.5",
+        textDecoration: isLink ? "underline" : "none"
+      }}>
+        {children}
+      </div>
+    </>
+  );
+
+  if (href) {
+    return (
+      <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel={href.startsWith("http") ? "noopener noreferrer" : undefined} style={baseStyle}>
+        {content}
+      </a>
+    );
+  }
+
+  return <div style={baseStyle}>{content}</div>;
+}
+
+// 情報タイプごとのアイコン定義（icons.tsxから取得）
+const InfoIcons: Record<SpotInfoType, React.ReactNode> = {
+  hours: <ClockIcon />,
+  address: <LocationIcon />,
+  website: <GlobeIcon />,
+  phone: <PhoneIcon />,
+  price: <PriceIcon />,
+  parking: <ParkingIcon />,
+  access: <AccessIcon />,
+  closedDays: <ClosedDaysIcon />,
+  reservation: <ReservationIcon />,
+  other: <InfoIcon />,
+};
+
+// リンクになる情報タイプ
+function getHrefForInfo(type: SpotInfoType, value: string): string | undefined {
+  if (type === "website") return value;
+  if (type === "phone") return `tel:${value}`;
+  if (type === "reservation" && value.startsWith("http")) return value;
+  return undefined;
+}
+
+// 表示用のテキストを取得
+function getDisplayText(type: SpotInfoType, value: string): string {
+  if (type === "website") {
+    try {
+      return new URL(value).hostname.replace("www.", "");
+    } catch {
+      return value;
+    }
+  }
+  return value;
+}
+
+// 概要タブ（スポット紹介 + 基本情報）
 function OverviewTab({ spot }: { spot: Spot }) {
+  // 予約以外の情報をフィルタリング
+  const infosWithoutReservation = spot.infos.filter(info => info.type !== "reservation");
+  
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {/* 説明文ボックス */}
@@ -94,7 +187,7 @@ function OverviewTab({ spot }: { spot: Spot }) {
         </div>
       </div>
 
-      {/* 基本情報リスト（Google Map風） */}
+      {/* 基本情報リスト（予約以外） */}
       <div 
         style={{ 
           backgroundColor: "#f3f4f6", 
@@ -102,121 +195,70 @@ function OverviewTab({ spot }: { spot: Spot }) {
           overflow: "hidden" 
         }}
       >
-        {/* 営業時間 */}
-        <div 
-          style={{ 
-            display: "flex", 
-            alignItems: "center", 
-            gap: "14px", 
-            padding: "14px 16px",
-            borderBottom: "1px solid #e5e7eb"
-          }}
-        >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#6B7280"
-            strokeWidth="2"
-            style={{ flexShrink: 0 }}
+        {infosWithoutReservation.map((info, index) => (
+          <InfoListItem 
+            key={`${info.type}-${index}`}
+            icon={InfoIcons[info.type]}
+            href={getHrefForInfo(info.type, info.value)}
+            isLast={index === infosWithoutReservation.length - 1}
+            alignTop={info.type === "address" || info.type === "access"}
           >
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-          <div style={{ flex: 1 }}>
-            <span style={{ fontSize: "15px", color: "#1f2937" }}>{spot.businessHours}</span>
-          </div>
-        </div>
+            {getDisplayText(info.type, info.value)}
+          </InfoListItem>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-        {/* 住所 */}
-        <div 
-          style={{ 
-            display: "flex", 
-            alignItems: "flex-start", 
-            gap: "14px", 
-            padding: "14px 16px",
-            borderBottom: "1px solid #e5e7eb"
-          }}
-        >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#6B7280"
-            strokeWidth="2"
-            style={{ flexShrink: 0, marginTop: "2px" }}
-          >
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-            <circle cx="12" cy="10" r="3" />
-          </svg>
-          <div style={{ flex: 1 }}>
-            <span style={{ fontSize: "15px", color: "#1f2937", lineHeight: "1.5" }}>{spot.address}</span>
-          </div>
-        </div>
-
-        {/* Webサイト */}
-        {spot.website && (
-          <a
-            href={spot.website}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ 
-              display: "flex", 
-              alignItems: "center", 
-              gap: "14px", 
-              padding: "14px 16px",
-              borderBottom: "1px solid #e5e7eb",
-              textDecoration: "none"
-            }}
-          >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#6B7280"
-              strokeWidth="2"
-              style={{ flexShrink: 0 }}
-            >
-              <circle cx="12" cy="12" r="10" />
-              <line x1="2" y1="12" x2="22" y2="12" />
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-            </svg>
-            <span style={{ flex: 1, fontSize: "15px", color: "#1f2937" }}>
-              {new URL(spot.website).hostname.replace("www.", "")}
-            </span>
-          </a>
-        )}
-
-        {/* 電話番号 */}
-        {spot.phone && (
-          <a
-            href={`tel:${spot.phone}`}
-            style={{ 
-              display: "flex", 
-              alignItems: "center", 
-              gap: "14px", 
-              padding: "14px 16px",
-              textDecoration: "none"
-            }}
-          >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#6B7280"
-              strokeWidth="2"
-              style={{ flexShrink: 0 }}
-            >
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-            </svg>
-            <span style={{ flex: 1, fontSize: "15px", color: "#1f2937" }}>{spot.phone}</span>
-          </a>
+// 予約タブ
+function ReservationTab({ spot }: { spot: Spot }) {
+  const reservationInfo = spot.infos.find(info => info.type === "reservation");
+  
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      <div 
+        style={{ 
+          backgroundColor: "#f3f4f6", 
+          borderRadius: "12px", 
+          padding: "16px" 
+        }}
+      >
+        <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#374151", marginBottom: "12px" }}>
+          予約について
+        </h3>
+        {reservationInfo ? (
+          <p style={{ color: "#4b5563", fontSize: "15px", lineHeight: "1.8" }}>
+            {reservationInfo.value}
+          </p>
+        ) : (
+          <p style={{ color: "#9ca3af", fontSize: "15px", lineHeight: "1.8" }}>
+            予約情報はありません
+          </p>
         )}
       </div>
+      
+      {/* 予約ボタン（URLがある場合） */}
+      {reservationInfo && reservationInfo.value.startsWith("http") && (
+        <a
+          href={reservationInfo.value}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "block",
+            backgroundColor: "#3b82f6",
+            color: "white",
+            textAlign: "center",
+            padding: "14px 20px",
+            borderRadius: "12px",
+            fontSize: "16px",
+            fontWeight: "bold",
+            textDecoration: "none",
+          }}
+        >
+          予約サイトへ
+        </a>
+      )}
     </div>
   );
 }
@@ -229,31 +271,51 @@ function ReviewsTab({ spot }: { spot: Spot }) {
       : 0;
 
   return (
-    <div className="space-y-4">
-      {/* 平均評価 */}
-      <div className="bg-gray-50 rounded-2xl p-4 flex items-center gap-4">
-        <div className="text-3xl font-bold text-gray-900">{avgRating.toFixed(1)}</div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      {/* 平均評価ボックス */}
+      <div 
+        style={{ 
+          backgroundColor: "#f3f4f6", 
+          borderRadius: "12px", 
+          padding: "16px",
+          display: "flex",
+          alignItems: "center",
+          gap: "16px"
+        }}
+      >
+        <div style={{ fontSize: "32px", fontWeight: "bold", color: "#111827" }}>{avgRating.toFixed(1)}</div>
         <div>
           <StarRating rating={Math.round(avgRating)} />
-          <span className="text-sm text-gray-500 mt-1 block">{spot.reviews.length}件の口コミ</span>
+          <span style={{ fontSize: "14px", color: "#6b7280", marginTop: "4px", display: "block" }}>
+            {spot.reviews.length}件の口コミ
+          </span>
         </div>
       </div>
 
-      {/* 口コミリスト */}
-      <div className="space-y-4">
+      {/* コメントボックス（1つのボックスで区切り線あり） */}
+      <div 
+        style={{ 
+          backgroundColor: "#f3f4f6", 
+          borderRadius: "12px", 
+          overflow: "hidden"
+        }}
+      >
         {spot.reviews.map((review, index) => (
           <div
             key={index}
-            className="bg-gray-50 rounded-2xl p-4"
+            style={{ 
+              padding: "16px",
+              borderBottom: index < spot.reviews.length - 1 ? "1px solid #e5e7eb" : "none"
+            }}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-bold text-gray-800">{review.author}</span>
-              <span className="text-xs text-gray-400">{review.date}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+              <span style={{ fontSize: "14px", fontWeight: "bold", color: "#1f2937" }}>{review.author}</span>
+              <span style={{ fontSize: "12px", color: "#9ca3af" }}>{review.date}</span>
             </div>
-            <div className="mb-2">
+            <div style={{ marginBottom: "10px" }}>
               <StarRating rating={review.rating} />
             </div>
-            <p className="text-sm text-gray-600 leading-relaxed">{review.comment}</p>
+            <p style={{ fontSize: "14px", color: "#4b5563", lineHeight: "1.7" }}>{review.comment}</p>
           </div>
         ))}
       </div>
@@ -283,19 +345,9 @@ function PhotosTab({ spot }: { spot: Spot }) {
             style={{ backgroundColor: photo.color }}
           >
             <div className="text-center">
-              <svg
-                width="32"
-                height="32"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#9CA3AF"
-                strokeWidth="1.5"
-                className="mx-auto mb-1"
-              >
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <polyline points="21 15 16 10 5 21" />
-              </svg>
+              <div className="mx-auto mb-1 flex justify-center">
+                <PhotoIcon size={32} color="#9CA3AF" />
+              </div>
               <span className="text-xs text-gray-400">写真 {photo.id}</span>
             </div>
           </div>
@@ -310,9 +362,10 @@ function PhotosTab({ spot }: { spot: Spot }) {
 
 export default function SpotDetailSheet({ spot, onClose }: SpotDetailSheetProps) {
   const [isVisible, setIsVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "photos">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "photos" | "reservation">("overview");
   const [dragY, setDragY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [sheetMode, setSheetMode] = useState<"half" | "full">("half");
   const startY = useRef(0);
   const sheetRef = useRef<HTMLDivElement>(null);
 
@@ -320,6 +373,7 @@ export default function SpotDetailSheet({ spot, onClose }: SpotDetailSheetProps)
     if (spot) {
       setActiveTab("overview"); // スポットが変わったらタブをリセット
       setDragY(0);
+      setSheetMode("half"); // 最初は半分表示
       requestAnimationFrame(() => {
         setIsVisible(true);
       });
@@ -344,20 +398,50 @@ export default function SpotDetailSheet({ spot, onClose }: SpotDetailSheetProps)
     if (!isDragging) return;
     const currentY = e.touches[0].clientY;
     const diff = currentY - startY.current;
-    // 下方向のみドラッグ可能（上には引っ張れない）
-    if (diff > 0) {
-      setDragY(diff);
-    }
+    setDragY(diff);
   };
 
   // ドラッグ終了
   const handleTouchEnd = () => {
     setIsDragging(false);
-    // 100px以上下にドラッグしたら閉じる
-    if (dragY > 100) {
-      handleClose();
+    
+    if (sheetMode === "half") {
+      // 半分表示の時
+      if (dragY < -50) {
+        // 上に50px以上ドラッグ → 全体表示
+        setSheetMode("full");
+      } else if (dragY > 80) {
+        // 下に80px以上ドラッグ → 閉じる
+        handleClose();
+      }
+    } else {
+      // 全体表示の時
+      if (dragY > 80) {
+        // 下に80px以上ドラッグ → 半分表示に戻す
+        setSheetMode("half");
+      }
     }
     setDragY(0);
+  };
+
+  // シートの高さを計算（ドラッグ中は動的に変更）
+  const getSheetHeight = () => {
+    if (sheetMode === "half") {
+      if (dragY < 0) {
+        // 上にドラッグ中は高さを増やす（最大92vh）
+        return `min(calc(60vh + ${Math.abs(dragY)}px), 92vh)`;
+      }
+      return "60vh";
+    }
+    return "92vh";
+  };
+  const sheetHeight = getSheetHeight();
+  
+  // transformはシートを下に動かす場合のみ使用
+  const getTransform = () => {
+    if (!isVisible) return "translateY(100%)";
+    if (dragY > 0) return `translateY(${dragY}px)`;
+    return "translateY(0)";
   };
 
   if (!spot) return null;
@@ -380,15 +464,19 @@ export default function SpotDetailSheet({ spot, onClose }: SpotDetailSheetProps)
       {/* シート */}
       <div
         ref={sheetRef}
-        className={`fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl ${
-          isDragging ? "" : "transition-transform duration-300 ease-out"
-        } ${
-          isVisible ? "translate-y-0" : "translate-y-full"
-        }`}
         style={{
-          maxHeight: "92vh",
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 50,
+          backgroundColor: "white",
+          borderTopLeftRadius: "24px",
+          borderTopRightRadius: "24px",
+          height: sheetHeight,
           boxShadow: "0 -4px 20px rgba(0, 0, 0, 0.15)",
-          transform: isVisible ? `translateY(${dragY}px)` : "translateY(100%)",
+          transform: getTransform(),
+          transition: isDragging ? "none" : "transform 0.3s ease-out, height 0.3s ease-out",
         }}
       >
         {/* ハンドル（ドラッグ可能エリア）とバツボタン */}
@@ -433,17 +521,7 @@ export default function SpotDetailSheet({ spot, onClose }: SpotDetailSheetProps)
               zIndex: 10,
             }}
           >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#666"
-              strokeWidth="2"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <CloseIcon size={24} color="#666" />
           </button>
         </div>
 
@@ -482,6 +560,11 @@ export default function SpotDetailSheet({ spot, onClose }: SpotDetailSheetProps)
               isActive={activeTab === "photos"} 
               onClick={() => setActiveTab("photos")} 
             />
+            <TabButton 
+              label="予約" 
+              isActive={activeTab === "reservation"} 
+              onClick={() => setActiveTab("reservation")} 
+            />
           </div>
         </div>
 
@@ -489,7 +572,7 @@ export default function SpotDetailSheet({ spot, onClose }: SpotDetailSheetProps)
         <div 
           className="overflow-y-auto" 
           style={{ 
-            maxHeight: "calc(92vh - 160px)",
+            maxHeight: `calc(${sheetHeight} - 160px)`,
             paddingLeft: "24px",
             paddingRight: "24px",
             paddingTop: "16px",
@@ -499,6 +582,7 @@ export default function SpotDetailSheet({ spot, onClose }: SpotDetailSheetProps)
           {activeTab === "overview" && <OverviewTab spot={spot} />}
           {activeTab === "reviews" && <ReviewsTab spot={spot} />}
           {activeTab === "photos" && <PhotosTab spot={spot} />}
+          {activeTab === "reservation" && <ReservationTab spot={spot} />}
         </div>
       </div>
     </>

@@ -73,6 +73,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+
 /* マップ上のテキストを高画質に */
 .leaflet-container * {
   -webkit-font-smoothing: antialiased;
@@ -157,4 +158,58 @@ body {
 
 .leaflet-popup-tip {
   box-shadow: none !important;
+}
+
+/* スプラッシュ画面 - 桜の花びらアニメーション */
+@keyframes sakuraFall {
+  0% {
+    transform: translateY(0) rotate(0deg) translateX(0);
+    opacity: 1;
+  }
+  25% {
+    transform: translateY(25vh) rotate(90deg) translateX(30px);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(50vh) rotate(180deg) translateX(-20px);
+    opacity: 0.8;
+  }
+  75% {
+    transform: translateY(75vh) rotate(270deg) translateX(40px);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(105vh) rotate(360deg) translateX(10px);
+    opacity: 0;
+  }
+}
+
+/* 舞妓さんのアニメーション */
+.maiko {
+  animation: maiko-appear 1s ease-out forwards;
+}
+
+@keyframes maiko-appear {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 水引のアニメーション */
+.mizuhiki {
+  animation: mizuhiki-appear 1s ease-out forwards;
+}
+
+@keyframes mizuhiki-appear {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
 }

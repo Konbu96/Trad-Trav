@@ -6,44 +6,48 @@ import { useState } from "react";
 export interface SearchLocation {
   lat: number;
   lng: number;
-  zoom: number;
   name: string;
-  boundingBox?: [number, number, number, number]; // [south, north, west, east]
+}
+
+// 検索結果（複数対応）
+export interface SearchResult {
+  locations: SearchLocation[];
+  query: string;
 }
 
 interface SearchBarProps {
-  onLocationSearch: (location: SearchLocation) => void;
+  onLocationSearch: (result: SearchResult) => void;
+  onClearSearch: () => void;
   isHidden?: boolean;
+  hasSearchResults?: boolean;
 }
 
-// 場所の種類に応じてズームレベルを決定
-function getZoomLevel(boundingBox?: [number, number, number, number]): number {
-  if (boundingBox) {
-    const [south, north, west, east] = boundingBox;
-    const latDiff = north - south;
-    const lngDiff = east - west;
-    const maxDiff = Math.max(latDiff, lngDiff);
-    
-    if (maxDiff > 1) return 8;
-    if (maxDiff > 0.5) return 9;
-    if (maxDiff > 0.2) return 10;
-    if (maxDiff > 0.1) return 11;
-    if (maxDiff > 0.05) return 12;
-    if (maxDiff > 0.02) return 13;
-    return 14;
-  }
-  
-  return 14;
+// 北海道の座標範囲
+const HOKKAIDO_BOUNDS = {
+  minLat: 40.5,
+  maxLat: 46.0,
+  minLng: 138.0,
+  maxLng: 146.5,
+};
+
+// 座標が北海道内かチェック
+function isInHokkaido(lat: number, lng: number): boolean {
+  return (
+    lat >= HOKKAIDO_BOUNDS.minLat &&
+    lat <= HOKKAIDO_BOUNDS.maxLat &&
+    lng >= HOKKAIDO_BOUNDS.minLng &&
+    lng <= HOKKAIDO_BOUNDS.maxLng
+  );
 }
 
-// Nominatim APIで地名から座標を取得
-async function geocodeLocation(query: string): Promise<SearchLocation | null> {
+// Nominatim APIで地名から座標を取得（複数結果対応、北海道のみ）
+async function geocodeLocations(query: string): Promise<SearchLocation[]> {
   try {
     // 北海道内での検索を優先するためにviewboxを設定
     const params = new URLSearchParams({
-      q: query,
+      q: query + " 北海道",
       format: "json",
-      limit: "1",
+      limit: "20", // 多めに取得してフィルタリング
       viewbox: "138.0,46.0,146.5,40.5",
       bounded: "1",
     });
@@ -61,14 +65,14 @@ async function geocodeLocation(query: string): Promise<SearchLocation | null> {
       throw new Error("Geocoding failed");
     }
 
-    const data = await response.json();
+    let data = await response.json();
 
     if (data.length === 0) {
-      // 北海道内で見つからなかった場合、範囲制限なしで再検索
+      // bounded検索で見つからなかった場合、北海道キーワードで再検索
       const paramsUnbounded = new URLSearchParams({
         q: query + " 北海道",
         format: "json",
-        limit: "1",
+        limit: "20",
       });
 
       const responseUnbounded = await fetch(
@@ -80,55 +84,32 @@ async function geocodeLocation(query: string): Promise<SearchLocation | null> {
         }
       );
 
-      const dataUnbounded = await responseUnbounded.json();
-      
-      if (dataUnbounded.length === 0) {
-        return null;
-      }
-
-      const result = dataUnbounded[0];
-      const boundingBox: [number, number, number, number] | undefined = result.boundingbox
-        ? [
-            parseFloat(result.boundingbox[0]),
-            parseFloat(result.boundingbox[1]),
-            parseFloat(result.boundingbox[2]),
-            parseFloat(result.boundingbox[3]),
-          ]
-        : undefined;
-
-      return {
-        lat: parseFloat(result.lat),
-        lng: parseFloat(result.lon),
-        zoom: getZoomLevel(boundingBox),
-        name: result.display_name,
-        boundingBox,
-      };
+      data = await responseUnbounded.json();
     }
 
-    const result = data[0];
-    const boundingBox: [number, number, number, number] | undefined = result.boundingbox
-      ? [
-          parseFloat(result.boundingbox[0]),
-          parseFloat(result.boundingbox[1]),
-          parseFloat(result.boundingbox[2]),
-          parseFloat(result.boundingbox[3]),
-        ]
-      : undefined;
+    // 結果を変換し、北海道内のみフィルタリング
+    const results: SearchLocation[] = data
+      .map((result: { lat: string; lon: string; display_name: string }) => ({
+        lat: parseFloat(result.lat),
+        lng: parseFloat(result.lon),
+        name: result.display_name,
+      }))
+      .filter((loc: SearchLocation) => isInHokkaido(loc.lat, loc.lng));
 
-    return {
-      lat: parseFloat(result.lat),
-      lng: parseFloat(result.lon),
-      zoom: getZoomLevel(boundingBox),
-      name: result.display_name,
-      boundingBox,
-    };
+    // 最大10件まで
+    return results.slice(0, 10);
   } catch (error) {
     console.error("Geocoding error:", error);
-    return null;
+    return [];
   }
 }
 
-export default function SearchBar({ onLocationSearch, isHidden = false }: SearchBarProps) {
+export default function SearchBar({ 
+  onLocationSearch, 
+  onClearSearch,
+  isHidden = false,
+  hasSearchResults = false,
+}: SearchBarProps) {
   const [searchValue, setSearchValue] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
@@ -137,9 +118,12 @@ export default function SearchBar({ onLocationSearch, isHidden = false }: Search
 
     setIsSearching(true);
     try {
-      const location = await geocodeLocation(searchValue.trim());
-      if (location) {
-        onLocationSearch(location);
+      const locations = await geocodeLocations(searchValue.trim());
+      if (locations.length > 0) {
+        onLocationSearch({
+          locations,
+          query: searchValue.trim(),
+        });
         setSearchValue("");
       } else {
         alert("場所が見つかりませんでした");
@@ -153,6 +137,11 @@ export default function SearchBar({ onLocationSearch, isHidden = false }: Search
     if (e.key === "Enter") {
       handleSearch();
     }
+  };
+
+  const handleClear = () => {
+    setSearchValue("");
+    onClearSearch();
   };
 
   return (
@@ -214,10 +203,10 @@ export default function SearchBar({ onLocationSearch, isHidden = false }: Search
             className="flex-1 bg-transparent border-none outline-none text-base text-gray-800 placeholder-gray-400 disabled:opacity-50"
           />
           
-          {/* クリアボタン（入力がある時のみ表示） */}
-          {searchValue && !isSearching && (
+          {/* クリアボタン（入力がある時 または 検索結果がある時に表示） */}
+          {(searchValue || hasSearchResults) && !isSearching && (
             <button 
-              onClick={() => setSearchValue("")}
+              onClick={handleClear}
               className="p-1 hover:bg-gray-100 rounded-full transition-colors"
             >
               <svg 
