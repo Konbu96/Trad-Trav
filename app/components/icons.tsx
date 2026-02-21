@@ -165,3 +165,14 @@ export function PhotoIcon({ size = defaultProps.size, color = defaultProps.color
   );
 }
 
+// デフォルトアバターアイコン（人物シルエット）
+export function DefaultAvatarIcon({ size = 72, backgroundColor = "#e5e7eb", silhouetteColor = "#9ca3af" }: { size?: number; backgroundColor?: string; silhouetteColor?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 72 72">
+      <circle cx="36" cy="36" r="36" fill={backgroundColor} />
+      <circle cx="36" cy="28" r="12" fill={silhouetteColor} />
+      <ellipse cx="36" cy="58" rx="20" ry="14" fill={silhouetteColor} />
+    </svg>
+  );
+}
+

@@ -5,9 +5,21 @@ import dynamic from "next/dynamic";
 import BottomNavigation from "./components/BottomNavigation";
 import SplashScreen from "./components/SplashScreen";
 import AIChatView from "./components/AIChatView";
+import DiagnosisView, { type DiagnosisResult } from "./components/DiagnosisView";
+import MyPageView from "./components/MyPageView";
+import AuthView from "./components/AuthView";
+import { LanguageProvider } from "./i18n/LanguageContext";
+import { saveDiagnosisResult, getDiagnosisResult, getViewHistory, addViewHistory, type ViewHistoryItem } from "./lib/firebase";
 
 // 画面の種類
 export type ScreenType = "map" | "mypage" | "reservations" | "traffic" | "posts" | "chat";
+
+// ユーザー情報
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+}
 
 // Leafletはクライアントサイドのみで動作するため、dynamic importを使用
 const MapView = dynamic(() => import("./components/MapView"), {
@@ -22,36 +34,137 @@ const MapView = dynamic(() => import("./components/MapView"), {
   ),
 });
 
-export default function Home() {
+function AppContent() {
   const [showSplash, setShowSplash] = useState(true);
+  const [showAuth, setShowAuth] = useState(false);
+  const [showDiagnosis, setShowDiagnosis] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [diagnosisResult, setDiagnosisResult] = useState<DiagnosisResult | null>(null);
+  const [viewHistory, setViewHistory] = useState<ViewHistoryItem[]>([]);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>("map");
+
+  const handleSplashFinish = () => {
+    setShowSplash(false);
+    setShowAuth(true);
+  };
+
+  const handleLogin = async (loggedInUser: User, isNewUser: boolean = false) => {
+    setUser(loggedInUser);
+    setShowAuth(false);
+    
+    if (isNewUser) {
+      // 新規登録の場合は診断を表示
+      setShowDiagnosis(true);
+    } else {
+      // 既存ユーザーの場合はFirestoreから診断結果と閲覧履歴を取得
+      try {
+        const [savedResult, savedHistory] = await Promise.all([
+          getDiagnosisResult(loggedInUser.id),
+          getViewHistory(loggedInUser.id),
+        ]);
+        if (savedResult) {
+          setDiagnosisResult(savedResult);
+        }
+        if (savedHistory.length > 0) {
+          setViewHistory(savedHistory);
+        }
+      } catch (error) {
+        console.error("ユーザーデータの取得に失敗:", error);
+      }
+    }
+  };
+
+  const handleSkipAuth = () => {
+    setShowAuth(false);
+    setShowDiagnosis(true);
+  };
+
+  const handleDiagnosisComplete = async (result: DiagnosisResult) => {
+    setDiagnosisResult(result);
+    setShowDiagnosis(false);
+    
+    // ログイン済みの場合はFirestoreに保存
+    if (user?.id) {
+      try {
+        await saveDiagnosisResult(user.id, result);
+        console.log("診断結果を保存しました");
+      } catch (error) {
+        console.error("診断結果の保存に失敗:", error);
+      }
+    }
+  };
 
   const handleScreenChange = (screen: ScreenType) => {
     setCurrentScreen(screen);
+  };
+
+  const handleSpotView = async (spot: { id: number; name: string; category: string }) => {
+    const historyItem: ViewHistoryItem = {
+      id: spot.id,
+      name: spot.name,
+      date: new Date().toISOString().split("T")[0],
+      category: spot.category,
+    };
+    
+    setViewHistory(prev => {
+      const filtered = prev.filter(h => h.id !== spot.id);
+      return [historyItem, ...filtered].slice(0, 20);
+    });
+
+    if (user?.id) {
+      try {
+        await addViewHistory(user.id, historyItem);
+      } catch (error) {
+        console.error("閲覧履歴の保存に失敗:", error);
+      }
+    }
   };
 
   return (
     <div className="relative w-screen h-screen overflow-hidden">
       {/* スプラッシュ画面 */}
       {showSplash && (
-        <SplashScreen onFinish={() => setShowSplash(false)} />
+        <SplashScreen onFinish={handleSplashFinish} />
       )}
 
-      {/* メインコンテンツ */}
-      {currentScreen === "map" && <MapView />}
-      {currentScreen === "chat" && <AIChatView />}
-      
-      {/* 準備中の画面 */}
-      {(currentScreen === "mypage" || currentScreen === "reservations" || currentScreen === "traffic" || currentScreen === "posts") && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
-          <div className="text-center">
-            <p className="text-gray-400 text-lg">準備中...</p>
-          </div>
-        </div>
+      {/* 認証画面 */}
+      {showAuth && (
+        <AuthView onLogin={handleLogin} onSkip={handleSkipAuth} />
       )}
-      
-      {/* 下部のナビゲーション */}
-      <BottomNavigation currentScreen={currentScreen} onScreenChange={handleScreenChange} />
+
+      {/* 診断画面 */}
+      {showDiagnosis && (
+        <DiagnosisView onComplete={handleDiagnosisComplete} />
+      )}
+
+      {/* メインコンテンツ（スプラッシュ、認証、診断が終わったら表示） */}
+      {!showSplash && !showAuth && !showDiagnosis && (
+        <>
+          {currentScreen === "map" && <MapView onSpotView={handleSpotView} />}
+          {currentScreen === "chat" && <AIChatView />}
+          {currentScreen === "mypage" && <MyPageView diagnosisResult={diagnosisResult} user={user} viewHistory={viewHistory} />}
+          
+          {/* 準備中の画面 */}
+          {(currentScreen === "reservations" || currentScreen === "traffic" || currentScreen === "posts") && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+              <div className="text-center">
+                <p className="text-gray-400 text-lg">準備中...</p>
+              </div>
+            </div>
+          )}
+          
+          {/* 下部のナビゲーション */}
+          <BottomNavigation currentScreen={currentScreen} onScreenChange={handleScreenChange} />
+        </>
+      )}
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <LanguageProvider>
+      <AppContent />
+    </LanguageProvider>
   );
 }

@@ -192,7 +192,11 @@ function SpotMarkers({
   );
 }
 
-export default function MapView() {
+interface MapViewProps {
+  onSpotView?: (spot: { id: number; name: string; category: string }) => void;
+}
+
+export default function MapView({ onSpotView }: MapViewProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [searchLocations, setSearchLocations] = useState<SearchLocation[]>([]);
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
@@ -230,6 +234,10 @@ export default function MapView() {
     // アニメーション完了後に詳細シートを表示
     setTimeout(() => {
       setSelectedSpot({ ...spot });
+      // 閲覧履歴に追加
+      if (onSpotView && spot.id > 0) {
+        onSpotView({ id: spot.id, name: spot.name, category: spot.category });
+      }
     }, delay);
   };
 

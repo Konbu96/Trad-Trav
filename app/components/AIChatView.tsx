@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useLanguage } from "../i18n/LanguageContext";
 
 interface Message {
   id: number;
@@ -76,17 +77,27 @@ const getAIResponse = async (userMessage: string): Promise<string> => {
 };
 
 export default function AIChatView() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 0,
-      role: "assistant",
-      content: "こんにちは！北海道旅行のお手伝いをします🌸\n観光スポットやグルメ、アクセス方法など、何でも聞いてくださいね！",
-      timestamp: new Date(),
-    },
-  ]);
+  const { t } = useLanguage();
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // 初期メッセージを設定
+  useEffect(() => {
+    if (!isInitialized) {
+      setMessages([
+        {
+          id: 0,
+          role: "assistant",
+          content: t.chat.welcome,
+          timestamp: new Date(),
+        },
+      ]);
+      setIsInitialized(true);
+    }
+  }, [t.chat.welcome, isInitialized]);
 
   // メッセージが追加されたら自動スクロール
   useEffect(() => {
@@ -160,10 +171,10 @@ export default function AIChatView() {
         }}
       >
         <h1 style={{ fontSize: "18px", fontWeight: "bold", color: "#1f2937", textAlign: "center" }}>
-          AIお助けチャット
+          {t.chat.title}
         </h1>
         <p style={{ fontSize: "12px", color: "#9ca3af", textAlign: "center", marginTop: "4px" }}>
-          北海道旅行のことなら何でも聞いてね！
+          {t.chat.subtitle}
         </p>
       </div>
 
@@ -311,7 +322,7 @@ export default function AIChatView() {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="メッセージを入力..."
+            placeholder={t.chat.inputPlaceholder}
             disabled={isLoading}
             style={{
               flex: 1,

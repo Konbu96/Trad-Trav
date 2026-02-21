@@ -1,17 +1,18 @@
 "use client";
 
 import type { ScreenType } from "../page";
+import { useLanguage } from "../i18n/LanguageContext";
 
 interface NavItem {
   id: ScreenType;
-  label: string;
+  labelKey: "mypage" | "reservations" | "map" | "posts" | "chat";
   icon: React.ReactNode;
 }
 
 const navItems: NavItem[] = [
   {
     id: "mypage",
-    label: "マイページ",
+    labelKey: "mypage",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -21,7 +22,7 @@ const navItems: NavItem[] = [
   },
   {
     id: "reservations",
-    label: "予約一覧",
+    labelKey: "reservations",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -33,7 +34,7 @@ const navItems: NavItem[] = [
   },
   {
     id: "map",
-    label: "マップ",
+    labelKey: "map",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
@@ -43,7 +44,7 @@ const navItems: NavItem[] = [
   },
   {
     id: "posts",
-    label: "投稿",
+    labelKey: "posts",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <line x1="12" y1="5" x2="12" y2="19" />
@@ -53,7 +54,7 @@ const navItems: NavItem[] = [
   },
   {
     id: "chat",
-    label: "AIチャット",
+    labelKey: "chat",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -71,6 +72,8 @@ interface BottomNavigationProps {
 }
 
 export default function BottomNavigation({ currentScreen, onScreenChange }: BottomNavigationProps) {
+  const { t } = useLanguage();
+
   return (
     <div className="absolute bottom-0 left-0 right-0 z-50 safe-area-bottom">
       <nav 
@@ -94,7 +97,7 @@ export default function BottomNavigation({ currentScreen, onScreenChange }: Bott
                     {item.icon}
                   </span>
                   <span className={`text-xs font-medium ${isActive ? "text-blue-600" : "text-gray-500"}`}>
-                    {item.label}
+                    {t.nav[item.labelKey]}
                   </span>
                 </button>
               </li>
