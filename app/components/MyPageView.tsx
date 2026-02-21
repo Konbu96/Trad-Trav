@@ -21,15 +21,20 @@ interface MyPageViewProps {
   diagnosisResult: DiagnosisResult | null;
   user: User | null;
   viewHistory?: ViewHistoryItem[];
+  onLogout?: () => void;
+  onJumpToSpot?: (spotId: number) => void;
 }
 
-export default function MyPageView({ diagnosisResult, user, viewHistory = [] }: MyPageViewProps) {
+export default function MyPageView({ diagnosisResult, user, viewHistory = [], onLogout, onJumpToSpot }: MyPageViewProps) {
   const { language, setLanguage, t } = useLanguage();
   const [userName, setUserName] = useState(user?.name || t.mypage.guest);
   const [isEditingName, setIsEditingName] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [showAllHistory, setShowAllHistory] = useState(false);
+
+  const displayedHistory = showAllHistory ? viewHistory : viewHistory.slice(0, 3);
 
   // 旅行タイプの表示名を取得
   const getTravelStyleEmoji = (style: string) => {
@@ -210,28 +215,56 @@ export default function MyPageView({ diagnosisResult, user, viewHistory = [] }: 
           }}
         >
           {viewHistory.length > 0 ? (
-            viewHistory.map((item, index) => (
-              <div
-                key={item.id}
-                style={{
-                  padding: "16px",
-                  borderBottom: index < viewHistory.length - 1 ? "1px solid #f3f4f6" : "none",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <div>
-                  <p style={{ fontSize: "15px", fontWeight: "500", color: "#374151" }}>
-                    {item.name}
-                  </p>
-                  <p style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>
-                    {item.category} • {item.date}
-                  </p>
-                </div>
-                <span style={{ fontSize: "20px", color: "#d1d5db" }}>›</span>
-              </div>
-            ))
+            <>
+              {displayedHistory.map((item, index) => (
+                <button
+                  key={`${item.id}-${item.date}`}
+                  onClick={() => onJumpToSpot?.(item.id)}
+                  style={{
+                    width: "100%",
+                    padding: "16px",
+                    borderBottom: index < displayedHistory.length - 1 || viewHistory.length > 3 ? "1px solid #f3f4f6" : "none",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    background: "none",
+                    border: "none",
+                    borderBottom: index < displayedHistory.length - 1 || viewHistory.length > 3 ? "1px solid #f3f4f6" : "none",
+                    cursor: onJumpToSpot ? "pointer" : "default",
+                    textAlign: "left",
+                  }}
+                >
+                  <div>
+                    <p style={{ fontSize: "15px", fontWeight: "500", color: "#374151" }}>
+                      {item.name}
+                    </p>
+                    <p style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>
+                      {item.category} • {item.date}
+                    </p>
+                  </div>
+                  <span style={{ fontSize: "20px", color: onJumpToSpot ? "#ec4899" : "#d1d5db" }}>›</span>
+                </button>
+              ))}
+              {viewHistory.length > 3 && (
+                <button
+                  onClick={() => setShowAllHistory(!showAllHistory)}
+                  style={{
+                    width: "100%",
+                    padding: "14px",
+                    backgroundColor: "#f9fafb",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    color: "#ec4899",
+                    fontWeight: "500",
+                  }}
+                >
+                  {showAllHistory 
+                    ? (language === "ja" ? "閉じる" : "Show Less")
+                    : (language === "ja" ? `もっと見る (${viewHistory.length - 3}件)` : `Show More (${viewHistory.length - 3})`)}
+                </button>
+              )}
+            </>
           ) : (
             <div style={{ padding: "24px", textAlign: "center" }}>
               <p style={{ color: "#9ca3af", fontSize: "14px" }}>{t.mypage.noHistory}</p>
@@ -449,6 +482,7 @@ export default function MyPageView({ diagnosisResult, user, viewHistory = [] }: 
       {/* ログアウトボタン */}
       <div style={{ padding: "0 24px 40px" }}>
         <button
+          onClick={onLogout}
           style={{
             width: "100%",
             padding: "16px",

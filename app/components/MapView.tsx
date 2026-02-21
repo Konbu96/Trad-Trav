@@ -12,6 +12,26 @@ import { recommendedSpots, type Spot } from "../data/spots";
 const HOKKAIDO_CENTER: [number, number] = [43.0642, 141.3469];
 const DEFAULT_ZOOM = 7;
 
+// ハートピンアイコン（お気に入り）
+const createHeartPinIcon = () => {
+  return L.divIcon({
+    className: "custom-heart-pin-icon",
+    html: `
+      <div style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
+        <svg width="36" height="42" viewBox="0 0 36 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18 38 C18 38 2 24 2 14 C2 7.373 7.373 2 14 2 C16.28 2 18.41 2.66 20.2 3.8 C21.99 2.66 24.12 2 26.4 2 C33.027 2 38 7.373 38 14 C38 24 22 38 18 38Z" fill="none" stroke="none"/>
+          <ellipse cx="18" cy="40" rx="4" ry="2" fill="rgba(0,0,0,0.15)"/>
+          <path d="M18 36 L6 22 C3 18 3 12 7 9 C10 7 14 8 16 10 L18 12 L20 10 C22 8 26 7 29 9 C33 12 33 18 30 22 Z" fill="#ef4444"/>
+          <path d="M18 34 L7 21 C4.5 17.5 4.5 12.5 8 9.5 C10.5 7.5 14 8.5 15.5 10 L18 12.5 L20.5 10 C22 8.5 25.5 7.5 28 9.5 C31.5 12.5 31.5 17.5 29 21 Z" fill="#f87171"/>
+        </svg>
+      </div>
+    `,
+    iconSize: [36, 42],
+    iconAnchor: [18, 40],
+    popupAnchor: [0, -40],
+  });
+};
+
 // 共通のピンアイコン（赤ピン + 茶色の中心）
 const createPinIcon = (size: "small" | "normal" = "normal") => {
   const dimensions = size === "small" 
@@ -192,11 +212,49 @@ function SpotMarkers({
   );
 }
 
-interface MapViewProps {
-  onSpotView?: (spot: { id: number; name: string; category: string }) => void;
+// お気に入りスポットのマーカー
+function FavoriteMarkers({
+  favoriteSpotIds,
+  onSpotClick,
+  isVisible,
+}: {
+  favoriteSpotIds: number[];
+  onSpotClick: (spot: Spot) => void;
+  isVisible: boolean;
+}) {
+  const [heartIcon, setHeartIcon] = useState<L.DivIcon | null>(null);
+
+  useEffect(() => {
+    setHeartIcon(createHeartPinIcon());
+  }, []);
+
+  if (!heartIcon || !isVisible) return null;
+
+  const favoriteSpots = recommendedSpots.filter(s => favoriteSpotIds.includes(s.id));
+
+  return (
+    <>
+      {favoriteSpots.map(spot => (
+        <Marker
+          key={`fav-${spot.id}`}
+          position={[spot.lat, spot.lng]}
+          icon={heartIcon}
+          eventHandlers={{ click: () => onSpotClick(spot) }}
+        />
+      ))}
+    </>
+  );
 }
 
-export default function MapView({ onSpotView }: MapViewProps) {
+interface MapViewProps {
+  onSpotView?: (spot: { id: number; name: string; category: string }) => void;
+  jumpToSpotId?: number | null;
+  onJumpComplete?: () => void;
+  favoriteSpotIds?: number[];
+  onToggleFavorite?: (spotId: number) => void;
+}
+
+export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favoriteSpotIds = [], onToggleFavorite }: MapViewProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [searchLocations, setSearchLocations] = useState<SearchLocation[]>([]);
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
@@ -210,6 +268,20 @@ export default function MapView({ onSpotView }: MapViewProps) {
       setIsMounted(false);
     };
   }, []);
+
+  // 閲覧履歴からのジャンプ
+  useEffect(() => {
+    if (!jumpToSpotId || !isMounted) return;
+
+    const spot = recommendedSpots.find(s => s.id === jumpToSpotId);
+    if (spot) {
+      setTargetSpot({ ...spot });
+      setTimeout(() => {
+        setSelectedSpot({ ...spot });
+      }, 1200);
+    }
+    onJumpComplete?.();
+  }, [jumpToSpotId, isMounted]);
 
   const handleLocationSearch = (result: SearchResult) => {
     setSearchLocations(result.locations);
@@ -235,7 +307,7 @@ export default function MapView({ onSpotView }: MapViewProps) {
     setTimeout(() => {
       setSelectedSpot({ ...spot });
       // 閲覧履歴に追加
-      if (onSpotView && spot.id > 0) {
+      if (onSpotView) {
         onSpotView({ id: spot.id, name: spot.name, category: spot.category });
       }
     }, delay);
@@ -249,10 +321,15 @@ export default function MapView({ onSpotView }: MapViewProps) {
   const handleSearchLocationClick = (spot: Spot) => {
     // 即座に詳細シートを表示（マップ移動なし）
     setSelectedSpot({ ...spot });
+    // 閲覧履歴に追加
+    if (onSpotView) {
+      onSpotView({ id: spot.id, name: spot.name, category: spot.category });
+    }
   };
 
-  // 検索結果がある時はおすすめスポットを非表示
+  // 検索結果がある時はおすすめスポットとハートピンを非表示
   const showSpotMarkers = searchLocations.length === 0;
+  const showFavoriteMarkers = searchLocations.length === 0;
 
   if (!isMounted) {
     return (
@@ -317,12 +394,18 @@ export default function MapView({ onSpotView }: MapViewProps) {
           <MapController searchLocations={searchLocations} />
           <SpotFlyController targetSpot={targetSpot} />
           <SpotMarkers onSpotClick={handleSpotClick} isVisible={showSpotMarkers} />
+          <FavoriteMarkers favoriteSpotIds={favoriteSpotIds} onSpotClick={handleSpotClick} isVisible={showFavoriteMarkers} />
           <SearchMarkers locations={searchLocations} onLocationClick={handleSearchLocationClick} />
         </MapContainer>
       </div>
 
       {/* スポット詳細シート */}
-      <SpotDetailSheet spot={selectedSpot} onClose={handleCloseSheet} />
+      <SpotDetailSheet
+        spot={selectedSpot}
+        onClose={handleCloseSheet}
+        isFavorite={selectedSpot ? favoriteSpotIds.includes(selectedSpot.id) : false}
+        onToggleFavorite={onToggleFavorite}
+      />
     </>
   );
 }

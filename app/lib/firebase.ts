@@ -51,7 +51,7 @@ export async function addViewHistory(userId: string, item: ViewHistoryItem): Pro
     const data = docSnap.data();
     const existingHistory: ViewHistoryItem[] = data.viewHistory || [];
     const filtered = existingHistory.filter(h => h.id !== item.id);
-    const newHistory = [item, ...filtered].slice(0, 20);
+    const newHistory = [item, ...filtered].slice(0, 10);
     
     await updateDoc(docRef, { viewHistory: newHistory });
   } else {
@@ -68,6 +68,26 @@ export async function getViewHistory(userId: string): Promise<ViewHistoryItem[]>
     return data.viewHistory || [];
   }
   return [];
+}
+
+export async function getFavorites(userId: string): Promise<number[]> {
+  const docRef = doc(db, "users", userId);
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) {
+    return docSnap.data().favorites || [];
+  }
+  return [];
+}
+
+export async function toggleFavorite(userId: string, spotId: number): Promise<number[]> {
+  const docRef = doc(db, "users", userId);
+  const docSnap = await getDoc(docRef);
+  const current: number[] = docSnap.exists() ? (docSnap.data().favorites || []) : [];
+  const updated = current.includes(spotId)
+    ? current.filter(id => id !== spotId)
+    : [...current, spotId];
+  await setDoc(docRef, { favorites: updated }, { merge: true });
+  return updated;
 }
 
 export { app, auth, db };

@@ -2,81 +2,145 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
+import { recommendedSpots, type Spot } from "../data/spots";
+
+interface SuggestedSpot {
+  id: number;
+  name: string;
+  category: string;
+  description: string;
+}
 
 interface Message {
   id: number;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  suggestedSpots?: SuggestedSpot[];
 }
 
-// 仮のAI応答（後でAPI連携に置き換え）
-const getAIResponse = async (userMessage: string): Promise<string> => {
-  // 簡単な応答パターン（後でOpenAI APIなどに置き換え）
-  await new Promise(resolve => setTimeout(resolve, 1000)); // 擬似的な遅延
-  
-  const msg = userMessage.toLowerCase();
-  
-  // 挨拶
-  if (msg.includes("こんにちは") || msg.includes("はじめまして") || msg.includes("やあ") || msg.includes("ハロー") || msg.includes("hello") || msg.includes("hi")) {
-    return "こんにちは！北海道旅行のお手伝いをしますね🌸 観光スポットやグルメなど、何でも聞いてください！";
-  }
-  if (msg.includes("おはよう")) {
-    return "おはようございます！今日も北海道旅行のお手伝いをしますね☀️ 何かお探しですか？";
-  }
-  if (msg.includes("こんばんは")) {
-    return "こんばんは！夜の北海道も素敵ですよ🌙 函館の夜景や札幌のすすきのなど、何か気になることはありますか？";
-  }
-  if (msg.includes("ありがとう") || msg.includes("サンキュー")) {
-    return "どういたしまして！他にも聞きたいことがあればいつでもどうぞ😊";
-  }
-  
-  // 観光スポット
-  if (msg.includes("おすすめ") || msg.includes("観光") || msg.includes("どこ行けば")) {
-    return "北海道のおすすめスポットですね！\n\n📍 五稜郭（函館）\n📍 札幌時計台\n📍 円山動物園\n📍 サッポロビール園\n📍 赤レンガ庁舎\n\nどのエリアに興味がありますか？";
-  }
-  if (msg.includes("五稜郭")) {
-    return "五稜郭は日本初の西洋式城郭です🏯\n\n⏰ 営業時間：8:00〜19:00\n💰 入場料：大人900円\n📍 住所：北海道函館市五稜郭町44\n\n五稜郭タワーから見る星形が絶景ですよ！春は桜の名所としても有名です🌸";
-  }
-  if (msg.includes("時計台")) {
-    return "札幌市時計台は札幌のシンボルです🕰️\n\n⏰ 営業時間：8:45〜17:10\n💰 入場料：大人200円\n📍 住所：北海道札幌市中央区北1条西2丁目\n\n1878年から時を刻み続けています！";
-  }
-  if (msg.includes("札幌")) {
-    return "札幌には見どころがたくさんあります！\n\n🏛️ 時計台\n🏛️ 赤レンガ庁舎\n🍺 サッポロビール園\n🐻 円山動物園\n\nジンギスカンやスープカレーも外せませんね！";
-  }
-  if (msg.includes("函館")) {
-    return "函館といえば五稜郭と夜景が有名ですね！\n\n⭐ 五稜郭\n🌃 函館山夜景\n🦑 朝市の海鮮\n\n函館山からの夜景は「100万ドルの夜景」と呼ばれています✨";
-  }
-  
-  // グルメ
-  if (msg.includes("グルメ") || msg.includes("食べ物") || msg.includes("ご飯") || msg.includes("食事") || msg.includes("何食べ")) {
-    return "北海道グルメなら、これがおすすめです！\n\n🍖 ジンギスカン\n🍣 海鮮丼\n🍜 味噌ラーメン\n🍛 スープカレー\n🦀 カニ料理\n\n何か気になる料理はありますか？";
-  }
-  if (msg.includes("ラーメン")) {
-    return "北海道ラーメンといえば！\n\n🍜 札幌：味噌ラーメン\n🍜 旭川：醤油ラーメン\n🍜 函館：塩ラーメン\n\n各地域で特色があって楽しいですよ！";
-  }
-  if (msg.includes("ジンギスカン")) {
-    return "ジンギスカンならサッポロビール園がおすすめです！🍖\n\n歴史ある赤レンガの建物で、出来たてビールと一緒に楽しめます🍺\n予約をおすすめしますよ！";
-  }
-  if (msg.includes("海鮮") || msg.includes("寿司") || msg.includes("カニ")) {
-    return "北海道の海鮮は絶品です！🦀\n\n🐟 札幌：二条市場、場外市場\n🦑 函館：函館朝市\n🦀 小樽：三角市場\n\n新鮮な海鮮丼やカニをぜひ味わってください！";
-  }
-  
-  // 天気・季節
-  if (msg.includes("天気") || msg.includes("気温") || msg.includes("服装")) {
-    return "北海道の気候についてですね！\n\n❄️ 冬（12-2月）：-10〜0℃ → 防寒必須\n🌸 春（3-5月）：0〜15℃ → 重ね着がおすすめ\n☀️ 夏（6-8月）：15〜25℃ → 涼しくて快適\n🍂 秋（9-11月）：5〜20℃ → 紅葉が綺麗\n\nいつ頃の旅行ですか？";
-  }
-  
-  // アクセス
-  if (msg.includes("アクセス") || msg.includes("行き方") || msg.includes("交通")) {
-    return "北海道へのアクセスですね！✈️\n\n🛫 新千歳空港：札幌へのメイン空港\n🛫 函館空港：函館エリアへ\n🚄 北海道新幹線：函館まで\n\nどのエリアへ行く予定ですか？";
-  }
-  
-  // デフォルト
-  return `「${userMessage}」についてですね！\n\n申し訳ありませんが、詳しい情報を持っていません。\n\n以下のような質問ならお答えできますよ😊\n・おすすめの観光スポット\n・グルメ情報\n・各エリアの見どころ\n・アクセス方法`;
+interface AIChatViewProps {
+  onJumpToSpot?: (spotId: number) => void;
+}
+
+// スポットのカテゴリとキーワードのマッピング
+const SPOT_KEYWORDS: Record<number, string[]> = {
+  1: ["歴史", "城", "桜", "夜景", "函館", "観光", "文化", "星形", "タワー", "公園"],
+  2: ["時計台", "札幌", "歴史", "観光", "文化", "シンボル", "写真", "レトロ"],
+  3: ["動物", "動物園", "家族", "子供", "こども", "子ども", "レジャー", "自然", "熊", "クマ", "パンダ"],
+  4: ["グルメ", "ビール", "ジンギスカン", "食事", "飲み", "肉", "レストラン", "夜", "飲食"],
+  5: ["歴史", "赤レンガ", "観光", "無料", "庁舎", "文化", "レトロ", "写真", "札幌"],
+  6: ["スポーツ", "コンサート", "ライブ", "イベント", "ドーム", "エンタメ", "観戦", "レジャー"],
 };
 
-export default function AIChatView() {
+const CATEGORY_EMOJIS: Record<string, string> = {
+  観光: "🏛️",
+  グルメ: "🍽️",
+  レジャー: "🎡",
+  自然: "🌿",
+  温泉: "♨️",
+};
+
+// ユーザーメッセージからスポットをマッチング
+const matchSpots = (userMessage: string): SuggestedSpot[] => {
+  const msg = userMessage;
+  const scores: Record<number, number> = {};
+
+  recommendedSpots.forEach(spot => {
+    let score = 0;
+    const keywords = SPOT_KEYWORDS[spot.id] || [];
+    keywords.forEach(kw => {
+      if (msg.includes(kw)) score += 2;
+    });
+    if (msg.includes(spot.name)) score += 5;
+    if (msg.includes(spot.category)) score += 3;
+    if (msg.includes(spot.description.slice(0, 10))) score += 2;
+    scores[spot.id] = score;
+  });
+
+  return recommendedSpots
+    .filter(spot => scores[spot.id] > 0)
+    .sort((a, b) => scores[b.id] - scores[a.id])
+    .slice(0, 3)
+    .map(spot => ({
+      id: spot.id,
+      name: spot.name,
+      category: spot.category,
+      description: spot.description.slice(0, 40) + "...",
+    }));
+};
+
+// スポット提案が必要かどうかを判定するキーワード
+const SUGGESTION_TRIGGERS = [
+  "行きたい", "おすすめ", "どこ", "場所", "スポット", "観光", "行こう",
+  "連れて行って", "教えて", "紹介", "提案", "どこか", "行ける",
+  "want to go", "recommend", "suggest", "where", "place",
+];
+
+const shouldSuggestSpots = (msg: string): boolean => {
+  return SUGGESTION_TRIGGERS.some(trigger => msg.includes(trigger));
+};
+
+const getAIResponse = async (userMessage: string): Promise<{ content: string; spots?: SuggestedSpot[] }> => {
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  const msg = userMessage;
+
+  // スポット提案が必要かチェック
+  const matchedSpots = matchSpots(msg);
+  if (shouldSuggestSpots(msg) || matchedSpots.length > 0) {
+    const spots = matchedSpots.length > 0 ? matchedSpots : recommendedSpots.slice(0, 3).map(s => ({
+      id: s.id, name: s.name, category: s.category,
+      description: s.description.slice(0, 40) + "...",
+    }));
+    const intro = matchedSpots.length > 0
+      ? `ご希望に合いそうなスポットを見つけました！マップで場所を確認してみてください🗺️`
+      : `北海道のおすすめスポットをご紹介します！マップで場所を確認してみてください🗺️`;
+    return { content: intro, spots };
+  }
+
+  // 挨拶
+  if (msg.includes("こんにちは") || msg.includes("hello") || msg.includes("hi") || msg.includes("はじめ")) {
+    return { content: "こんにちは！北海道旅行のお手伝いをしますね🌸\n「歴史のある場所に行きたい」「グルメを楽しみたい」など、気軽に話しかけてください！" };
+  }
+  if (msg.includes("おはよう")) {
+    return { content: "おはようございます！今日も北海道旅行のお手伝いをしますね☀️ どんな旅をお探しですか？" };
+  }
+  if (msg.includes("こんばんは")) {
+    return { content: "こんばんは！夜の北海道も素敵ですよ🌙 何かお探しですか？" };
+  }
+  if (msg.includes("ありがとう") || msg.includes("thank")) {
+    return { content: "どういたしまして！他にも聞きたいことがあればいつでもどうぞ😊" };
+  }
+
+  // 天気・季節
+  if (msg.includes("天気") || msg.includes("気温") || msg.includes("服装") || msg.includes("季節")) {
+    return { content: "北海道の気候についてですね！\n\n❄️ 冬（12-2月）：-10〜0℃ → 防寒必須\n🌸 春（3-5月）：0〜15℃ → 重ね着がおすすめ\n☀️ 夏（6-8月）：15〜25℃ → 涼しくて快適\n🍂 秋（9-11月）：5〜20℃ → 紅葉が綺麗\n\nいつ頃の旅行ですか？" };
+  }
+
+  // アクセス
+  if (msg.includes("アクセス") || msg.includes("行き方") || msg.includes("交通") || msg.includes("空港")) {
+    return { content: "北海道へのアクセスですね！✈️\n\n🛫 新千歳空港：札幌へのメイン空港\n🛫 函館空港：函館エリアへ\n🚄 北海道新幹線：函館まで\n\nどのエリアへ行く予定ですか？" };
+  }
+
+  // グルメ
+  if (msg.includes("グルメ") || msg.includes("食べ") || msg.includes("ご飯") || msg.includes("食事") || msg.includes("ラーメン") || msg.includes("海鮮") || msg.includes("ジンギスカン")) {
+    const grourmetSpots = recommendedSpots.filter(s => s.category === "グルメ").map(s => ({
+      id: s.id, name: s.name, category: s.category,
+      description: s.description.slice(0, 40) + "...",
+    }));
+    return {
+      content: "北海道グルメといえば、ジンギスカン・海鮮・味噌ラーメンが有名です！\nマップでグルメスポットを確認してみてください🍽️",
+      spots: grourmetSpots.length > 0 ? grourmetSpots : undefined,
+    };
+  }
+
+  // デフォルト
+  return {
+    content: `「${userMessage}」についてですね！\n\nたとえばこんな言葉で話しかけてみてください😊\n・「歴史のある場所に行きたい」\n・「子供と楽しめる場所を教えて」\n・「グルメを楽しみたい」`,
+  };
+};
+
+export default function AIChatView({ onJumpToSpot }: AIChatViewProps) {
   const { t } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -123,8 +187,9 @@ export default function AIChatView() {
       const assistantMessage: Message = {
         id: Date.now() + 1,
         role: "assistant",
-        content: response,
+        content: response.content,
         timestamp: new Date(),
+        suggestedSpots: response.spots,
       };
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
@@ -239,6 +304,58 @@ export default function AIChatView() {
               >
                 {message.content}
               </div>
+
+              {/* スポット提案カード */}
+              {message.suggestedSpots && message.suggestedSpots.length > 0 && (
+                <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+                  {message.suggestedSpots.map(spot => (
+                    <button
+                      key={spot.id}
+                      onClick={() => onJumpToSpot?.(spot.id)}
+                      style={{
+                        backgroundColor: "white",
+                        border: "1px solid #fce7f3",
+                        borderRadius: "16px",
+                        padding: "12px 14px",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        boxShadow: "0 1px 4px rgba(236, 72, 153, 0.1)",
+                        textAlign: "left",
+                        width: "100%",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1 }}>
+                        <div style={{
+                          width: "36px", height: "36px", borderRadius: "10px",
+                          backgroundColor: "#fdf2f8",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: "18px", flexShrink: 0,
+                        }}>
+                          {CATEGORY_EMOJIS[spot.category] || "📍"}
+                        </div>
+                        <div>
+                          <p style={{ fontSize: "14px", fontWeight: "600", color: "#1f2937", marginBottom: "2px" }}>
+                            {spot.name}
+                          </p>
+                          <p style={{ fontSize: "11px", color: "#9ca3af" }}>
+                            {spot.description}
+                          </p>
+                        </div>
+                      </div>
+                      <div style={{
+                        display: "flex", alignItems: "center", gap: "4px",
+                        color: "#ec4899", fontSize: "12px", fontWeight: "500",
+                        flexShrink: 0, marginLeft: "8px",
+                      }}>
+                        <span>地図</span>
+                        <span>›</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
               
               {/* 時刻 */}
               <span 

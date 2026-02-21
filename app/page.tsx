@@ -9,7 +9,8 @@ import DiagnosisView, { type DiagnosisResult } from "./components/DiagnosisView"
 import MyPageView from "./components/MyPageView";
 import AuthView from "./components/AuthView";
 import { LanguageProvider } from "./i18n/LanguageContext";
-import { saveDiagnosisResult, getDiagnosisResult, getViewHistory, addViewHistory, type ViewHistoryItem } from "./lib/firebase";
+import { saveDiagnosisResult, getDiagnosisResult, getViewHistory, addViewHistory, getFavorites, toggleFavorite, type ViewHistoryItem, auth } from "./lib/firebase";
+import { signOut } from "firebase/auth";
 
 // 画面の種類
 export type ScreenType = "map" | "mypage" | "reservations" | "traffic" | "posts" | "chat";
@@ -41,7 +42,10 @@ function AppContent() {
   const [user, setUser] = useState<User | null>(null);
   const [diagnosisResult, setDiagnosisResult] = useState<DiagnosisResult | null>(null);
   const [viewHistory, setViewHistory] = useState<ViewHistoryItem[]>([]);
+  const [favoriteSpotIds, setFavoriteSpotIds] = useState<number[]>([]);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>("map");
+  const [jumpToSpotId, setJumpToSpotId] = useState<number | null>(null);
+  const [selectedSpotId, setSelectedSpotId] = useState<number | null>(null);
 
   const handleSplashFinish = () => {
     setShowSplash(false);
@@ -58,16 +62,14 @@ function AppContent() {
     } else {
       // 既存ユーザーの場合はFirestoreから診断結果と閲覧履歴を取得
       try {
-        const [savedResult, savedHistory] = await Promise.all([
+        const [savedResult, savedHistory, savedFavorites] = await Promise.all([
           getDiagnosisResult(loggedInUser.id),
           getViewHistory(loggedInUser.id),
+          getFavorites(loggedInUser.id),
         ]);
-        if (savedResult) {
-          setDiagnosisResult(savedResult);
-        }
-        if (savedHistory.length > 0) {
-          setViewHistory(savedHistory);
-        }
+        if (savedResult) setDiagnosisResult(savedResult);
+        if (savedHistory.length > 0) setViewHistory(savedHistory);
+        if (savedFavorites.length > 0) setFavoriteSpotIds(savedFavorites);
       } catch (error) {
         console.error("ユーザーデータの取得に失敗:", error);
       }
@@ -98,6 +100,40 @@ function AppContent() {
     setCurrentScreen(screen);
   };
 
+  const handleJumpToSpot = (spotId: number) => {
+    setJumpToSpotId(spotId);
+    setCurrentScreen("map");
+  };
+
+  const handleToggleFavorite = async (spotId: number) => {
+    const updated = favoriteSpotIds.includes(spotId)
+      ? favoriteSpotIds.filter(id => id !== spotId)
+      : [...favoriteSpotIds, spotId];
+    setFavoriteSpotIds(updated);
+    if (user?.id) {
+      try {
+        await toggleFavorite(user.id, spotId);
+      } catch (error) {
+        console.error("お気に入りの更新に失敗:", error);
+        setFavoriteSpotIds(favoriteSpotIds);
+      }
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+      setDiagnosisResult(null);
+      setViewHistory([]);
+      setFavoriteSpotIds([]);
+      setShowAuth(true);
+      setCurrentScreen("map");
+    } catch (error) {
+      console.error("ログアウトに失敗:", error);
+    }
+  };
+
   const handleSpotView = async (spot: { id: number; name: string; category: string }) => {
     const historyItem: ViewHistoryItem = {
       id: spot.id,
@@ -108,7 +144,7 @@ function AppContent() {
     
     setViewHistory(prev => {
       const filtered = prev.filter(h => h.id !== spot.id);
-      return [historyItem, ...filtered].slice(0, 20);
+      return [historyItem, ...filtered].slice(0, 10);
     });
 
     if (user?.id) {
@@ -140,9 +176,9 @@ function AppContent() {
       {/* メインコンテンツ（スプラッシュ、認証、診断が終わったら表示） */}
       {!showSplash && !showAuth && !showDiagnosis && (
         <>
-          {currentScreen === "map" && <MapView onSpotView={handleSpotView} />}
-          {currentScreen === "chat" && <AIChatView />}
-          {currentScreen === "mypage" && <MyPageView diagnosisResult={diagnosisResult} user={user} viewHistory={viewHistory} />}
+          {currentScreen === "map" && <MapView onSpotView={handleSpotView} jumpToSpotId={jumpToSpotId} onJumpComplete={() => setJumpToSpotId(null)} favoriteSpotIds={favoriteSpotIds} onToggleFavorite={handleToggleFavorite} />}
+          {currentScreen === "chat" && <AIChatView onJumpToSpot={handleJumpToSpot} />}
+          {currentScreen === "mypage" && <MyPageView diagnosisResult={diagnosisResult} user={user} viewHistory={viewHistory} onLogout={handleLogout} onJumpToSpot={handleJumpToSpot} />}
           
           {/* 準備中の画面 */}
           {(currentScreen === "reservations" || currentScreen === "traffic" || currentScreen === "posts") && (

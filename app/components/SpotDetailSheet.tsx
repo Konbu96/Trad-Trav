@@ -21,6 +21,8 @@ import {
 interface SpotDetailSheetProps {
   spot: Spot | null;
   onClose: () => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: (spotId: number) => void;
 }
 
 // 星評価を表示
@@ -360,7 +362,7 @@ function PhotosTab({ spot }: { spot: Spot }) {
   );
 }
 
-export default function SpotDetailSheet({ spot, onClose }: SpotDetailSheetProps) {
+export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onToggleFavorite }: SpotDetailSheetProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "photos" | "reservation">("overview");
   const [dragY, setDragY] = useState(0);
@@ -507,22 +509,43 @@ export default function SpotDetailSheet({ spot, onClose }: SpotDetailSheetProps)
           />
           {/* ハンドルバー */}
           <div style={{ width: "48px", height: "6px", backgroundColor: "#d1d5db", borderRadius: "9999px" }} />
-          {/* バツボタン */}
-          <button
-            onClick={handleClose}
-            style={{ 
-              position: "absolute",
-              right: "16px",
-              padding: "8px", 
-              borderRadius: "9999px", 
-              background: "transparent", 
-              border: "none", 
-              cursor: "pointer",
-              zIndex: 10,
-            }}
-          >
-            <CloseIcon size={24} color="#666" />
-          </button>
+          {/* 右側ボタン群 */}
+          <div style={{ position: "absolute", right: "16px", display: "flex", alignItems: "center", gap: "4px", zIndex: 10 }}>
+            {/* ハートボタン */}
+            {onToggleFavorite && spot && (
+              <button
+                onClick={() => onToggleFavorite(spot.id)}
+                style={{
+                  padding: "8px",
+                  borderRadius: "9999px",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "transform 0.15s",
+                }}
+              >
+                <svg width="26" height="26" viewBox="0 0 24 24" fill={isFavorite ? "#ef4444" : "none"} stroke={isFavorite ? "#ef4444" : "#9ca3af"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                </svg>
+              </button>
+            )}
+            {/* バツボタン */}
+            <button
+              onClick={handleClose}
+              style={{ 
+                padding: "8px", 
+                borderRadius: "9999px", 
+                background: "transparent", 
+                border: "none", 
+                cursor: "pointer",
+              }}
+            >
+              <CloseIcon size={24} color="#666" />
+            </button>
+          </div>
         </div>
 
         {/* ヘッダー（固定） */}
