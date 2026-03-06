@@ -10,6 +10,7 @@ import MyPageView from "./components/MyPageView";
 import AuthView from "./components/AuthView";
 import { LanguageProvider } from "./i18n/LanguageContext";
 import { saveDiagnosisResult, getDiagnosisResult, getViewHistory, addViewHistory, getFavorites, toggleFavorite, type ViewHistoryItem, auth } from "./lib/firebase";
+import { getRecommendedSpotIds } from "./data/spots";
 import { signOut } from "firebase/auth";
 
 // 画面の種類
@@ -45,11 +46,15 @@ function AppContent() {
   const [favoriteSpotIds, setFavoriteSpotIds] = useState<number[]>([]);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>("map");
   const [jumpToSpotId, setJumpToSpotId] = useState<number | null>(null);
-  const [selectedSpotId, setSelectedSpotId] = useState<number | null>(null);
+
+  // 診断結果からおすすめスポットIDを計算
+  const recommendedSpotIds = diagnosisResult
+    ? getRecommendedSpotIds(diagnosisResult.interests)
+    : null;
 
   const handleSplashFinish = () => {
     setShowSplash(false);
-    setShowAuth(true);
+    setShowDiagnosis(true);
   };
 
   const handleLogin = async (loggedInUser: User, isNewUser: boolean = false) => {
@@ -74,11 +79,6 @@ function AppContent() {
         console.error("ユーザーデータの取得に失敗:", error);
       }
     }
-  };
-
-  const handleSkipAuth = () => {
-    setShowAuth(false);
-    setShowDiagnosis(true);
   };
 
   const handleDiagnosisComplete = async (result: DiagnosisResult) => {
@@ -127,8 +127,7 @@ function AppContent() {
       setDiagnosisResult(null);
       setViewHistory([]);
       setFavoriteSpotIds([]);
-      setShowAuth(true);
-      setCurrentScreen("map");
+      // 認証画面へは戻らず、そのままアプリ内に留まる
     } catch (error) {
       console.error("ログアウトに失敗:", error);
     }
@@ -163,22 +162,17 @@ function AppContent() {
         <SplashScreen onFinish={handleSplashFinish} />
       )}
 
-      {/* 認証画面 */}
-      {showAuth && (
-        <AuthView onLogin={handleLogin} onSkip={handleSkipAuth} />
-      )}
-
       {/* 診断画面 */}
       {showDiagnosis && (
         <DiagnosisView onComplete={handleDiagnosisComplete} />
       )}
 
-      {/* メインコンテンツ（スプラッシュ、認証、診断が終わったら表示） */}
-      {!showSplash && !showAuth && !showDiagnosis && (
+      {/* メインコンテンツ（スプラッシュ・診断が終わったら表示） */}
+      {!showSplash && !showDiagnosis && (
         <>
-          {currentScreen === "map" && <MapView onSpotView={handleSpotView} jumpToSpotId={jumpToSpotId} onJumpComplete={() => setJumpToSpotId(null)} favoriteSpotIds={favoriteSpotIds} onToggleFavorite={handleToggleFavorite} />}
+          {currentScreen === "map" && <MapView onSpotView={handleSpotView} jumpToSpotId={jumpToSpotId} onJumpComplete={() => setJumpToSpotId(null)} favoriteSpotIds={favoriteSpotIds} onToggleFavorite={handleToggleFavorite} recommendedSpotIds={recommendedSpotIds} />}
           {currentScreen === "chat" && <AIChatView onJumpToSpot={handleJumpToSpot} />}
-          {currentScreen === "mypage" && <MyPageView diagnosisResult={diagnosisResult} user={user} viewHistory={viewHistory} onLogout={handleLogout} onJumpToSpot={handleJumpToSpot} />}
+          {currentScreen === "mypage" && <MyPageView diagnosisResult={diagnosisResult} user={user} viewHistory={viewHistory} onLogout={handleLogout} onJumpToSpot={handleJumpToSpot} onStartDiagnosis={() => { setShowDiagnosis(true); setCurrentScreen("map"); }} onLoginRequest={() => setShowAuth(true)} />}
           
           {/* 準備中の画面 */}
           {(currentScreen === "reservations" || currentScreen === "traffic" || currentScreen === "posts") && (
@@ -192,6 +186,13 @@ function AppContent() {
           {/* 下部のナビゲーション */}
           <BottomNavigation currentScreen={currentScreen} onScreenChange={handleScreenChange} />
         </>
+      )}
+
+      {/* 認証画面（マイページからのオーバーレイ） */}
+      {showAuth && (
+        <div className="absolute inset-0 z-50">
+          <AuthView onLogin={handleLogin} onSkip={() => setShowAuth(false)} />
+        </div>
       )}
     </div>
   );

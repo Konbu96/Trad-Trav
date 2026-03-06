@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { DiagnosisResult } from "./DiagnosisView";
 import { useLanguage } from "../i18n/LanguageContext";
 import { DefaultAvatarIcon } from "./icons";
+import { recommendedSpots, getRecommendedSpotIds, INTEREST_CATEGORY_MAP } from "../data/spots";
 
 interface User {
   name: string;
@@ -23,18 +24,28 @@ interface MyPageViewProps {
   viewHistory?: ViewHistoryItem[];
   onLogout?: () => void;
   onJumpToSpot?: (spotId: number) => void;
+  onStartDiagnosis?: () => void;
+  onLoginRequest?: () => void;
 }
 
-export default function MyPageView({ diagnosisResult, user, viewHistory = [], onLogout, onJumpToSpot }: MyPageViewProps) {
+export default function MyPageView({ diagnosisResult, user, viewHistory = [], onLogout, onJumpToSpot, onStartDiagnosis, onLoginRequest }: MyPageViewProps) {
   const { language, setLanguage, t } = useLanguage();
   const [userName, setUserName] = useState(user?.name || t.mypage.guest);
   const [isEditingName, setIsEditingName] = useState(false);
-  const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
+  const [showTravelTypeModal, setShowTravelTypeModal] = useState(false);
 
   const displayedHistory = showAllHistory ? viewHistory : viewHistory.slice(0, 3);
+
+  // 診断結果からおすすめスポット・カテゴリを計算
+  const recommendedSpotIds = diagnosisResult ? getRecommendedSpotIds(diagnosisResult.interests) : [];
+  const recommendedSpotList = recommendedSpots.filter(s => recommendedSpotIds.includes(s.id));
+  const recommendedCategories = diagnosisResult
+    ? Array.from(new Map(
+        diagnosisResult.interests.flatMap(i => INTEREST_CATEGORY_MAP[i] || []).map(c => [c.label, c])
+      ).values())
+    : [];
 
   // 旅行タイプの表示名を取得
   const getTravelStyleEmoji = (style: string) => {
@@ -147,30 +158,28 @@ export default function MyPageView({ diagnosisResult, user, viewHistory = [], on
           <h2 style={{ fontSize: "16px", fontWeight: "600", color: "#374151", marginBottom: "12px" }}>
             {t.mypage.travelType}
           </h2>
-          <div
+          <button
+            onClick={() => setShowTravelTypeModal(true)}
             style={{
+              width: "100%",
               backgroundColor: "white",
               borderRadius: "16px",
               padding: "20px",
               boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+              border: "none",
+              cursor: "pointer",
+              textAlign: "left",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "16px" }}>
-              <div
-                style={{
-                  width: "56px",
-                  height: "56px",
-                  borderRadius: "50%",
-                  backgroundColor: "#fdf2f8",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "28px",
-                }}
-              >
+              <div style={{
+                width: "56px", height: "56px", borderRadius: "50%",
+                backgroundColor: "#fdf2f8", display: "flex",
+                alignItems: "center", justifyContent: "center", fontSize: "28px",
+              }}>
                 {getTravelStyleEmoji(diagnosisResult.travelStyle)}
               </div>
-              <div>
+              <div style={{ flex: 1 }}>
                 <p style={{ fontSize: "18px", fontWeight: "bold", color: "#be185d" }}>
                   {getLocalizedTravelStyle(diagnosisResult.travelStyle)}
                 </p>
@@ -178,28 +187,216 @@ export default function MyPageView({ diagnosisResult, user, viewHistory = [], on
                   {diagnosisResult.recommendedPlan.title}
                 </p>
               </div>
+              <span style={{ fontSize: "20px", color: "#ec4899" }}>›</span>
             </div>
-
-            {/* 興味タグ */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
               {diagnosisResult.interests.map((interest) => (
-                <span
-                  key={interest}
-                  style={{
-                    backgroundColor: "#fce7f3",
-                    color: "#be185d",
-                    padding: "4px 10px",
-                    borderRadius: "12px",
-                    fontSize: "12px",
-                  }}
-                >
+                <span key={interest} style={{
+                  backgroundColor: "#fce7f3", color: "#be185d",
+                  padding: "4px 10px", borderRadius: "12px", fontSize: "12px",
+                }}>
                   {t.diagnosis.interests[interest as keyof typeof t.diagnosis.interests] || interest}
                 </span>
               ))}
             </div>
+          </button>
+        </div>
+      )}
+
+      {/* 旅行タイプ詳細モーダル */}
+      {showTravelTypeModal && diagnosisResult && (
+        <div
+          style={{
+            position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)",
+            zIndex: 9999, display: "flex", alignItems: "flex-end",
+          }}
+          onClick={() => setShowTravelTypeModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: "white", borderTopLeftRadius: "24px",
+              borderTopRightRadius: "24px", width: "100%",
+              maxHeight: "85vh", overflowY: "auto", padding: "24px",
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* ハンドルバー */}
+            <div style={{ width: "48px", height: "5px", backgroundColor: "#d1d5db", borderRadius: "99px", margin: "0 auto 20px" }} />
+
+            {/* タイトル */}
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+              <div style={{
+                width: "52px", height: "52px", borderRadius: "50%",
+                backgroundColor: "#fdf2f8", display: "flex", alignItems: "center",
+                justifyContent: "center", fontSize: "26px",
+              }}>
+                {getTravelStyleEmoji(diagnosisResult.travelStyle)}
+              </div>
+              <div>
+                <p style={{ fontSize: "20px", fontWeight: "bold", color: "#be185d" }}>
+                  {getLocalizedTravelStyle(diagnosisResult.travelStyle)}
+                </p>
+                <p style={{ fontSize: "13px", color: "#9ca3af" }}>{diagnosisResult.recommendedPlan.title}</p>
+              </div>
+            </div>
+
+            {/* 説明 */}
+            <div style={{ backgroundColor: "#fdf2f8", borderRadius: "12px", padding: "14px", marginBottom: "20px" }}>
+              <p style={{ fontSize: "14px", color: "#4b5563", lineHeight: "1.7" }}>
+                {diagnosisResult.recommendedPlan.description}
+              </p>
+            </div>
+
+            {/* おすすめカテゴリ */}
+            {recommendedCategories.length > 0 && (
+              <div style={{ marginBottom: "20px" }}>
+                <p style={{ fontSize: "14px", fontWeight: "600", color: "#374151", marginBottom: "10px" }}>
+                  おすすめカテゴリ
+                </p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                  {recommendedCategories.map(cat => (
+                    <span key={cat.label} style={{
+                      backgroundColor: "#fce7f3", color: "#be185d",
+                      padding: "6px 14px", borderRadius: "20px",
+                      fontSize: "14px", fontWeight: "500",
+                    }}>
+                      {cat.emoji} {cat.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* おすすめスポット */}
+            <div style={{ marginBottom: "20px" }}>
+              <p style={{ fontSize: "14px", fontWeight: "600", color: "#374151", marginBottom: "10px" }}>
+                あなたにおすすめのスポット
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {recommendedSpotList.map(spot => (
+                  <button
+                    key={spot.id}
+                    onClick={() => { onJumpToSpot?.(spot.id); setShowTravelTypeModal(false); }}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      backgroundColor: "#f9fafb", borderRadius: "12px",
+                      padding: "12px 14px", border: "1px solid #f3f4f6",
+                      cursor: "pointer", textAlign: "left",
+                    }}
+                  >
+                    <div>
+                      <p style={{ fontSize: "15px", fontWeight: "500", color: "#1f2937" }}>{spot.name}</p>
+                      <p style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>{spot.category}</p>
+                    </div>
+                    <span style={{ color: "#ec4899", fontSize: "16px" }}>地図 ›</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ヒント */}
+            {diagnosisResult.recommendedPlan.tips.length > 0 && (
+              <div>
+                <p style={{ fontSize: "14px", fontWeight: "600", color: "#374151", marginBottom: "10px" }}>
+                  旅のヒント
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {diagnosisResult.recommendedPlan.tips.map((tip, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                      <span style={{ color: "#ec4899", fontSize: "14px", flexShrink: 0 }}>💡</span>
+                      <p style={{ fontSize: "14px", color: "#4b5563", lineHeight: "1.6" }}>{tip}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowTravelTypeModal(false)}
+              style={{
+                width: "100%", marginTop: "24px", padding: "14px",
+                borderRadius: "12px", backgroundColor: "#ec4899",
+                color: "white", border: "none", fontSize: "15px",
+                fontWeight: "600", cursor: "pointer",
+              }}
+            >
+              閉じる
+            </button>
           </div>
         </div>
       )}
+
+      {/* バッジ */}
+      <div style={{ padding: "0 24px 20px" }}>
+        <h2 style={{ fontSize: "16px", fontWeight: "600", color: "#374151", marginBottom: "12px" }}>
+          {language === "ja" ? "バッジ" : "Badges"}
+        </h2>
+        <div
+          style={{
+            backgroundColor: "white",
+            borderRadius: "16px",
+            padding: "24px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: "80px",
+          }}
+        >
+          <p style={{ color: "#d1d5db", fontSize: "14px" }}>
+            {language === "ja" ? "バッジ機能は準備中です" : "Badges coming soon"}
+          </p>
+        </div>
+      </div>
+
+      {/* 旅の好み診断 */}
+      <div style={{ padding: "0 24px 20px" }}>
+        <h2 style={{ fontSize: "16px", fontWeight: "600", color: "#374151", marginBottom: "12px" }}>
+          {language === "ja" ? "旅の好み診断" : "Travel Diagnosis"}
+        </h2>
+        <button
+          onClick={onStartDiagnosis}
+          style={{
+            width: "100%",
+            backgroundColor: "white",
+            borderRadius: "16px",
+            padding: "20px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+            border: "none",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            textAlign: "left",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+            <div
+              style={{
+                width: "48px", height: "48px", borderRadius: "14px",
+                backgroundColor: "#fdf2f8",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: "24px",
+              }}
+            >
+              🌸
+            </div>
+            <div>
+              <p style={{ fontSize: "15px", fontWeight: "600", color: "#1f2937" }}>
+                {diagnosisResult
+                  ? (language === "ja" ? "診断をやり直す" : "Retake Diagnosis")
+                  : (language === "ja" ? "診断を受ける" : "Start Diagnosis")}
+              </p>
+              <p style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>
+                {diagnosisResult
+                  ? (language === "ja" ? `現在: ${diagnosisResult.travelStyle}` : `Current: ${diagnosisResult.travelStyle}`)
+                  : (language === "ja" ? "あなたにぴったりのスポットを見つけよう" : "Find spots that suit you")}
+              </p>
+            </div>
+          </div>
+          <span style={{ fontSize: "20px", color: "#ec4899" }}>›</span>
+        </button>
+      </div>
 
       {/* 閲覧履歴 */}
       <div style={{ padding: "0 24px 20px" }}>
@@ -286,92 +483,6 @@ export default function MyPageView({ diagnosisResult, user, viewHistory = [], on
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
           }}
         >
-          {/* 通知 */}
-          <div
-            style={{
-              padding: "16px",
-              borderBottom: "1px solid #f3f4f6",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <span style={{ fontSize: "20px" }}>🔔</span>
-              <span style={{ fontSize: "15px", color: "#374151" }}>{t.mypage.notifications}</span>
-            </div>
-            <button
-              onClick={() => setNotifications(!notifications)}
-              style={{
-                width: "48px",
-                height: "28px",
-                borderRadius: "14px",
-                backgroundColor: notifications ? "#ec4899" : "#d1d5db",
-                border: "none",
-                position: "relative",
-                cursor: "pointer",
-                transition: "background-color 0.2s",
-              }}
-            >
-              <div
-                style={{
-                  width: "24px",
-                  height: "24px",
-                  borderRadius: "50%",
-                  backgroundColor: "white",
-                  position: "absolute",
-                  top: "2px",
-                  left: notifications ? "22px" : "2px",
-                  transition: "left 0.2s",
-                  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.2)",
-                }}
-              />
-            </button>
-          </div>
-
-          {/* ダークモード */}
-          <div
-            style={{
-              padding: "16px",
-              borderBottom: "1px solid #f3f4f6",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <span style={{ fontSize: "20px" }}>🌙</span>
-              <span style={{ fontSize: "15px", color: "#374151" }}>{t.mypage.darkMode}</span>
-            </div>
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              style={{
-                width: "48px",
-                height: "28px",
-                borderRadius: "14px",
-                backgroundColor: darkMode ? "#ec4899" : "#d1d5db",
-                border: "none",
-                position: "relative",
-                cursor: "pointer",
-                transition: "background-color 0.2s",
-              }}
-            >
-              <div
-                style={{
-                  width: "24px",
-                  height: "24px",
-                  borderRadius: "50%",
-                  backgroundColor: "white",
-                  position: "absolute",
-                  top: "2px",
-                  left: darkMode ? "22px" : "2px",
-                  transition: "left 0.2s",
-                  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.2)",
-                }}
-              />
-            </button>
-          </div>
-
           {/* 言語 */}
           <button
             onClick={() => setShowLanguageModal(true)}
@@ -397,106 +508,51 @@ export default function MyPageView({ diagnosisResult, user, viewHistory = [], on
         </div>
       </div>
 
-      {/* その他 */}
-      <div style={{ padding: "0 24px 20px" }}>
-        <h2 style={{ fontSize: "16px", fontWeight: "600", color: "#374151", marginBottom: "12px" }}>
-          {t.mypage.others}
-        </h2>
-        <div
-          style={{
-            backgroundColor: "white",
-            borderRadius: "16px",
-            overflow: "hidden",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
-          }}
-        >
-          {/* アプリについて */}
-          <div
-            style={{
-              padding: "16px",
-              borderBottom: "1px solid #f3f4f6",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <span style={{ fontSize: "20px" }}>ℹ️</span>
-              <span style={{ fontSize: "15px", color: "#374151" }}>{t.mypage.about}</span>
-            </div>
-            <span style={{ fontSize: "14px", color: "#9ca3af" }}>v1.0.0 ›</span>
-          </div>
-
-          {/* お問い合わせ */}
-          <div
-            style={{
-              padding: "16px",
-              borderBottom: "1px solid #f3f4f6",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <span style={{ fontSize: "20px" }}>✉️</span>
-              <span style={{ fontSize: "15px", color: "#374151" }}>{t.mypage.contact}</span>
-            </div>
-            <span style={{ fontSize: "20px", color: "#d1d5db" }}>›</span>
-          </div>
-
-          {/* 利用規約 */}
-          <div
-            style={{
-              padding: "16px",
-              borderBottom: "1px solid #f3f4f6",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <span style={{ fontSize: "20px" }}>📄</span>
-              <span style={{ fontSize: "15px", color: "#374151" }}>{t.mypage.terms}</span>
-            </div>
-            <span style={{ fontSize: "20px", color: "#d1d5db" }}>›</span>
-          </div>
-
-          {/* プライバシーポリシー */}
-          <div
-            style={{
-              padding: "16px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <span style={{ fontSize: "20px" }}>🔒</span>
-              <span style={{ fontSize: "15px", color: "#374151" }}>{t.mypage.privacy}</span>
-            </div>
-            <span style={{ fontSize: "20px", color: "#d1d5db" }}>›</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ログアウトボタン */}
+      {/* ログイン / ログアウトボタン */}
       <div style={{ padding: "0 24px 40px" }}>
-        <button
-          onClick={onLogout}
-          style={{
-            width: "100%",
-            padding: "16px",
-            borderRadius: "12px",
-            border: "1px solid #fecdd3",
-            backgroundColor: "#fff1f2",
-            color: "#e11d48",
-            fontSize: "15px",
-            fontWeight: "500",
-            cursor: "pointer",
-          }}
-        >
-          {t.mypage.logout}
-        </button>
+        {user ? (
+          <button
+            onClick={onLogout}
+            style={{
+              width: "100%",
+              padding: "16px",
+              borderRadius: "12px",
+              border: "1px solid #fecdd3",
+              backgroundColor: "#fff1f2",
+              color: "#e11d48",
+              fontSize: "15px",
+              fontWeight: "500",
+              cursor: "pointer",
+            }}
+          >
+            {t.mypage.logout}
+          </button>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <p style={{ textAlign: "center", fontSize: "13px", color: "#9ca3af" }}>
+              {language === "ja"
+                ? "ログインすると閲覧履歴やお気に入りが保存されます"
+                : "Log in to save your history and favorites"}
+            </p>
+            <button
+              onClick={onLoginRequest}
+              style={{
+                width: "100%",
+                padding: "16px",
+                borderRadius: "12px",
+                border: "none",
+                background: "linear-gradient(135deg, #ec4899, #f472b6)",
+                color: "white",
+                fontSize: "15px",
+                fontWeight: "600",
+                cursor: "pointer",
+                boxShadow: "0 4px 12px rgba(236, 72, 153, 0.35)",
+              }}
+            >
+              {language === "ja" ? "ログイン / 新規登録" : "Login / Sign Up"}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 言語選択モーダル */}

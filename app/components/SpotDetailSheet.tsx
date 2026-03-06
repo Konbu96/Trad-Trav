@@ -23,6 +23,7 @@ interface SpotDetailSheetProps {
   onClose: () => void;
   isFavorite?: boolean;
   onToggleFavorite?: (spotId: number) => void;
+  isLoadingInfo?: boolean;
 }
 
 // 星評価を表示
@@ -42,6 +43,7 @@ function CategoryBadge({ category }: { category: string }) {
     観光: "bg-blue-100 text-blue-700",
     グルメ: "bg-orange-100 text-orange-700",
     レジャー: "bg-green-100 text-green-700",
+    体験: "bg-purple-100 text-purple-700",
   };
 
   return (
@@ -164,7 +166,7 @@ function getDisplayText(type: SpotInfoType, value: string): string {
 }
 
 // 概要タブ（スポット紹介 + 基本情報）
-function OverviewTab({ spot }: { spot: Spot }) {
+function OverviewTab({ spot, isLoadingInfo }: { spot: Spot; isLoadingInfo?: boolean }) {
   // 予約以外の情報をフィルタリング
   const infosWithoutReservation = spot.infos.filter(info => info.type !== "reservation");
   
@@ -197,17 +199,37 @@ function OverviewTab({ spot }: { spot: Spot }) {
           overflow: "hidden" 
         }}
       >
-        {infosWithoutReservation.map((info, index) => (
-          <InfoListItem 
-            key={`${info.type}-${index}`}
-            icon={InfoIcons[info.type]}
-            href={getHrefForInfo(info.type, info.value)}
-            isLast={index === infosWithoutReservation.length - 1}
-            alignTop={info.type === "address" || info.type === "access"}
-          >
-            {getDisplayText(info.type, info.value)}
-          </InfoListItem>
-        ))}
+        {isLoadingInfo ? (
+          <div style={{ padding: "20px", display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{
+              width: "18px", height: "18px",
+              border: "2px solid #ec4899",
+              borderTopColor: "transparent",
+              borderRadius: "50%",
+              animation: "spin 0.8s linear infinite",
+              flexShrink: 0,
+            }} />
+            <span style={{ fontSize: "13px", color: "#9ca3af" }}>
+              HOKKAIDO LOVE! から情報を取得中...
+            </span>
+          </div>
+        ) : infosWithoutReservation.length > 0 ? (
+          infosWithoutReservation.map((info, index) => (
+            <InfoListItem 
+              key={`${info.type}-${index}`}
+              icon={InfoIcons[info.type]}
+              href={getHrefForInfo(info.type, info.value)}
+              isLast={index === infosWithoutReservation.length - 1}
+              alignTop={info.type === "address" || info.type === "access"}
+            >
+              {getDisplayText(info.type, info.value)}
+            </InfoListItem>
+          ))
+        ) : (
+          <div style={{ padding: "16px" }}>
+            <span style={{ fontSize: "13px", color: "#9ca3af" }}>情報なし</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -215,52 +237,92 @@ function OverviewTab({ spot }: { spot: Spot }) {
 
 // 予約タブ
 function ReservationTab({ spot }: { spot: Spot }) {
-  const reservationInfo = spot.infos.find(info => info.type === "reservation");
-  
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      <div 
-        style={{ 
-          backgroundColor: "#f3f4f6", 
-          borderRadius: "12px", 
-          padding: "16px" 
-        }}
-      >
-        <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#374151", marginBottom: "12px" }}>
+  const reservationInfos = spot.infos.filter(info => info.type === "reservation");
+
+  if (reservationInfos.length === 0) {
+    return (
+      <div style={{ backgroundColor: "#f3f4f6", borderRadius: "12px", padding: "16px" }}>
+        <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#374151", marginBottom: "8px" }}>
           予約について
         </h3>
-        {reservationInfo ? (
-          <p style={{ color: "#4b5563", fontSize: "15px", lineHeight: "1.8" }}>
-            {reservationInfo.value}
-          </p>
-        ) : (
-          <p style={{ color: "#9ca3af", fontSize: "15px", lineHeight: "1.8" }}>
-            予約情報はありません
-          </p>
-        )}
+        <p style={{ color: "#9ca3af", fontSize: "14px", lineHeight: "1.8" }}>
+          予約情報はありません
+        </p>
       </div>
-      
-      {/* 予約ボタン（URLがある場合） */}
-      {reservationInfo && reservationInfo.value.startsWith("http") && (
-        <a
-          href={reservationInfo.value}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: "block",
-            backgroundColor: "#3b82f6",
-            color: "white",
-            textAlign: "center",
-            padding: "14px 20px",
-            borderRadius: "12px",
-            fontSize: "16px",
-            fontWeight: "bold",
-            textDecoration: "none",
-          }}
-        >
-          予約サイトへ
-        </a>
-      )}
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      {reservationInfos.map((info, i) => {
+        const isPdf = info.value.endsWith(".pdf");
+        const isUrl = info.value.startsWith("http") && !isPdf;
+        const isText = !isPdf && !isUrl;
+
+        return (
+          <div key={i} style={{ backgroundColor: "#f3f4f6", borderRadius: "12px", padding: "16px" }}>
+            <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#374151", marginBottom: "10px" }}>
+              🎫 {info.label}
+            </h3>
+
+            {isText && (
+              <p style={{ color: "#4b5563", fontSize: "14px", lineHeight: "1.9", whiteSpace: "pre-line" }}>
+                {info.value}
+              </p>
+            )}
+
+            {isUrl && (
+              <a
+                href={info.value}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "block",
+                  backgroundColor: "#ec4899",
+                  color: "white",
+                  textAlign: "center",
+                  padding: "14px 20px",
+                  borderRadius: "10px",
+                  fontSize: "15px",
+                  fontWeight: "bold",
+                  textDecoration: "none",
+                }}
+              >
+                予約サイトへ →
+              </a>
+            )}
+
+            {isPdf && (
+              <div>
+                <p style={{ color: "#4b5563", fontSize: "13px", lineHeight: "1.8", marginBottom: "12px" }}>
+                  団体・体験学習の予約は予約シート（PDF）に記入のうえ、メールまたはFAXでお送りください。
+                </p>
+                <a
+                  href={info.value}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    backgroundColor: "#f97316",
+                    color: "white",
+                    textAlign: "center",
+                    padding: "14px 20px",
+                    borderRadius: "10px",
+                    fontSize: "15px",
+                    fontWeight: "bold",
+                    textDecoration: "none",
+                  }}
+                >
+                  📄 予約シートをダウンロード（PDF）
+                </a>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -327,49 +389,126 @@ function ReviewsTab({ spot }: { spot: Spot }) {
 
 // 写真タブ
 function PhotosTab({ spot }: { spot: Spot }) {
-  // 仮の写真プレースホルダー
-  const placeholderPhotos = [
-    { id: 1, color: "#E8F4FD" },
-    { id: 2, color: "#FDF2E8" },
-    { id: 3, color: "#E8FDF0" },
-    { id: 4, color: "#F8E8FD" },
-    { id: 5, color: "#FDE8E8" },
-    { id: 6, color: "#E8EFFD" },
-  ];
+  const hasPhotos = spot.photos && spot.photos.length > 0;
+  const hasVideos = spot.videos && spot.videos.length > 0;
 
   return (
-    <div>
-      <div className="grid grid-cols-2 gap-3">
-        {placeholderPhotos.map((photo) => (
-          <div
-            key={photo.id}
-            className="aspect-square rounded-2xl flex items-center justify-center"
-            style={{ backgroundColor: photo.color }}
-          >
-            <div className="text-center">
-              <div className="mx-auto mb-1 flex justify-center">
-                <PhotoIcon size={32} color="#9CA3AF" />
-              </div>
-              <span className="text-xs text-gray-400">写真 {photo.id}</span>
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      {/* PR動画セクション */}
+      {hasVideos && (
+        <div>
+          <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#374151", marginBottom: "10px" }}>
+            🎬 PR動画
+          </h3>
+          {spot.videos!.map((url, i) => (
+            <div
+              key={i}
+              style={{
+                position: "relative",
+                width: "100%",
+                paddingTop: "56.25%", // 16:9
+                borderRadius: "12px",
+                overflow: "hidden",
+                backgroundColor: "#000",
+                marginBottom: "10px",
+              }}
+            >
+              <iframe
+                src={url}
+                title={`${spot.name} PR動画 ${i + 1}`}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: "100%",
+                  border: "none",
+                }}
+              />
             </div>
+          ))}
+        </div>
+      )}
+
+      {/* 写真グリッド */}
+      {hasPhotos ? (
+        <div>
+          <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#374151", marginBottom: "10px" }}>
+            📷 写真
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            {spot.photos!.map((url, i) => (
+              <div
+                key={i}
+                style={{
+                  aspectRatio: "1",
+                  borderRadius: "12px",
+                  overflow: "hidden",
+                  backgroundColor: "#f3f4f6",
+                }}
+              >
+                <img
+                  src={url}
+                  alt={`${spot.name} 写真${i + 1}`}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <p className="text-center text-sm text-gray-400 mt-4">
-        {spot.name}の写真（準備中）
-      </p>
+        </div>
+      ) : !hasVideos ? (
+        <div style={{ textAlign: "center", paddingTop: "32px", paddingBottom: "32px" }}>
+          <div className="mx-auto mb-3 flex justify-center">
+            <PhotoIcon size={40} color="#D1D5DB" />
+          </div>
+          <p style={{ fontSize: "14px", color: "#9ca3af" }}>
+            {spot.name}の写真（準備中）
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onToggleFavorite }: SpotDetailSheetProps) {
+const MAP_TUTORIAL_KEY = "trad-trav-map-tutorial-done"; // MapView と同じキー
+const TAB_TUTORIAL_KEY = "trad-trav-tab-tutorial-done";
+
+export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onToggleFavorite, isLoadingInfo = false }: SpotDetailSheetProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "photos" | "reservation">("overview");
   const [dragY, setDragY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [sheetMode, setSheetMode] = useState<"half" | "full">("half");
+  const [showTabTutorial, setShowTabTutorial] = useState(false);
   const startY = useRef(0);
   const sheetRef = useRef<HTMLDivElement>(null);
+
+  // 初回シートオープン時のみチュートリアルを表示（spotが変化したときに判定）
+  useEffect(() => {
+    // チュートリアル1（マップピン）完了後にのみチュートリアル2（タブ）を表示
+    if (
+      spot &&
+      typeof window !== "undefined" &&
+      localStorage.getItem(MAP_TUTORIAL_KEY) &&   // チュートリアル1完了済み
+      !localStorage.getItem(TAB_TUTORIAL_KEY)      // チュートリアル2はまだ
+    ) {
+      setShowTabTutorial(true);
+    }
+  }, [spot]);
+
+  const handleCloseTutorial = () => {
+    setShowTabTutorial(false);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(TAB_TUTORIAL_KEY, "1");
+    }
+  };
+
+  const handleTabChange = (tab: "overview" | "reviews" | "photos" | "reservation") => {
+    setActiveTab(tab);
+    if (showTabTutorial) handleCloseTutorial();
+  };
 
   useEffect(() => {
     if (spot) {
@@ -567,27 +706,84 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
           </div>
 
           {/* タブ */}
-          <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb", marginTop: "20px" }}>
-            <TabButton 
-              label="概要" 
-              isActive={activeTab === "overview"} 
-              onClick={() => setActiveTab("overview")} 
-            />
-            <TabButton 
-              label="口コミ" 
-              isActive={activeTab === "reviews"} 
-              onClick={() => setActiveTab("reviews")} 
-            />
-            <TabButton 
-              label="写真" 
-              isActive={activeTab === "photos"} 
-              onClick={() => setActiveTab("photos")} 
-            />
-            <TabButton 
-              label="予約" 
-              isActive={activeTab === "reservation"} 
-              onClick={() => setActiveTab("reservation")} 
-            />
+          <div style={{ position: "relative", marginTop: "20px" }}>
+            {/* タブチュートリアル吹き出し */}
+            {showTabTutorial && (
+              <div style={{
+                position: "absolute",
+                bottom: "calc(100% + 8px)",
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 20,
+                pointerEvents: "auto",
+                width: "240px",
+              }}>
+                <div style={{
+                  backgroundColor: "white",
+                  borderRadius: "12px",
+                  padding: "12px 14px",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+                  border: "1.5px solid #fce7f3",
+                  position: "relative",
+                }}>
+                  <button
+                    onClick={handleCloseTutorial}
+                    style={{
+                      position: "absolute",
+                      top: 6,
+                      right: 8,
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "#9ca3af",
+                      fontSize: "14px",
+                      lineHeight: 1,
+                      padding: "2px 4px",
+                    }}
+                  >
+                    ✕
+                  </button>
+                  <p style={{ fontSize: "13px", fontWeight: "600", color: "#ec4899", margin: "0 0 4px" }}>
+                    👆 タブで情報を切り替え！
+                  </p>
+                  <p style={{ fontSize: "12px", color: "#6b7280", margin: 0, lineHeight: 1.5 }}>
+                    口コミ・写真・予約情報も確認できます
+                  </p>
+                </div>
+                {/* 矢印 */}
+                <div style={{
+                  width: 0,
+                  height: 0,
+                  borderLeft: "8px solid transparent",
+                  borderRight: "8px solid transparent",
+                  borderTop: "10px solid white",
+                  margin: "0 auto",
+                  filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.1))",
+                }} />
+              </div>
+            )}
+            <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb" }}>
+              <TabButton
+                label="概要"
+                isActive={activeTab === "overview"}
+                onClick={() => handleTabChange("overview")}
+              />
+              <TabButton
+                label="口コミ"
+                isActive={activeTab === "reviews"}
+                onClick={() => handleTabChange("reviews")}
+              />
+              <TabButton
+                label="写真"
+                isActive={activeTab === "photos"}
+                onClick={() => handleTabChange("photos")}
+              />
+              <TabButton
+                label="予約"
+                isActive={activeTab === "reservation"}
+                onClick={() => handleTabChange("reservation")}
+              />
+            </div>
           </div>
         </div>
 
@@ -602,7 +798,7 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
             paddingBottom: "100px",
           }}
         >
-          {activeTab === "overview" && <OverviewTab spot={spot} />}
+          {activeTab === "overview" && <OverviewTab spot={spot} isLoadingInfo={isLoadingInfo} />}
           {activeTab === "reviews" && <ReviewsTab spot={spot} />}
           {activeTab === "photos" && <PhotosTab spot={spot} />}
           {activeTab === "reservation" && <ReservationTab spot={spot} />}

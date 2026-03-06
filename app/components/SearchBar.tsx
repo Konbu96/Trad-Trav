@@ -7,6 +7,35 @@ export interface SearchLocation {
   lat: number;
   lng: number;
   name: string;
+  osm_id?: number;
+  osm_type?: string;
+  category?: string;
+  type?: string;
+  extratags?: {
+    opening_hours?: string;
+    phone?: string;
+    website?: string;
+    "contact:phone"?: string;
+    "contact:website"?: string;
+    fee?: string;
+    access?: string;
+    parking?: string;
+    reservation?: string;
+    [key: string]: string | undefined;
+  };
+  address?: {
+    road?: string;
+    neighbourhood?: string;
+    suburb?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+    county?: string;
+    state?: string;
+    postcode?: string;
+    country?: string;
+    [key: string]: string | undefined;
+  };
 }
 
 // 検索結果（複数対応）
@@ -40,63 +69,72 @@ function isInHokkaido(lat: number, lng: number): boolean {
   );
 }
 
+type NominatimResult = {
+  lat: string;
+  lon: string;
+  display_name: string;
+  osm_id: number;
+  osm_type: string;
+  category: string;
+  type: string;
+  importance: number;
+  extratags?: SearchLocation["extratags"];
+  address?: SearchLocation["address"];
+};
+
+function toSearchLocation(r: NominatimResult): SearchLocation {
+  return {
+    lat: parseFloat(r.lat),
+    lng: parseFloat(r.lon),
+    name: r.display_name,
+    osm_id: r.osm_id,
+    osm_type: r.osm_type,
+    category: r.category,
+    type: r.type,
+    extratags: r.extratags,
+    address: r.address,
+  };
+}
+
 // Nominatim APIで地名から座標を取得（複数結果対応、北海道のみ）
 async function geocodeLocations(query: string): Promise<SearchLocation[]> {
+  const NOMINATIM = "https://nominatim.openstreetmap.org/search";
+  // Hokkaido viewbox: left(west), top(north), right(east), bottom(south)
+  const VIEWBOX = "138.0,46.0,146.5,40.5";
+  const HEADERS = { "Accept-Language": "ja", "User-Agent": "trad-trav-app" };
+
+  const baseParams = {
+    format: "json",
+    limit: "20",
+    addressdetails: "1",
+    extratags: "1",
+    countrycodes: "jp",
+  };
+
   try {
-    // 北海道内での検索を優先するためにviewboxを設定
-    const params = new URLSearchParams({
-      q: query + " 北海道",
-      format: "json",
-      limit: "20", // 多めに取得してフィルタリング
-      viewbox: "138.0,46.0,146.5,40.5",
-      bounded: "1",
-    });
+    // Step 1: クエリそのまま + viewbox bounded で検索（最も精度が高い）
+    const p1 = new URLSearchParams({ ...baseParams, q: query, viewbox: VIEWBOX, bounded: "1" });
+    const r1 = await fetch(`${NOMINATIM}?${p1}`, { headers: HEADERS });
+    if (!r1.ok) throw new Error("Geocoding failed");
+    let data: NominatimResult[] = await r1.json();
 
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?${params}`,
-      {
-        headers: {
-          "Accept-Language": "ja",
-        },
+    // Step 2: 結果が少ない場合、bounded なしで北海道全域を検索
+    if (data.length < 3) {
+      const p2 = new URLSearchParams({ ...baseParams, q: query, viewbox: VIEWBOX });
+      const r2 = await fetch(`${NOMINATIM}?${p2}`, { headers: HEADERS });
+      if (r2.ok) {
+        const d2: NominatimResult[] = await r2.json();
+        // 重複除去してマージ
+        const existing = new Set(data.map(d => d.osm_id));
+        data = [...data, ...d2.filter(d => !existing.has(d.osm_id))];
       }
-    );
-
-    if (!response.ok) {
-      throw new Error("Geocoding failed");
     }
 
-    let data = await response.json();
+    // 北海道内のみフィルタリング → importance 降順にソート
+    const results = data
+      .map(toSearchLocation)
+      .filter(loc => isInHokkaido(loc.lat, loc.lng));
 
-    if (data.length === 0) {
-      // bounded検索で見つからなかった場合、北海道キーワードで再検索
-      const paramsUnbounded = new URLSearchParams({
-        q: query + " 北海道",
-        format: "json",
-        limit: "20",
-      });
-
-      const responseUnbounded = await fetch(
-        `https://nominatim.openstreetmap.org/search?${paramsUnbounded}`,
-        {
-          headers: {
-            "Accept-Language": "ja",
-          },
-        }
-      );
-
-      data = await responseUnbounded.json();
-    }
-
-    // 結果を変換し、北海道内のみフィルタリング
-    const results: SearchLocation[] = data
-      .map((result: { lat: string; lon: string; display_name: string }) => ({
-        lat: parseFloat(result.lat),
-        lng: parseFloat(result.lon),
-        name: result.display_name,
-      }))
-      .filter((loc: SearchLocation) => isInHokkaido(loc.lat, loc.lng));
-
-    // 最大10件まで
     return results.slice(0, 10);
   } catch (error) {
     console.error("Geocoding error:", error);
@@ -111,19 +149,20 @@ export default function SearchBar({
   hasSearchResults = false,
 }: SearchBarProps) {
   const [searchValue, setSearchValue] = useState("");
+  const [activeQuery, setActiveQuery] = useState(""); // 検索実行済みのクエリ
   const [isSearching, setIsSearching] = useState(false);
 
   const handleSearch = async () => {
-    if (!searchValue.trim() || isSearching) return;
+    const query = searchValue.trim();
+    if (!query || isSearching) return;
 
     setIsSearching(true);
     try {
-      const locations = await geocodeLocations(searchValue.trim());
+      const locations = await geocodeLocations(query);
       if (locations.length > 0) {
-        onLocationSearch({
-          locations,
-          query: searchValue.trim(),
-        });
+        onLocationSearch({ locations, query });
+        setActiveQuery(query); // 検索クエリを保持
+        // 入力欄はクリアしない（activeQueryで表示）
         setSearchValue("");
       } else {
         alert("場所が見つかりませんでした");
@@ -141,8 +180,12 @@ export default function SearchBar({
 
   const handleClear = () => {
     setSearchValue("");
+    setActiveQuery("");
     onClearSearch();
   };
+
+  // 表示する値：検索実行後はactiveQuery、入力中はsearchValue
+  const displayValue = searchValue || activeQuery;
 
   return (
     <div 
@@ -196,15 +239,20 @@ export default function SearchBar({
           <input
             type="text"
             placeholder="場所を検索..."
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
+            value={displayValue}
+            onChange={(e) => {
+              setSearchValue(e.target.value);
+              // 入力し始めたらactiveQueryをリセット
+              if (activeQuery) setActiveQuery("");
+            }}
             onKeyDown={handleKeyDown}
             disabled={isSearching}
+            style={{ color: activeQuery && !searchValue ? "#ec4899" : undefined }}
             className="flex-1 bg-transparent border-none outline-none text-base text-gray-800 placeholder-gray-400 disabled:opacity-50"
           />
           
-          {/* クリアボタン（入力がある時 または 検索結果がある時に表示） */}
-          {(searchValue || hasSearchResults) && !isSearching && (
+          {/* クリアボタン（入力がある時 または 検索中クエリがある時に表示） */}
+          {(displayValue || hasSearchResults) && !isSearching && (
             <button 
               onClick={handleClear}
               className="p-1 hover:bg-gray-100 rounded-full transition-colors"

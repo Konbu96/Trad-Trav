@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { MapContainer, TileLayer, ZoomControl, useMap, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -129,22 +130,87 @@ function SpotFlyController({ targetSpot }: { targetSpot: Spot | null }) {
 }
 
 // 検索結果をSpot型に変換
+// カテゴリを日本語ラベルに変換
+function getCategoryLabel(category?: string, type?: string): string {
+  const map: Record<string, string> = {
+    tourism: "観光",
+    amenity: "施設",
+    historic: "歴史・文化財",
+    natural: "自然",
+    leisure: "レジャー",
+    shop: "ショップ",
+    religion: "宗教施設",
+    highway: "道路",
+    building: "建物",
+    place: "場所",
+  };
+  if (category && map[category]) return map[category];
+  if (type) {
+    const typeMap: Record<string, string> = {
+      shrine: "神社",
+      temple: "寺院",
+      museum: "博物館・美術館",
+      attraction: "観光スポット",
+      viewpoint: "展望スポット",
+      park: "公園",
+      castle: "城",
+      ruins: "遺跡",
+      artwork: "アート",
+      hotel: "宿泊施設",
+      restaurant: "飲食店",
+      cafe: "カフェ",
+      fast_food: "ファストフード",
+      hot_spring: "温泉",
+    };
+    if (typeMap[type]) return typeMap[type];
+  }
+  return "検索結果";
+}
+
+function buildAddress(loc: SearchLocation): string {
+  if (!loc.address) {
+    // display_nameをそのまま使う
+    return loc.name;
+  }
+  const a = loc.address;
+  const parts = [
+    a.postcode ? `〒${a.postcode}` : null,
+    a.state,
+    a.county,
+    a.city || a.town || a.village,
+    a.suburb || a.neighbourhood,
+    a.road,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" ") : loc.name;
+}
+
 function searchLocationToSpot(location: SearchLocation, index: number): Spot {
   const nameParts = location.name.split(",");
   const shortName = nameParts[0].trim();
-  const address = location.name;
-  
+  const category = getCategoryLabel(location.category, location.type);
+  const address = buildAddress(location);
+  const ext = location.extratags || {};
+  const phone = ext.phone || ext["contact:phone"];
+  const website = ext.website || ext["contact:website"];
+  const hours = ext.opening_hours;
+
+  const infos: Spot["infos"] = [];
+  if (hours) infos.push({ type: "hours", label: "営業時間", value: hours });
+  infos.push({ type: "address", label: "住所", value: address });
+  if (phone) infos.push({ type: "phone", label: "電話番号", value: phone });
+  if (website) infos.push({ type: "website", label: "Webサイト", value: website });
+
   return {
-    id: -1000 - index, // 負のIDで検索結果を区別
+    id: -1000 - index,
     name: shortName,
     lat: location.lat,
     lng: location.lng,
-    description: "aaa",
-    category: "検索結果",
+    description: location.type
+      ? `${category}（${location.type}）`
+      : category,
+    category,
     reviews: [],
-    infos: [
-      { type: "address", label: "住所", value: address },
-    ],
+    infos,
   };
 }
 
@@ -183,10 +249,12 @@ function SearchMarkers({
 // おすすめスポットのマーカーコンポーネント
 function SpotMarkers({ 
   onSpotClick, 
-  isVisible 
+  isVisible,
+  filterIds,
 }: { 
   onSpotClick: (spot: Spot) => void;
   isVisible: boolean;
+  filterIds?: number[] | null;
 }) {
   const [spotIcon, setSpotIcon] = useState<L.DivIcon | null>(null);
 
@@ -196,9 +264,11 @@ function SpotMarkers({
 
   if (!spotIcon || !isVisible) return null;
 
+  const spotsToShow = filterIds ? recommendedSpots.filter(s => filterIds.includes(s.id)) : recommendedSpots;
+
   return (
     <>
-      {recommendedSpots.map((spot) => (
+      {spotsToShow.map((spot) => (
         <Marker
           key={spot.id}
           position={[spot.lat, spot.lng]}
@@ -252,14 +322,123 @@ interface MapViewProps {
   onJumpComplete?: () => void;
   favoriteSpotIds?: number[];
   onToggleFavorite?: (spotId: number) => void;
+  recommendedSpotIds?: number[] | null;
 }
 
-export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favoriteSpotIds = [], onToggleFavorite }: MapViewProps) {
+const TUTORIAL_KEY = "trad-trav-map-tutorial-done";
+
+// マップのlatLngをピクセル座標に変換してポータルで描画するコンポーネント
+function TutorialTooltip({
+  spot,
+  onClose,
+}: {
+  spot: Spot;
+  onClose: () => void;
+}) {
+  const map = useMap();
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const update = () => {
+      const p = map.latLngToContainerPoint([spot.lat, spot.lng]);
+      setPos({ x: p.x, y: p.y });
+    };
+    update();
+    map.on("move zoom resize", update);
+    return () => { map.off("move zoom resize", update); };
+  }, [map, spot]);
+
+  if (!pos) return null;
+
+  const W = 220;
+
+  // map.getContainer() はマップの div 要素（position:relative）
+  // createPortal でその直接の子として描画することで absolute 座標が正しく機能する
+  return createPortal(
+    <div
+      style={{
+        position: "absolute",
+        left: pos.x - W / 2,
+        top: pos.y - 110, // ピンアイコンの上
+        width: W,
+        zIndex: 1000,
+        pointerEvents: "auto",
+      }}
+    >
+      {/* 吹き出し本体 */}
+      <div
+        style={{
+          backgroundColor: "white",
+          borderRadius: "12px",
+          padding: "12px 14px",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
+          border: "1.5px solid #fce7f3",
+          position: "relative",
+        }}
+      >
+        <button
+          onClick={(e) => { e.stopPropagation(); onClose(); }}
+          style={{
+            position: "absolute",
+            top: 6,
+            right: 8,
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: "#9ca3af",
+            fontSize: "14px",
+            lineHeight: 1,
+            padding: "2px 4px",
+          }}
+        >
+          ✕
+        </button>
+        <p style={{ fontSize: "13px", fontWeight: "600", color: "#ec4899", margin: "0 0 4px" }}>
+          👆 ここをタップ！
+        </p>
+        <p style={{ fontSize: "12px", color: "#6b7280", margin: 0, lineHeight: 1.4 }}>
+          スポットの詳細・営業時間が確認できます
+        </p>
+      </div>
+      {/* 矢印 */}
+      <div
+        style={{
+          width: 0,
+          height: 0,
+          borderLeft: "8px solid transparent",
+          borderRight: "8px solid transparent",
+          borderTop: "10px solid white",
+          margin: "0 auto",
+          filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.1))",
+        }}
+      />
+    </div>,
+    map.getContainer()
+  );
+}
+
+export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favoriteSpotIds = [], onToggleFavorite, recommendedSpotIds }: MapViewProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [searchLocations, setSearchLocations] = useState<SearchLocation[]>([]);
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [targetSpot, setTargetSpot] = useState<Spot | null>(null);
+  const [isFetchingSpotInfo, setIsFetchingSpotInfo] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const mapKey = useRef(`map-${Date.now()}`);
+
+  // チュートリアル表示判定（初回のみ）
+  useEffect(() => {
+    if (typeof window !== "undefined" && !localStorage.getItem(TUTORIAL_KEY)) {
+      setShowTutorial(true);
+    }
+  }, []);
+
+  const handleCloseTutorial = () => {
+    setShowTutorial(false);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(TUTORIAL_KEY, "1");
+    }
+  };
 
   // クライアントサイドでのみマップを表示
   useEffect(() => {
@@ -292,6 +471,8 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
   };
 
   const handleSpotClick = (spot: Spot) => {
+    // チュートリアルが表示中なら閉じる
+    if (showTutorial) handleCloseTutorial();
     // 現在位置からスポットまでの距離を計算
     const latDiff = Math.abs(spot.lat - HOKKAIDO_CENTER[0]);
     const lngDiff = Math.abs(spot.lng - HOKKAIDO_CENTER[1]);
@@ -318,12 +499,43 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
   };
 
   // 検索結果のピンをクリックした時
-  const handleSearchLocationClick = (spot: Spot) => {
-    // 即座に詳細シートを表示（マップ移動なし）
+  const handleSearchLocationClick = async (spot: Spot) => {
+    // まず既存情報で即座に詳細シートを表示
     setSelectedSpot({ ...spot });
-    // 閲覧履歴に追加
     if (onSpotView) {
       onSpotView({ id: spot.id, name: spot.name, category: spot.category });
+    }
+
+    // HOKKAIDO LOVE! から追加情報を非同期で取得
+    setIsFetchingSpotInfo(true);
+    try {
+      const res = await fetch(`/api/spot-info?name=${encodeURIComponent(spot.name)}`);
+      if (res.ok) {
+        const info = await res.json();
+        const extraInfos: Spot["infos"] = [];
+        if (info.hours)       extraInfos.push({ type: "hours",      label: "営業時間", value: info.hours });
+        if (info.address)     extraInfos.push({ type: "address",    label: "住所",     value: info.address });
+        if (info.phone)       extraInfos.push({ type: "phone",      label: "電話番号", value: info.phone });
+        if (info.closedDays)  extraInfos.push({ type: "closedDays", label: "休業日",   value: info.closedDays });
+        if (info.price)       extraInfos.push({ type: "price",      label: "料金",     value: info.price });
+        if (info.parking)     extraInfos.push({ type: "parking",    label: "駐車場",   value: info.parking });
+        if (info.access)      extraInfos.push({ type: "access",     label: "アクセス", value: info.access });
+        if (info.website)     extraInfos.push({ type: "website",    label: "公式サイト", value: info.website });
+        if (info.sourceUrl)   extraInfos.push({ type: "website",    label: "HOKKAIDO LOVE!", value: info.sourceUrl });
+
+        if (extraInfos.length > 0) {
+          setSelectedSpot(prev => prev ? {
+            ...prev,
+            // 名前はAPIから取得したものが信頼できる場合のみ上書き
+            name: (info.name && !info.name.includes("HOKKAIDO LOVE")) ? info.name : prev.name,
+            infos: extraInfos,
+          } : prev);
+        }
+      }
+    } catch (err) {
+      console.warn("HOKKAIDO LOVE! 情報の取得に失敗:", err);
+    } finally {
+      setIsFetchingSpotInfo(false);
     }
   };
 
@@ -393,9 +605,26 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
           <ZoomControl position="bottomright" />
           <MapController searchLocations={searchLocations} />
           <SpotFlyController targetSpot={targetSpot} />
-          <SpotMarkers onSpotClick={handleSpotClick} isVisible={showSpotMarkers} />
+          <SpotMarkers onSpotClick={handleSpotClick} isVisible={showSpotMarkers} filterIds={recommendedSpotIds} />
           <FavoriteMarkers favoriteSpotIds={favoriteSpotIds} onSpotClick={handleSpotClick} isVisible={showFavoriteMarkers} />
           <SearchMarkers locations={searchLocations} onLocationClick={handleSearchLocationClick} />
+          {(() => {
+            if (!showTutorial || searchLocations.length > 0) return null;
+            const ids = recommendedSpotIds && recommendedSpotIds.length > 0 ? recommendedSpotIds : null;
+            const candidates = ids
+              ? recommendedSpots.filter(s => ids.includes(s.id))
+              : recommendedSpots;
+            if (candidates.length === 0) return null;
+            // 動画付きスポットを優先してチュートリアル対象に選ぶ（なければ中心に最も近いスポット）
+            const withVideo = candidates.filter(s => s.videos && s.videos.length > 0);
+            const pool = withVideo.length > 0 ? withVideo : candidates;
+            const tutorialSpot = pool.reduce((best, s) => {
+              const dBest = Math.hypot(best.lat - HOKKAIDO_CENTER[0], best.lng - HOKKAIDO_CENTER[1]);
+              const dS    = Math.hypot(s.lat    - HOKKAIDO_CENTER[0], s.lng    - HOKKAIDO_CENTER[1]);
+              return dS < dBest ? s : best;
+            });
+            return <TutorialTooltip spot={tutorialSpot} onClose={handleCloseTutorial} />;
+          })()}
         </MapContainer>
       </div>
 
@@ -405,6 +634,7 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
         onClose={handleCloseSheet}
         isFavorite={selectedSpot ? favoriteSpotIds.includes(selectedSpot.id) : false}
         onToggleFavorite={onToggleFavorite}
+        isLoadingInfo={isFetchingSpotInfo}
       />
     </>
   );
