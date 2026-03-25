@@ -17,11 +17,12 @@ export const translations = {
 
     // ナビゲーション
     nav: {
+      plan: "プラン",
       mypage: "マイページ",
       reservations: "予約一覧",
       map: "マップ",
       posts: "投稿",
-      chat: "AIチャット",
+      chat: "言語",
     },
 
     // スプラッシュ
@@ -126,12 +127,19 @@ export const translations = {
       logout: "ログアウト",
     },
 
-    // AIチャット
-    chat: {
-      title: "AIお助けチャット",
-      subtitle: "北海道旅行のことなら何でも聞いてね！",
-      inputPlaceholder: "メッセージを入力...",
-      welcome: "こんにちは！北海道旅行のお手伝いをします🌸\n観光スポットやグルメ、アクセス方法など、何でも聞いてくださいね！",
+    // 言語ヘルパー
+    translation: {
+      title: "言語ヘルパー",
+      subtitle: "旅先で言葉の壁をなくそう",
+      inputPlaceholder: "翻訳したいテキストを入力...",
+      translateButton: "翻訳する",
+      translating: "翻訳中...",
+      clear: "クリア",
+      copy: "コピー",
+      copied: "コピーしました",
+      characters: "文字",
+      quickPhrases: "よく使うフレーズ",
+      errorMessage: "翻訳できませんでした。もう一度お試しください。",
     },
 
     // マップ
@@ -183,11 +191,12 @@ export const translations = {
 
     // Navigation
     nav: {
+      plan: "Plan",
       mypage: "My Page",
       reservations: "Reservations",
       map: "Map",
       posts: "Posts",
-      chat: "AI Chat",
+      chat: "Language",
     },
 
     // Splash
@@ -292,12 +301,19 @@ export const translations = {
       logout: "Log Out",
     },
 
-    // AI Chat
-    chat: {
-      title: "AI Travel Assistant",
-      subtitle: "Ask me anything about Hokkaido!",
-      inputPlaceholder: "Type a message...",
-      welcome: "Hello! I'm here to help with your Hokkaido trip 🌸\nFeel free to ask about attractions, food, or transportation!",
+    // Language Helper
+    translation: {
+      title: "Language Helper",
+      subtitle: "Break language barriers while you travel",
+      inputPlaceholder: "Enter text to translate...",
+      translateButton: "Translate",
+      translating: "Translating...",
+      clear: "Clear",
+      copy: "Copy",
+      copied: "Copied",
+      characters: "chars",
+      quickPhrases: "Quick Phrases",
+      errorMessage: "Translation failed. Please try again.",
     },
 
     // Map

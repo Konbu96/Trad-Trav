@@ -24,22 +24,19 @@ interface RecommendedPlan {
 
 type Step = "interests" | "duration" | "companion" | "result";
 
-type TravelTypeKey = "history" | "food" | "experience" | "healing" | "allround";
+type TravelTypeKey = "performing_arts" | "crafts" | "allround";
 
 // Q1 興味（複数選択）
 const interestOptions = [
-  { id: "sightseeing", label: "歴史的な場所・建物を見て回りたい", emoji: "🏯" },
-  { id: "food",        label: "郷土料理・食文化を楽しみたい",       emoji: "🍱" },
-  { id: "hands_on",   label: "伝統工芸・体験プログラムに参加したい", emoji: "🎨" },
-  { id: "culture",    label: "アイヌなど先住民族文化を学びたい",    emoji: "🪶" },
-  { id: "healing",    label: "温泉・神社・祭りでゆっくりしたい",    emoji: "♨️" },
+  { id: "performing_arts", label: "伝統芸能・踊り・祭りに参加したい", emoji: "🎭" },
+  { id: "crafts",          label: "伝統工芸・ものづくりを体験したい", emoji: "🏺" },
 ];
 
 // Q2 旅行期間
 const durationOptions = [
   { id: "short",    label: "1〜2泊",   description: "短期滞在" },
   { id: "medium",   label: "3〜4泊",   description: "ゆっくり主要スポットを回る" },
-  { id: "long",     label: "5〜6泊",   description: "じっくり北海道を満喫" },
+  { id: "long",     label: "5〜6泊",   description: "じっくり東北を満喫" },
   { id: "extended", label: "1週間以上", description: "深く探訪・体験重視" },
 ];
 
@@ -52,29 +49,25 @@ const companionOptions = [
 ];
 
 // スコアリングマトリクス（Q1選択 → タイプ別加算）
-// Q1の選択が結果に最も強く反映されるよう主要タイプに高いスコアを設定
 const SCORE_MATRIX: Record<string, Record<TravelTypeKey, number>> = {
-  sightseeing: { history: 6, food: 0, experience: 1, healing: 1, allround: 0 },
-  food:        { history: 0, food: 6, experience: 1, healing: 1, allround: 0 },
-  hands_on:    { history: 1, food: 0, experience: 6, healing: 0, allround: 0 },
-  culture:     { history: 3, food: 0, experience: 3, healing: 1, allround: 0 },
-  healing:     { history: 0, food: 1, experience: 0, healing: 6, allround: 0 },
+  performing_arts: { performing_arts: 6, crafts: 0, allround: 1 },
+  crafts:          { performing_arts: 0, crafts: 6, allround: 1 },
 };
 
 // Q2 期間補正（タイブレーカー程度）
 const DURATION_BONUS: Record<string, Partial<Record<TravelTypeKey, number>>> = {
   short:    {},
-  medium:   { experience: 1 },
-  long:     { experience: 1, history: 1 },
+  medium:   { crafts: 1 },
+  long:     { allround: 1 },
   extended: { allround: 2 },
 };
 
 // Q3 同行者補正（タイブレーカー）
 const COMPANION_BONUS: Record<string, Partial<Record<TravelTypeKey, number>>> = {
-  solo:    { history: 1 },
-  couple:  { healing: 1 },
-  family:  { experience: 1 },
-  friends: { food: 1 },
+  solo:    { crafts: 1 },
+  couple:  { performing_arts: 1 },
+  family:  { allround: 1 },
+  friends: { performing_arts: 1 },
 };
 
 // 結果タイプ定義
@@ -88,101 +81,62 @@ const TRAVEL_TYPE_DATA: Record<TravelTypeKey, {
   planTitle: string;
   planDescription: string;
 }> = {
-  history: {
-    label: "歴史・景観探訪者",
-    emoji: "🏯",
-    description: "歴史的な建物や景観に魅了されるあなた。北海道の開拓史から和の文化まで、時代を超えた物語を旅しましょう。",
+  performing_arts: {
+    label: "伝統芸能参加者",
+    emoji: "🎭",
+    description: "踊り・祭り・芸能の中に飛び込みたいあなた。700年続く盆踊りの輪に加わり、鬼の面をつけて舞い、太鼓の音に体を委ねる。東北の伝統芸能は参加してこそ本物の感動があります。",
     tips: [
-      "城や洋館は午前中の光が美しくおすすめです",
-      "ガイドツアーに参加すると歴史の深みが増します",
-      "史跡は複数箇所をまとめて巡ると効率的です",
-      "写真撮影は開館直後が空いていておすすめ",
+      "夏の祭り（7〜8月）は参加型イベントが多く、最もおすすめです",
+      "跳ね人・踊り連への参加は事前申込が必要な場合があります",
+      "竿燈や鬼剣舞などの体験コーナーは開場直後が混みにくいです",
+      "衣装レンタルができる祭りも多いので気軽に参加してみましょう",
     ],
-    spotNames: ["五稜郭", "松前城", "旧道庁（赤レンガ）", "旧開拓使函館支庁書籍庫", "函館元町エリア"],
+    spotNames: ["青森ねぶた祭（跳ね人参加）", "盛岡さんさ踊り（参加型）", "秋田竿燈まつり（竿燈体験）", "鬼剣舞（体験ワークショップ）", "西馬音内盆踊り（飛び入り参加）"],
     categories: [
-      { label: "史跡・城・文化財", emoji: "🏯" },
-      { label: "博物館・資料館", emoji: "🏛️" },
-      { label: "運河・町並み", emoji: "🌆" },
+      { label: "伝統芸能・踊り", emoji: "🎭" },
+      { label: "祭り・行列", emoji: "🎪" },
+      { label: "能・神楽", emoji: "🎑" },
     ],
-    planTitle: "北海道歴史・景観巡りプラン",
-    planDescription: "開拓時代の面影が残る函館・小樽・札幌を中心に、歴史建築と文化財を巡る旅。",
+    planTitle: "東北伝統芸能参加プラン",
+    planDescription: "踊り・祭り・芸能の輪に自ら加わり、東北の生きた伝統を体全体で感じる旅。",
   },
-  food: {
-    label: "食文化グルメ派",
-    emoji: "🍱",
-    description: "食を通じて文化を感じるあなた。アイヌの伝統食から開拓時代のグルメまで、北海道ならではの食体験が待っています。",
+  crafts: {
+    label: "伝統工芸体験家",
+    emoji: "🏺",
+    description: "作ること・手を動かすことに喜びを感じるあなた。南部鉄器・曲げわっぱ・会津漆器など、東北の職人が何百年と守り続けてきた技に触れ、自分だけの一品を生み出しましょう。",
     tips: [
-      "朝市は早朝が新鮮でおすすめです",
-      "郷土料理は地元の小さな食堂が本場の味",
-      "酒造・ワイナリー見学では試飲も楽しめます",
-      "食材の旬を事前に調べておくとより楽しめます",
+      "工芸体験はほとんどの場所で事前予約が必要です",
+      "完成品の発送に対応している工房も多いのでお土産にもなります",
+      "所要時間は1〜3時間が多いので、日程に余裕を持って計画を",
+      "職人さんへの質問は積極的に。技術の背景を教えてもらえます",
     ],
-    spotNames: ["サッポロビール園", "函館朝市", "二条市場", "小樽運河倉庫群", "帯広・十勝グルメエリア"],
+    spotNames: ["南部鉄器体験（岩鋳鉄器館）", "曲げわっぱ体験（大館）", "樺細工体験（角館）", "会津本郷焼（陶芸体験）", "会津漆器（蒔絵体験）"],
     categories: [
-      { label: "郷土料理・食文化", emoji: "🍱" },
-      { label: "市場・朝市", emoji: "🐟" },
-      { label: "酒蔵・ワイナリー", emoji: "🍶" },
+      { label: "伝統工芸・体験", emoji: "🏺" },
+      { label: "ものづくり・陶芸", emoji: "🎨" },
+      { label: "染め・織り・漆器", emoji: "🧵" },
     ],
-    planTitle: "北海道食文化探訪プラン",
-    planDescription: "市場・朝市・地元食堂・酒造を巡り、北海道の食文化を舌で体感する旅。",
-  },
-  experience: {
-    label: "伝統体験家",
-    emoji: "🎨",
-    description: "作ること・体験することが好きなあなた。アイヌ工芸から和の伝統技術まで、手と心で文化を感じましょう。",
-    tips: [
-      "体験プログラムは事前予約が必要なものが多いです",
-      "作った作品は旅の思い出として持ち帰れます",
-      "ウポポイは1日かけてじっくり回るのがおすすめ",
-      "子ども向け体験も充実しているスポットが多いです",
-    ],
-    spotNames: ["ウポポイ（民族共生象徴空間）", "二風谷アイヌ文化博物館", "北海道開拓の村", "小樽芸術村", "江戸時代村（登別）"],
-    categories: [
-      { label: "伝統工芸・体験", emoji: "🎨" },
-      { label: "アイヌ文化", emoji: "🪶" },
-      { label: "ものづくり体験", emoji: "🏺" },
-    ],
-    planTitle: "伝統文化・体験プラン",
-    planDescription: "アイヌ工芸や開拓文化の体験プログラムに参加し、北海道の文化を手で感じる旅。",
-  },
-  healing: {
-    label: "癒し・信仰派",
-    emoji: "♨️",
-    description: "温泉や神社、自然の中で心を休めたいあなた。北海道の豊かな自然と信仰の場が、深い癒しをもたらします。",
-    tips: [
-      "温泉は夕方〜夜の入浴が疲れを癒してくれます",
-      "神社は早朝参拝が静かで清々しいです",
-      "祭りの時期に合わせて旅程を組むのがおすすめ",
-      "日帰り入浴ができる施設も多いのでぜひ立ち寄りを",
-    ],
-    spotNames: ["北海道神宮", "阿寒湖温泉", "定山渓温泉", "洞爺湖温泉", "函館ハリストス正教会"],
-    categories: [
-      { label: "神社仏閣・教会", emoji: "⛩️" },
-      { label: "温泉・湯治", emoji: "♨️" },
-      { label: "パワースポット", emoji: "🌿" },
-    ],
-    planTitle: "北海道癒し・信仰の旅プラン",
-    planDescription: "温泉地と神社・教会を組み合わせ、心と体を癒す静かな北海道の旅。",
+    planTitle: "東北伝統工芸体験プラン",
+    planDescription: "鉄器・木工・漆器・陶芸など、東北の職人技を手と心で感じる創作の旅。",
   },
   allround: {
-    label: "オールラウンド文化人",
+    label: "東北文化全体験者",
     emoji: "🌸",
-    description: "好奇心旺盛で幅広い文化に興味があるあなた。北海道の多彩な伝統文化を贅沢に楽しみましょう。",
+    description: "踊りも工芸も両方体験したい欲張りなあなた。祭りの熱気に包まれながら職人の技にも触れる、東北の伝統文化を余すことなく楽しむ贅沢な旅をしましょう。",
     tips: [
-      "エリアごとにテーマを決めると回りやすいです",
-      "北海道は広いので移動手段の計画が重要です",
-      "季節ごとに見どころが変わるので旅の時期も重要",
-      "観光情報センターを活用すると穴場情報が手に入ります",
+      "夏（7〜8月）は祭りシーズン。工芸体験と組み合わせると最高です",
+      "東北新幹線を使えば複数県のはしごも可能",
+      "祭り参加と工芸体験の予約を事前にセットで入れておくと安心",
+      "国重要無形民俗文化財に指定された本物の伝統を選びましょう",
     ],
-    spotNames: ["ウポポイ", "五稜郭", "北海道開拓の村", "北海道神宮", "小樽芸術村"],
+    spotNames: ["青森ねぶた祭（跳ね人参加）", "南部鉄器体験（岩鋳鉄器館）", "黒川能（体験・鑑賞）", "こけし絵付け体験（鳴子温泉郷）", "西馬音内盆踊り（飛び入り参加）"],
     categories: [
-      { label: "アイヌ文化", emoji: "🪶" },
-      { label: "史跡・建造物", emoji: "🏯" },
-      { label: "伝統工芸・体験", emoji: "🎨" },
-      { label: "神社・温泉", emoji: "♨️" },
+      { label: "伝統芸能・踊り", emoji: "🎭" },
+      { label: "伝統工芸・体験", emoji: "🏺" },
+      { label: "祭り・能・民俗芸能", emoji: "🎑" },
     ],
-    planTitle: "北海道伝統文化オールラウンドプラン",
-    planDescription: "アイヌ文化・歴史・食・体験・温泉をバランスよく取り入れた欲張りプラン。",
+    planTitle: "東北伝統文化フルコースプラン",
+    planDescription: "芸能・工芸・祭り・能楽など、東北が誇る本物の伝統文化を全て体験する旅。",
   },
 };
 
@@ -192,8 +146,8 @@ function calcTravelType(
   duration: string,
   companion: string
 ): TravelTypeKey {
-  const types: TravelTypeKey[] = ["history", "food", "experience", "healing", "allround"];
-  const scores: Record<TravelTypeKey, number> = { history: 0, food: 0, experience: 0, healing: 0, allround: 0 };
+  const types: TravelTypeKey[] = ["performing_arts", "crafts", "allround"];
+  const scores: Record<TravelTypeKey, number> = { performing_arts: 0, crafts: 0, allround: 0 };
 
   // Q1 ベーススコア（選択順を記録してタイブレーカーに使う）
   interests.forEach(interest => {

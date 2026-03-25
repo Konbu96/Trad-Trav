@@ -51,21 +51,21 @@ interface SearchBarProps {
   hasSearchResults?: boolean;
 }
 
-// 北海道の座標範囲
-const HOKKAIDO_BOUNDS = {
-  minLat: 40.5,
-  maxLat: 46.0,
+// 東北の座標範囲
+const TOHOKU_BOUNDS = {
+  minLat: 35.5,
+  maxLat: 42.0,
   minLng: 138.0,
-  maxLng: 146.5,
+  maxLng: 142.5,
 };
 
-// 座標が北海道内かチェック
-function isInHokkaido(lat: number, lng: number): boolean {
+// 座標が東北内かチェック
+function isInTohoku(lat: number, lng: number): boolean {
   return (
-    lat >= HOKKAIDO_BOUNDS.minLat &&
-    lat <= HOKKAIDO_BOUNDS.maxLat &&
-    lng >= HOKKAIDO_BOUNDS.minLng &&
-    lng <= HOKKAIDO_BOUNDS.maxLng
+    lat >= TOHOKU_BOUNDS.minLat &&
+    lat <= TOHOKU_BOUNDS.maxLat &&
+    lng >= TOHOKU_BOUNDS.minLng &&
+    lng <= TOHOKU_BOUNDS.maxLng
   );
 }
 
@@ -96,11 +96,11 @@ function toSearchLocation(r: NominatimResult): SearchLocation {
   };
 }
 
-// Nominatim APIで地名から座標を取得（複数結果対応、北海道のみ）
+// Nominatim APIで地名から座標を取得（複数結果対応、東北のみ）
 async function geocodeLocations(query: string): Promise<SearchLocation[]> {
   const NOMINATIM = "https://nominatim.openstreetmap.org/search";
-  // Hokkaido viewbox: left(west), top(north), right(east), bottom(south)
-  const VIEWBOX = "138.0,46.0,146.5,40.5";
+  // Tohoku viewbox: left(west), top(north), right(east), bottom(south)
+  const VIEWBOX = "138.0,42.0,142.5,35.5";
   const HEADERS = { "Accept-Language": "ja", "User-Agent": "trad-trav-app" };
 
   const baseParams = {
@@ -118,7 +118,7 @@ async function geocodeLocations(query: string): Promise<SearchLocation[]> {
     if (!r1.ok) throw new Error("Geocoding failed");
     let data: NominatimResult[] = await r1.json();
 
-    // Step 2: 結果が少ない場合、bounded なしで北海道全域を検索
+    // Step 2: 結果が少ない場合、bounded なしで東北全域を検索
     if (data.length < 3) {
       const p2 = new URLSearchParams({ ...baseParams, q: query, viewbox: VIEWBOX });
       const r2 = await fetch(`${NOMINATIM}?${p2}`, { headers: HEADERS });
@@ -130,10 +130,10 @@ async function geocodeLocations(query: string): Promise<SearchLocation[]> {
       }
     }
 
-    // 北海道内のみフィルタリング → importance 降順にソート
+    // 東北内のみフィルタリング → importance 降順にソート
     const results = data
       .map(toSearchLocation)
-      .filter(loc => isInHokkaido(loc.lat, loc.lng));
+      .filter(loc => isInTohoku(loc.lat, loc.lng));
 
     return results.slice(0, 10);
   } catch (error) {

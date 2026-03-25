@@ -480,7 +480,6 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
   const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "photos" | "reservation">("overview");
   const [dragY, setDragY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [sheetMode, setSheetMode] = useState<"half" | "full">("half");
   const [showTabTutorial, setShowTabTutorial] = useState(false);
   const startY = useRef(0);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -514,7 +513,6 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
     if (spot) {
       setActiveTab("overview"); // スポットが変わったらタブをリセット
       setDragY(0);
-      setSheetMode("half"); // 最初は半分表示
       requestAnimationFrame(() => {
         setIsVisible(true);
       });
@@ -546,37 +544,15 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
   const handleTouchEnd = () => {
     setIsDragging(false);
     
-    if (sheetMode === "half") {
-      // 半分表示の時
-      if (dragY < -50) {
-        // 上に50px以上ドラッグ → 全体表示
-        setSheetMode("full");
-      } else if (dragY > 80) {
-        // 下に80px以上ドラッグ → 閉じる
-        handleClose();
-      }
-    } else {
-      // 全体表示の時
-      if (dragY > 80) {
-        // 下に80px以上ドラッグ → 半分表示に戻す
-        setSheetMode("half");
-      }
+    // 下に80px以上ドラッグ → 閉じる
+    if (dragY > 80) {
+      handleClose();
     }
     setDragY(0);
   };
 
-  // シートの高さを計算（ドラッグ中は動的に変更）
-  const getSheetHeight = () => {
-    if (sheetMode === "half") {
-      if (dragY < 0) {
-        // 上にドラッグ中は高さを増やす（最大92vh）
-        return `min(calc(60vh + ${Math.abs(dragY)}px), 92vh)`;
-      }
-      return "60vh";
-    }
-    return "92vh";
-  };
-  const sheetHeight = getSheetHeight();
+  // シートの高さ（常に全面表示）
+  const sheetHeight = "92vh";
   
   // transformはシートを下に動かす場合のみ使用
   const getTransform = () => {

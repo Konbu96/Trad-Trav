@@ -1,20 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import dynamic from "next/dynamic";
 import BottomNavigation from "./components/BottomNavigation";
 import SplashScreen from "./components/SplashScreen";
-import AIChatView from "./components/AIChatView";
+import TranslationView from "./components/TranslationView";
 import DiagnosisView, { type DiagnosisResult } from "./components/DiagnosisView";
 import MyPageView from "./components/MyPageView";
 import AuthView from "./components/AuthView";
+import PlanView from "./components/PlanView";
+import MapTabView from "./components/MapTabView";
 import { LanguageProvider } from "./i18n/LanguageContext";
 import { saveDiagnosisResult, getDiagnosisResult, getViewHistory, addViewHistory, getFavorites, toggleFavorite, type ViewHistoryItem, auth } from "./lib/firebase";
 import { getRecommendedSpotIds } from "./data/spots";
 import { signOut } from "firebase/auth";
 
 // 画面の種類
-export type ScreenType = "map" | "mypage" | "reservations" | "traffic" | "posts" | "chat";
+export type ScreenType = "plan" | "map" | "chat" | "mypage";
 
 // ユーザー情報
 export interface User {
@@ -22,19 +23,6 @@ export interface User {
   name: string;
   email: string;
 }
-
-// Leafletはクライアントサイドのみで動作するため、dynamic importを使用
-const MapView = dynamic(() => import("./components/MapView"), {
-  ssr: false,
-  loading: () => (
-    <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-        <span className="text-gray-600 text-sm">マップを読み込み中...</span>
-      </div>
-    </div>
-  ),
-});
 
 function AppContent() {
   const [showSplash, setShowSplash] = useState(true);
@@ -54,18 +42,15 @@ function AppContent() {
 
   const handleSplashFinish = () => {
     setShowSplash(false);
-    setShowDiagnosis(true);
   };
 
   const handleLogin = async (loggedInUser: User, isNewUser: boolean = false) => {
     setUser(loggedInUser);
     setShowAuth(false);
-    
+
     if (isNewUser) {
-      // 新規登録の場合は診断を表示
       setShowDiagnosis(true);
     } else {
-      // 既存ユーザーの場合はFirestoreから診断結果と閲覧履歴を取得
       try {
         const [savedResult, savedHistory, savedFavorites] = await Promise.all([
           getDiagnosisResult(loggedInUser.id),
@@ -84,12 +69,11 @@ function AppContent() {
   const handleDiagnosisComplete = async (result: DiagnosisResult) => {
     setDiagnosisResult(result);
     setShowDiagnosis(false);
-    
-    // ログイン済みの場合はFirestoreに保存
+    setCurrentScreen("plan");
+
     if (user?.id) {
       try {
         await saveDiagnosisResult(user.id, result);
-        console.log("診断結果を保存しました");
       } catch (error) {
         console.error("診断結果の保存に失敗:", error);
       }
@@ -100,6 +84,7 @@ function AppContent() {
     setCurrentScreen(screen);
   };
 
+  // マップタブへジャンプ（プランビューや閲覧履歴から）
   const handleJumpToSpot = (spotId: number) => {
     setJumpToSpotId(spotId);
     setCurrentScreen("map");
@@ -127,7 +112,6 @@ function AppContent() {
       setDiagnosisResult(null);
       setViewHistory([]);
       setFavoriteSpotIds([]);
-      // 認証画面へは戻らず、そのままアプリ内に留まる
     } catch (error) {
       console.error("ログアウトに失敗:", error);
     }
@@ -140,7 +124,7 @@ function AppContent() {
       date: new Date().toISOString().split("T")[0],
       category: spot.category,
     };
-    
+
     setViewHistory(prev => {
       const filtered = prev.filter(h => h.id !== spot.id);
       return [historyItem, ...filtered].slice(0, 10);
@@ -167,23 +151,52 @@ function AppContent() {
         <DiagnosisView onComplete={handleDiagnosisComplete} />
       )}
 
-      {/* メインコンテンツ（スプラッシュ・診断が終わったら表示） */}
+      {/* メインコンテンツ */}
       {!showSplash && !showDiagnosis && (
         <>
-          {currentScreen === "map" && <MapView onSpotView={handleSpotView} jumpToSpotId={jumpToSpotId} onJumpComplete={() => setJumpToSpotId(null)} favoriteSpotIds={favoriteSpotIds} onToggleFavorite={handleToggleFavorite} recommendedSpotIds={recommendedSpotIds} />}
-          {currentScreen === "chat" && <AIChatView onJumpToSpot={handleJumpToSpot} />}
-          {currentScreen === "mypage" && <MyPageView diagnosisResult={diagnosisResult} user={user} viewHistory={viewHistory} onLogout={handleLogout} onJumpToSpot={handleJumpToSpot} onStartDiagnosis={() => { setShowDiagnosis(true); setCurrentScreen("map"); }} onLoginRequest={() => setShowAuth(true)} />}
-          
-          {/* 準備中の画面 */}
-          {(currentScreen === "reservations" || currentScreen === "traffic" || currentScreen === "posts") && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
-              <div className="text-center">
-                <p className="text-gray-400 text-lg">準備中...</p>
-              </div>
-            </div>
+          {/* プラン */}
+          {currentScreen === "plan" && (
+            <PlanView
+              diagnosisResult={diagnosisResult}
+              onJumpToSpot={handleJumpToSpot}
+              favoriteSpotIds={favoriteSpotIds}
+              onToggleFavorite={handleToggleFavorite}
+              onSpotView={handleSpotView}
+              onStartDiagnosis={() => setShowDiagnosis(true)}
+            />
           )}
-          
-          {/* 下部のナビゲーション */}
+
+          {/* マップ（サブタブ: マップ / 検索） */}
+          {currentScreen === "map" && (
+            <MapTabView
+              onSpotView={handleSpotView}
+              jumpToSpotId={jumpToSpotId}
+              onJumpComplete={() => setJumpToSpotId(null)}
+              favoriteSpotIds={favoriteSpotIds}
+              onToggleFavorite={handleToggleFavorite}
+              recommendedSpotIds={recommendedSpotIds}
+            />
+          )}
+
+          {/* 翻訳 */}
+          {currentScreen === "chat" && (
+            <TranslationView />
+          )}
+
+          {/* マイページ */}
+          {currentScreen === "mypage" && (
+            <MyPageView
+              diagnosisResult={diagnosisResult}
+              user={user}
+              viewHistory={viewHistory}
+              onLogout={handleLogout}
+              onJumpToSpot={handleJumpToSpot}
+              onStartDiagnosis={() => { setShowDiagnosis(true); setCurrentScreen("plan"); }}
+              onLoginRequest={() => setShowAuth(true)}
+            />
+          )}
+
+          {/* ボトムナビゲーション */}
           <BottomNavigation currentScreen={currentScreen} onScreenChange={handleScreenChange} />
         </>
       )}

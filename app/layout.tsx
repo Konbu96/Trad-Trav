@@ -9,8 +9,8 @@ const notoSansJP = Noto_Sans_JP({
 });
 
 export const metadata: Metadata = {
-  title: "Trad Trav - 北海道マップ",
-  description: "北海道の旅行・観光マップアプリ",
+  title: "Trad Trav - 東北マップ",
+  description: "東北地方の伝統文化・旅行観光マップアプリ",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

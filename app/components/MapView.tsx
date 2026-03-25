@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { MapContainer, TileLayer, ZoomControl, useMap, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -9,8 +8,8 @@ import SearchBar, { type SearchLocation, type SearchResult } from "./SearchBar";
 import SpotDetailSheet from "./SpotDetailSheet";
 import { recommendedSpots, type Spot } from "../data/spots";
 
-// 北海道の中心座標
-const HOKKAIDO_CENTER: [number, number] = [43.0642, 141.3469];
+// 東北の中心座標
+const TOHOKU_CENTER: [number, number] = [38.9, 140.4];
 const DEFAULT_ZOOM = 7;
 
 // ハートピンアイコン（お気に入り）
@@ -327,94 +326,27 @@ interface MapViewProps {
 
 const TUTORIAL_KEY = "trad-trav-map-tutorial-done";
 
-// マップのlatLngをピクセル座標に変換してポータルで描画するコンポーネント
-function TutorialTooltip({
+// マップ内でピンのピクセル座標を計算して親に通知するだけのコンポーネント
+function TutorialPositionUpdater({
   spot,
-  onClose,
+  onPositionChange,
 }: {
   spot: Spot;
-  onClose: () => void;
+  onPositionChange: (pos: { x: number; y: number }) => void;
 }) {
   const map = useMap();
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const update = () => {
       const p = map.latLngToContainerPoint([spot.lat, spot.lng]);
-      setPos({ x: p.x, y: p.y });
+      onPositionChange({ x: p.x, y: p.y });
     };
     update();
     map.on("move zoom resize", update);
     return () => { map.off("move zoom resize", update); };
-  }, [map, spot]);
+  }, [map, spot, onPositionChange]);
 
-  if (!pos) return null;
-
-  const W = 220;
-
-  // map.getContainer() はマップの div 要素（position:relative）
-  // createPortal でその直接の子として描画することで absolute 座標が正しく機能する
-  return createPortal(
-    <div
-      style={{
-        position: "absolute",
-        left: pos.x - W / 2,
-        top: pos.y - 110, // ピンアイコンの上
-        width: W,
-        zIndex: 1000,
-        pointerEvents: "auto",
-      }}
-    >
-      {/* 吹き出し本体 */}
-      <div
-        style={{
-          backgroundColor: "white",
-          borderRadius: "12px",
-          padding: "12px 14px",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
-          border: "1.5px solid #fce7f3",
-          position: "relative",
-        }}
-      >
-        <button
-          onClick={(e) => { e.stopPropagation(); onClose(); }}
-          style={{
-            position: "absolute",
-            top: 6,
-            right: 8,
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "#9ca3af",
-            fontSize: "14px",
-            lineHeight: 1,
-            padding: "2px 4px",
-          }}
-        >
-          ✕
-        </button>
-        <p style={{ fontSize: "13px", fontWeight: "600", color: "#ec4899", margin: "0 0 4px" }}>
-          👆 ここをタップ！
-        </p>
-        <p style={{ fontSize: "12px", color: "#6b7280", margin: 0, lineHeight: 1.4 }}>
-          スポットの詳細・営業時間が確認できます
-        </p>
-      </div>
-      {/* 矢印 */}
-      <div
-        style={{
-          width: 0,
-          height: 0,
-          borderLeft: "8px solid transparent",
-          borderRight: "8px solid transparent",
-          borderTop: "10px solid white",
-          margin: "0 auto",
-          filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.1))",
-        }}
-      />
-    </div>,
-    map.getContainer()
-  );
+  return null;
 }
 
 export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favoriteSpotIds = [], onToggleFavorite, recommendedSpotIds }: MapViewProps) {
@@ -424,6 +356,7 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
   const [targetSpot, setTargetSpot] = useState<Spot | null>(null);
   const [isFetchingSpotInfo, setIsFetchingSpotInfo] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialPos, setTutorialPos] = useState<{ x: number; y: number } | null>(null);
   const mapKey = useRef(`map-${Date.now()}`);
 
   // チュートリアル表示判定（初回のみ）
@@ -435,10 +368,15 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
 
   const handleCloseTutorial = () => {
     setShowTutorial(false);
+    setTutorialPos(null);
     if (typeof window !== "undefined") {
       localStorage.setItem(TUTORIAL_KEY, "1");
     }
   };
+
+  const handleTutorialPosition = useCallback((pos: { x: number; y: number }) => {
+    setTutorialPos(pos);
+  }, []);
 
   // クライアントサイドでのみマップを表示
   useEffect(() => {
@@ -474,8 +412,8 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
     // チュートリアルが表示中なら閉じる
     if (showTutorial) handleCloseTutorial();
     // 現在位置からスポットまでの距離を計算
-    const latDiff = Math.abs(spot.lat - HOKKAIDO_CENTER[0]);
-    const lngDiff = Math.abs(spot.lng - HOKKAIDO_CENTER[1]);
+    const latDiff = Math.abs(spot.lat - TOHOKU_CENTER[0]);
+    const lngDiff = Math.abs(spot.lng - TOHOKU_CENTER[1]);
     const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
     
     // 距離に応じて遅延時間を計算（最小500ms、最大2500ms）
@@ -568,7 +506,7 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
       <div className="absolute inset-0 z-0">
         <MapContainer
           key={mapKey.current}
-          center={HOKKAIDO_CENTER}
+          center={TOHOKU_CENTER}
           zoom={DEFAULT_ZOOM}
           zoomControl={false}
           className="w-full h-full"
@@ -585,10 +523,10 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
           inertia={true}
           inertiaDeceleration={5000}
           inertiaMaxSpeed={3000}
-          // 北海道の範囲に制限
+          // 東北の範囲に制限
           maxBounds={[
-            [40.5, 138.0], // 南西
-            [46.0, 146.5], // 北東
+            [35.5, 138.0], // 南西
+            [42.0, 142.5], // 北東
           ]}
           maxBoundsViscosity={1.0}
         >
@@ -608,6 +546,7 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
           <SpotMarkers onSpotClick={handleSpotClick} isVisible={showSpotMarkers} filterIds={recommendedSpotIds} />
           <FavoriteMarkers favoriteSpotIds={favoriteSpotIds} onSpotClick={handleSpotClick} isVisible={showFavoriteMarkers} />
           <SearchMarkers locations={searchLocations} onLocationClick={handleSearchLocationClick} />
+          {/* チュートリアル：マップ内ではピンのピクセル座標計算のみ行う */}
           {(() => {
             if (!showTutorial || searchLocations.length > 0) return null;
             const ids = recommendedSpotIds && recommendedSpotIds.length > 0 ? recommendedSpotIds : null;
@@ -615,18 +554,77 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
               ? recommendedSpots.filter(s => ids.includes(s.id))
               : recommendedSpots;
             if (candidates.length === 0) return null;
-            // 動画付きスポットを優先してチュートリアル対象に選ぶ（なければ中心に最も近いスポット）
             const withVideo = candidates.filter(s => s.videos && s.videos.length > 0);
             const pool = withVideo.length > 0 ? withVideo : candidates;
             const tutorialSpot = pool.reduce((best, s) => {
-              const dBest = Math.hypot(best.lat - HOKKAIDO_CENTER[0], best.lng - HOKKAIDO_CENTER[1]);
-              const dS    = Math.hypot(s.lat    - HOKKAIDO_CENTER[0], s.lng    - HOKKAIDO_CENTER[1]);
+              const dBest = Math.hypot(best.lat - TOHOKU_CENTER[0], best.lng - TOHOKU_CENTER[1]);
+              const dS    = Math.hypot(s.lat    - TOHOKU_CENTER[0], s.lng    - TOHOKU_CENTER[1]);
               return dS < dBest ? s : best;
             });
-            return <TutorialTooltip spot={tutorialSpot} onClose={handleCloseTutorial} />;
+            return <TutorialPositionUpdater spot={tutorialSpot} onPositionChange={handleTutorialPosition} />;
           })()}
         </MapContainer>
       </div>
+
+      {/* チュートリアル吹き出し（マップ外オーバーレイ） */}
+      {showTutorial && tutorialPos && searchLocations.length === 0 && (
+        <div
+          style={{
+            position: "absolute",
+            left: tutorialPos.x - 110,
+            top: tutorialPos.y - 115,
+            width: 220,
+            zIndex: 500,
+            pointerEvents: "auto",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "12px",
+              padding: "12px 14px",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
+              border: "1.5px solid #fce7f3",
+              position: "relative",
+            }}
+          >
+            <button
+              onClick={handleCloseTutorial}
+              style={{
+                position: "absolute",
+                top: 6,
+                right: 8,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#9ca3af",
+                fontSize: "14px",
+                lineHeight: 1,
+                padding: "2px 4px",
+              }}
+            >
+              ✕
+            </button>
+            <p style={{ fontSize: "13px", fontWeight: "600", color: "#ec4899", margin: "0 0 4px" }}>
+              👆 ここをタップ！
+            </p>
+            <p style={{ fontSize: "12px", color: "#6b7280", margin: 0, lineHeight: 1.4 }}>
+              スポットの詳細・営業時間が確認できます
+            </p>
+          </div>
+          <div
+            style={{
+              width: 0,
+              height: 0,
+              borderLeft: "8px solid transparent",
+              borderRight: "8px solid transparent",
+              borderTop: "10px solid white",
+              margin: "0 auto",
+              filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.1))",
+            }}
+          />
+        </div>
+      )}
 
       {/* スポット詳細シート */}
       <SpotDetailSheet
