@@ -96,6 +96,12 @@ function AddEventSheet({
 
   const set = (k: keyof ScheduleEvent, v: unknown) =>
     setEv(prev => ({ ...prev, [k]: v }));
+  const setReservation = (isReserved: boolean) =>
+    setEv(prev => ({
+      ...prev,
+      isReserved,
+      color: isEditing ? (isReserved ? "#3b82f6" : "#ef4444") : prev.color,
+    }));
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
@@ -104,11 +110,22 @@ function AddEventSheet({
         backgroundColor: "white", borderRadius: "24px 24px 0 0",
         padding: "20px 20px 40px", maxHeight: "85vh", overflowY: "auto",
       }}>
-        {/* ハンドル */}
-        <div style={{ width: "40px", height: "4px", backgroundColor: "#d1d5db", borderRadius: "9999px", margin: "0 auto 16px" }} />
-        <h2 style={{ fontSize: "16px", fontWeight: "bold", color: "#1f2937", marginBottom: "20px" }}>
-          {isEditing ? "予定を編集" : "予定を追加"}
-        </h2>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+          <h2 style={{ fontSize: "16px", fontWeight: "bold", color: "#1f2937" }}>
+            {isEditing ? "予定を編集" : "予定を追加"}
+          </h2>
+          <button
+            onClick={onClose}
+            aria-label="閉じる"
+            style={{
+              width: "32px", height: "32px", borderRadius: "9999px", border: "none",
+              backgroundColor: "#f3f4f6", color: "#6b7280", fontSize: "20px",
+              lineHeight: 1, cursor: "pointer",
+            }}
+          >
+            ×
+          </button>
+        </div>
 
         {/* タイトル */}
         <div style={{ marginBottom: "16px" }}>
@@ -205,18 +222,19 @@ function AddEventSheet({
           </div>
         )}
 
-        {/* 人数 */}
-        <div style={{ marginBottom: "16px" }}>
-          <label style={{ fontSize: "12px", fontWeight: "600", color: "#6b7280", display: "block", marginBottom: "6px" }}>人数</label>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <button onClick={() => set("people", Math.max(1, ev.people - 1))}
-              style={{ width: "32px", height: "32px", borderRadius: "50%", border: "1px solid #d1d5db", background: "white", fontSize: "18px", cursor: "pointer" }}>−</button>
-            <span style={{ fontSize: "18px", fontWeight: "bold", color: "#1f2937", minWidth: "30px", textAlign: "center" }}>{ev.people}</span>
-            <button onClick={() => set("people", Math.min(20, ev.people + 1))}
-              style={{ width: "32px", height: "32px", borderRadius: "50%", border: "1px solid #d1d5db", background: "white", fontSize: "18px", cursor: "pointer" }}>＋</button>
-            <span style={{ fontSize: "13px", color: "#6b7280" }}>名</span>
+        {!isEditing && (
+          <div style={{ marginBottom: "16px" }}>
+            <label style={{ fontSize: "12px", fontWeight: "600", color: "#6b7280", display: "block", marginBottom: "6px" }}>人数</label>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <button onClick={() => set("people", Math.max(1, ev.people - 1))}
+                style={{ width: "32px", height: "32px", borderRadius: "50%", border: "1px solid #d1d5db", background: "white", fontSize: "18px", cursor: "pointer" }}>−</button>
+              <span style={{ fontSize: "18px", fontWeight: "bold", color: "#1f2937", minWidth: "30px", textAlign: "center" }}>{ev.people}</span>
+              <button onClick={() => set("people", Math.min(20, ev.people + 1))}
+                style={{ width: "32px", height: "32px", borderRadius: "50%", border: "1px solid #d1d5db", background: "white", fontSize: "18px", cursor: "pointer" }}>＋</button>
+              <span style={{ fontSize: "13px", color: "#6b7280" }}>名</span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* 予約状況 */}
         <div style={{ marginBottom: "16px" }}>
@@ -225,7 +243,7 @@ function AddEventSheet({
             {[true, false].map(v => (
               <button
                 key={String(v)}
-                onClick={() => set("isReserved", v)}
+                onClick={() => setReservation(v)}
                 style={{
                   flex: 1, padding: "8px", borderRadius: "10px", border: "none",
                   cursor: "pointer", fontWeight: "600", fontSize: "13px",
@@ -240,25 +258,26 @@ function AddEventSheet({
           </div>
         </div>
 
-        {/* 色 */}
-        <div style={{ marginBottom: "24px" }}>
-          <label style={{ fontSize: "12px", fontWeight: "600", color: "#6b7280", display: "block", marginBottom: "8px" }}>色</label>
-          <div style={{ display: "flex", gap: "10px" }}>
-            {COLORS.map((c, i) => (
-              <button
-                key={c}
-                onClick={() => set("color", c)}
-                title={COLOR_LABELS[i]}
-                style={{
-                  width: "32px", height: "32px", borderRadius: "50%",
-                  backgroundColor: c, border: "none", cursor: "pointer",
-                  boxShadow: ev.color === c ? `0 0 0 3px white, 0 0 0 5px ${c}` : "none",
-                  transition: "box-shadow 0.15s",
-                }}
-              />
-            ))}
+        {!isEditing && (
+          <div style={{ marginBottom: "24px" }}>
+            <label style={{ fontSize: "12px", fontWeight: "600", color: "#6b7280", display: "block", marginBottom: "8px" }}>色</label>
+            <div style={{ display: "flex", gap: "10px" }}>
+              {COLORS.map((c, i) => (
+                <button
+                  key={c}
+                  onClick={() => set("color", c)}
+                  title={COLOR_LABELS[i]}
+                  style={{
+                    width: "32px", height: "32px", borderRadius: "50%",
+                    backgroundColor: c, border: "none", cursor: "pointer",
+                    boxShadow: ev.color === c ? `0 0 0 3px white, 0 0 0 5px ${c}` : "none",
+                    transition: "box-shadow 0.15s",
+                  }}
+                />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* ボタン */}
         <div style={{ display: "flex", gap: "10px" }}>
@@ -274,19 +293,10 @@ function AddEventSheet({
             </button>
           )}
           <button
-            onClick={onClose}
-            style={{
-              flex: 1, padding: "12px", borderRadius: "12px", border: "1px solid #d1d5db",
-              backgroundColor: "white", color: "#6b7280", fontSize: "14px", fontWeight: "600", cursor: "pointer",
-            }}
-          >
-            キャンセル
-          </button>
-          <button
             onClick={() => { if (ev.title.trim()) onSave(ev); }}
             disabled={!ev.title.trim()}
             style={{
-              flex: 2, padding: "12px", borderRadius: "12px", border: "none",
+              flex: 1, padding: "12px", borderRadius: "12px", border: "none",
               backgroundColor: ev.title.trim() ? "#3b82f6" : "#d1d5db",
               color: "white", fontSize: "14px", fontWeight: "bold", cursor: ev.title.trim() ? "pointer" : "default",
             }}
@@ -592,7 +602,7 @@ function DayView({
                   }}>
                     {isHour ? `${String(h % 24).padStart(2, "0")}:00` : isHalf ? ":30" : ""}
                   </div>
-                  <div style={{ flex: 1, boxShadow: "inset 1px 0 0 0 #e5e7eb" }} />
+                  <div style={{ flex: 1, boxShadow: "inset 2px 0 0 0 #cbd5e1" }} />
                 </div>
               );
             })}
@@ -602,12 +612,12 @@ function DayView({
               <div style={{
                 position: "absolute", top: `${highlight.top}px`, left: "56px", right: "0",
                 height: `${Math.max(highlight.height, 4)}px`,
-                backgroundColor: "rgba(56,189,248,0.15)",
-                border: "2px solid #38bdf8", borderRadius: "6px",
+                backgroundColor: "rgba(56,189,248,0.18)",
+                border: "none", borderRadius: "6px",
                 pointerEvents: "none", zIndex: 15,
               }}>
                 {highlight.height > 18 && (
-                  <span style={{ fontSize: "10px", color: "#0369a1", fontWeight: "700", padding: "2px 4px", display: "block" }}>
+                  <span style={{ fontSize: "10px", color: "#075985", fontWeight: "800", padding: "2px 4px", display: "block" }}>
                     {yToTime(highlight.top)} – {yToTime(highlight.top + highlight.height)}
                   </span>
                 )}
@@ -628,10 +638,10 @@ function DayView({
                   style={{
                     position: "absolute", top: `${topPx}px`, left: "64px", right: "12px",
                     height: `${heightPx}px`, backgroundColor: ev.color + "22",
-                    borderLeft: `4px solid ${ev.color}`, borderRadius: "0 8px 8px 0",
+                    border: `2px solid ${ev.color}`, borderRadius: "8px",
                     padding: "4px 8px", display: "flex", flexDirection: "column",
                     justifyContent: "center", gap: "2px", cursor: "pointer",
-                    border: "none", textAlign: "left", zIndex: 10,
+                    textAlign: "left", zIndex: 10,
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -646,7 +656,7 @@ function DayView({
                   </div>
                   {heightPx > 40 && (
                     <span style={{ fontSize: "11px", color: "#6b7280" }}>
-                      {ev.startTime}〜{ev.endTime}　{ev.people}名
+                      {ev.startTime}〜{ev.endTime}
                     </span>
                   )}
                 </button>
@@ -668,7 +678,7 @@ function DayView({
               >
                 <span style={{ fontSize: "12px", fontWeight: "600", color: "white" }}>{ev.title}</span>
                 <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.85)", backgroundColor: "rgba(0,0,0,0.2)", borderRadius: "3px", padding: "1px 4px" }}>
-                  {ev.people}名 {ev.isReserved ? "✓" : ""}
+                  {ev.isReserved ? "予約済 ✓" : "未予約"}
                 </span>
               </button>
             ))}
