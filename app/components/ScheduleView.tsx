@@ -496,11 +496,11 @@ function DayView({
             style={{
               display: "flex", alignItems: "center", gap: "5px",
               padding: "7px 14px", borderRadius: "20px", border: "none",
-              backgroundColor: editMode ? "#f59e0b" : "#f3f4f6",
+              backgroundColor: editMode ? "#38bdf8" : "#f3f4f6",
               color: editMode ? "white" : "#6b7280",
               fontSize: "12px", fontWeight: "700", cursor: "pointer",
               transition: "all 0.2s",
-              boxShadow: editMode ? "0 2px 8px rgba(245,158,11,0.4)" : "none",
+              boxShadow: editMode ? "0 2px 8px rgba(56,189,248,0.4)" : "none",
             }}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -558,12 +558,12 @@ function DayView({
               <div style={{
                 position: "absolute", top: `${highlight.top}px`, left: "56px", right: "0",
                 height: `${Math.max(highlight.height, 4)}px`,
-                backgroundColor: "rgba(245,158,11,0.12)",
-                border: "2px solid #f59e0b", borderRadius: "6px",
+                backgroundColor: "rgba(56,189,248,0.15)",
+                border: "2px solid #38bdf8", borderRadius: "6px",
                 pointerEvents: "none", zIndex: 15,
               }}>
                 {highlight.height > 18 && (
-                  <span style={{ fontSize: "10px", color: "#92400e", fontWeight: "700", padding: "2px 4px", display: "block" }}>
+                  <span style={{ fontSize: "10px", color: "#0369a1", fontWeight: "700", padding: "2px 4px", display: "block" }}>
                     {yToTime(highlight.top)} – {yToTime(highlight.top + highlight.height)}
                   </span>
                 )}
@@ -637,14 +637,14 @@ function DayView({
             <div style={{
               position: "fixed", left: pressPos.x, top: pressPos.y,
               width: "48px", height: "48px", borderRadius: "50%",
-              border: "3px solid #f59e0b",
+              border: "3px solid #38bdf8",
               animation: `press-ring ${LONG_PRESS_MS}ms ease-out forwards`,
               pointerEvents: "none", zIndex: 300,
             }} />
             <div style={{
               position: "fixed", left: pressPos.x, top: pressPos.y,
               width: "12px", height: "12px", borderRadius: "50%",
-              backgroundColor: "#f59e0b",
+              backgroundColor: "#38bdf8",
               animation: `press-fill ${LONG_PRESS_MS}ms ease-out forwards`,
               pointerEvents: "none", zIndex: 300,
             }} />
@@ -692,7 +692,7 @@ function DayView({
                   padding: "9px 11px", fontSize: "14px", outline: "none",
                   boxSizing: "border-box", marginBottom: "12px",
                 }}
-                onFocus={e => { e.target.style.borderColor = "#f59e0b"; }}
+                onFocus={e => { e.target.style.borderColor = "#38bdf8"; }}
                 onBlur={e => { e.target.style.borderColor = "#e5e7eb"; }}
               />
 
