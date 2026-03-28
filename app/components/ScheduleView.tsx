@@ -318,7 +318,7 @@ function DayView({
 }) {
   const dayEvents = events.filter(e => dateInRange(date, e.date, e.endDate));
   const SLOT_H = 60;
-  const LONG_PRESS_MS = 2000;
+  const LONG_PRESS_MS = 1000;
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
