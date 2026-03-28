@@ -300,7 +300,7 @@ function AddEventSheet({
 }
 
 // ────────────────────────────
-// 日ビュー（タイムライン + 長押しドラッグ追加）
+// 日ビュー（タイムライン + ドラッグ範囲選択）
 // ────────────────────────────
 function DayView({
   date,
@@ -321,8 +321,7 @@ function DayView({
   const SLOT_H = 60;
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dragRef = useRef({ active: false, startY: 0, endY: 0 });
+  const dragRef = useRef({ active: false, startY: 0, endY: 0, startClientX: 0, intentDecided: false });
 
   const [highlight, setHighlight] = useState<{ top: number; height: number } | null>(null);
   const [quickForm, setQuickForm] = useState<{
@@ -358,27 +357,32 @@ function DayView({
     const onTouchStart = (e: TouchEvent) => {
       const t = e.touches[0];
       const y = getContentY(t.clientY);
-      dragRef.current = { active: false, startY: y, endY: y };
-      longPressRef.current = setTimeout(() => {
-        dragRef.current.active = true;
-        setHighlight({ top: y, height: 0 });
-      }, 400);
+      // イベントブロック上はスキップ
+      if ((e.target as HTMLElement).closest("[data-event]")) return;
+      dragRef.current = { active: false, startY: y, endY: y, startClientX: t.clientX, intentDecided: false };
     };
     const onTouchMove = (e: TouchEvent) => {
       const t = e.touches[0];
-      if (!dragRef.current.active) {
-        if (Math.abs(getContentY(t.clientY) - dragRef.current.startY) > 8) {
-          if (longPressRef.current) clearTimeout(longPressRef.current);
+      const dy = Math.abs(getContentY(t.clientY) - dragRef.current.startY);
+      const dx = Math.abs(t.clientX - dragRef.current.startClientX);
+
+      // まだ意図が決まっていない場合、縦横の動き量で判定
+      if (!dragRef.current.intentDecided && (dy > 6 || dx > 6)) {
+        dragRef.current.intentDecided = true;
+        if (dy >= dx) {
+          // 縦方向 → ドラッグ選択
+          dragRef.current.active = true;
+          setHighlight({ top: dragRef.current.startY, height: dy });
         }
-        return;
+        // 横方向 → スクロールに任せる（active=false のまま）
       }
+      if (!dragRef.current.active) return;
       e.preventDefault();
       const y = getContentY(t.clientY);
       dragRef.current.endY = y;
       setHighlight({ top: Math.min(dragRef.current.startY, y), height: Math.abs(y - dragRef.current.startY) });
     };
     const onTouchEnd = (e: TouchEvent) => {
-      if (longPressRef.current) clearTimeout(longPressRef.current);
       if (!dragRef.current.active) { setHighlight(null); return; }
       const t = e.changedTouches[0];
       finalizeDrag(dragRef.current.endY, t.clientY);
@@ -394,15 +398,13 @@ function DayView({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
 
-  // ── マウスイベント
+  // ── マウスイベント（即座にドラッグ開始）
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("[data-event]")) return;
+    if (e.button !== 0) return;
     const y = getContentY(e.clientY);
-    dragRef.current = { active: false, startY: y, endY: y };
-    longPressRef.current = setTimeout(() => {
-      dragRef.current.active = true;
-      setHighlight({ top: y, height: 0 });
-    }, 400);
+    dragRef.current = { active: true, startY: y, endY: y, startClientX: e.clientX, intentDecided: true };
+    setHighlight({ top: y, height: 0 });
   };
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!dragRef.current.active) return;
@@ -411,12 +413,10 @@ function DayView({
     setHighlight({ top: Math.min(dragRef.current.startY, y), height: Math.abs(y - dragRef.current.startY) });
   };
   const handleMouseUp = (e: React.MouseEvent) => {
-    if (longPressRef.current) clearTimeout(longPressRef.current);
     if (!dragRef.current.active) { setHighlight(null); return; }
     finalizeDrag(dragRef.current.endY, e.clientY);
   };
   const cancelDrag = () => {
-    if (longPressRef.current) clearTimeout(longPressRef.current);
     dragRef.current.active = false;
     setHighlight(null);
   };
@@ -443,7 +443,7 @@ function DayView({
             <span style={{ fontSize: "11px", color: "#ef4444", fontWeight: "600" }}>🎌 {HOLIDAYS[date]}</span>
           )}
         </div>
-        <span style={{ fontSize: "10px", color: "#9ca3af" }}>長押し＆ドラッグで追加</span>
+        <span style={{ fontSize: "10px", color: "#9ca3af" }}>ドラッグで範囲選択</span>
       </div>
 
       {/* タイムライン */}
