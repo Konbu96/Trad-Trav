@@ -684,6 +684,8 @@ function DayView({
             <div
               style={{ position: "fixed", inset: 0, zIndex: 150 }}
               onClick={() => { setQuickForm(null); setHighlight(null); setEditMode(false); }}
+            />
+            <div style={{
               position: "fixed",
               top: `${Math.min(Math.max(70, quickForm.anchorClientY - 20), (typeof window !== "undefined" ? window.innerHeight : 700) - 320)}px`,
               right: "12px", width: "250px",
