@@ -300,13 +300,12 @@ function AddEventSheet({
 }
 
 // ────────────────────────────
-// 日ビュー（タイムライン + ドラッグ範囲選択）
+// 日ビュー（タイムライン + 編集モード 2秒長押し→ドラッグ選択）
 // ────────────────────────────
 function DayView({
   date,
   events,
   onBack,
-  onAdd,
   onEdit,
   onSaveDirect,
 }: {
@@ -319,17 +318,19 @@ function DayView({
 }) {
   const dayEvents = events.filter(e => dateInRange(date, e.date, e.endDate));
   const SLOT_H = 60;
+  const LONG_PRESS_MS = 2000;
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef({ active: false, startY: 0, endY: 0, startClientX: 0, intentDecided: false });
+  const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragRef = useRef({ active: false, startY: 0, endY: 0, startClientX: 0, startClientY: 0 });
 
-  const [addMode, setAddMode] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   const [highlight, setHighlight] = useState<{ top: number; height: number } | null>(null);
+  const [pressPos, setPressPos] = useState<{ x: number; y: number } | null>(null); // 長押し中の表示位置
   const [quickForm, setQuickForm] = useState<{
-    startTime: string; endTime: string; color: string; title: string; anchorClientY: number;
+    startTime: string; endTime: string; isReserved: boolean; title: string; anchorClientY: number;
   } | null>(null);
 
-  // Y座標（コンテンツ相対）→ 時刻文字列（15分刻み）
   const getContentY = (clientY: number) => {
     if (!scrollRef.current) return 0;
     const rect = scrollRef.current.getBoundingClientRect();
@@ -341,38 +342,59 @@ function DayView({
     return `${String(Math.floor(absMin / 60) % 24).padStart(2, "0")}:${String(absMin % 60).padStart(2, "0")}`;
   };
 
+  const cancelPress = () => {
+    if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+    pressTimerRef.current = null;
+    setPressPos(null);
+    dragRef.current.active = false;
+    setHighlight(null);
+  };
+
   const finalizeDrag = (endY: number, clientY: number) => {
     const { startY } = dragRef.current;
     const top = Math.min(startY, endY);
     const height = Math.abs(endY - startY);
     dragRef.current.active = false;
     setHighlight(null);
-    if (height < 15) return;
-    setQuickForm({ startTime: yToTime(top), endTime: yToTime(top + height), color: COLORS[0], title: "", anchorClientY: clientY });
+    if (height < 10) return;
+    setQuickForm({
+      startTime: yToTime(top), endTime: yToTime(top + height),
+      isReserved: false, title: "", anchorClientY: clientY,
+    });
   };
 
-  // ── タッチイベント（passive:false が必要なため useEffect で登録）
+  // ── タッチイベント
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const onTouchStart = (e: TouchEvent) => {
-      if (!addMode) return; // 追加モードのときだけドラッグ開始
+      if (!editMode) return;
+      if ((e.target as HTMLElement).closest("[data-event]")) return;
       const t = e.touches[0];
       const y = getContentY(t.clientY);
-      if ((e.target as HTMLElement).closest("[data-event]")) return;
-      dragRef.current = { active: true, startY: y, endY: y, startClientX: t.clientX, intentDecided: true };
-      setHighlight({ top: y, height: 0 });
+      dragRef.current = { active: false, startY: y, endY: y, startClientX: t.clientX, startClientY: t.clientY };
+      setPressPos({ x: t.clientX, y: t.clientY });
+      pressTimerRef.current = setTimeout(() => {
+        dragRef.current.active = true;
+        setPressPos(null);
+        setHighlight({ top: y, height: 0 });
+      }, LONG_PRESS_MS);
     };
     const onTouchMove = (e: TouchEvent) => {
-      if (!dragRef.current.active) return;
-      e.preventDefault();
       const t = e.touches[0];
+      if (!dragRef.current.active) {
+        // 長押し中に大きく動いたらキャンセル
+        const moved = Math.hypot(t.clientX - dragRef.current.startClientX, t.clientY - dragRef.current.startClientY);
+        if (moved > 10) cancelPress();
+        return;
+      }
+      e.preventDefault();
       const y = getContentY(t.clientY);
       dragRef.current.endY = y;
       setHighlight({ top: Math.min(dragRef.current.startY, y), height: Math.abs(y - dragRef.current.startY) });
     };
     const onTouchEnd = (e: TouchEvent) => {
-      if (!dragRef.current.active) { setHighlight(null); return; }
+      if (!dragRef.current.active) { cancelPress(); return; }
       const t = e.changedTouches[0];
       finalizeDrag(dragRef.current.endY, t.clientY);
     };
@@ -385,299 +407,332 @@ function DayView({
       el.removeEventListener("touchend", onTouchEnd);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, addMode]);
+  }, [date, editMode]);
 
-  // ── マウスイベント（追加モード時のみドラッグ開始）
+  // ── マウスイベント（2秒長押し後にドラッグ）
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (!addMode) return;
+    if (!editMode) return;
     if ((e.target as HTMLElement).closest("[data-event]")) return;
     if (e.button !== 0) return;
     const y = getContentY(e.clientY);
-    dragRef.current = { active: true, startY: y, endY: y, startClientX: e.clientX, intentDecided: true };
-    setHighlight({ top: y, height: 0 });
+    dragRef.current = { active: false, startY: y, endY: y, startClientX: e.clientX, startClientY: e.clientY };
+    setPressPos({ x: e.clientX, y: e.clientY });
+    pressTimerRef.current = setTimeout(() => {
+      dragRef.current.active = true;
+      setPressPos(null);
+      setHighlight({ top: y, height: 0 });
+    }, LONG_PRESS_MS);
   };
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!dragRef.current.active) return;
+    if (!dragRef.current.active) {
+      if (pressTimerRef.current) {
+        const moved = Math.hypot(e.clientX - dragRef.current.startClientX, e.clientY - dragRef.current.startClientY);
+        if (moved > 10) cancelPress();
+      }
+      return;
+    }
     const y = getContentY(e.clientY);
     dragRef.current.endY = y;
     setHighlight({ top: Math.min(dragRef.current.startY, y), height: Math.abs(y - dragRef.current.startY) });
   };
   const handleMouseUp = (e: React.MouseEvent) => {
-    if (!dragRef.current.active) { setHighlight(null); return; }
+    if (!dragRef.current.active) { cancelPress(); return; }
     finalizeDrag(dragRef.current.endY, e.clientY);
-  };
-  const cancelDrag = () => {
-    dragRef.current.active = false;
-    setHighlight(null);
   };
 
   const saveQuick = () => {
     if (!quickForm?.title.trim()) return;
+    const color = quickForm.isReserved ? "#3b82f6" : "#ef4444";
     onSaveDirect({
       id: Date.now().toString(),
       title: quickForm.title, date, endDate: date,
       startTime: quickForm.startTime, endTime: quickForm.endTime,
-      people: 2, isReserved: false, color: quickForm.color, note: "",
+      people: 2, isReserved: quickForm.isReserved, color, note: "",
     });
     setQuickForm(null);
-    setAddMode(false);
   };
 
   return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", backgroundColor: "#f8fafc" }}>
-      {/* ヘッダー */}
-      <div style={{ backgroundColor: "white", borderBottom: "1px solid #e5e7eb", padding: "16px 20px", paddingTop: "48px", display: "flex", alignItems: "center", gap: "12px" }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#6b7280", padding: "4px" }}>←</button>
-        <div style={{ flex: 1 }}>
-          <h2 style={{ fontSize: "17px", fontWeight: "bold", color: "#1f2937" }}>{formatJa(date)}</h2>
-          {HOLIDAYS[date] && (
-            <span style={{ fontSize: "11px", color: "#ef4444", fontWeight: "600" }}>🎌 {HOLIDAYS[date]}</span>
-          )}
+    <>
+      {/* 長押し中のリングアニメーション用スタイル */}
+      <style>{`
+        @keyframes press-ring {
+          0%   { transform: translate(-50%,-50%) scale(0.2); opacity: 0.9; }
+          100% { transform: translate(-50%,-50%) scale(1);   opacity: 0; }
+        }
+        @keyframes press-fill {
+          0%   { transform: translate(-50%,-50%) scale(0); }
+          100% { transform: translate(-50%,-50%) scale(1); }
+        }
+      `}</style>
+
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", backgroundColor: "#f8fafc" }}>
+        {/* ヘッダー */}
+        <div style={{ backgroundColor: "white", borderBottom: "1px solid #e5e7eb", padding: "16px 20px", paddingTop: "48px", display: "flex", alignItems: "center", gap: "12px" }}>
+          <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#6b7280", padding: "4px" }}>←</button>
+          <div style={{ flex: 1 }}>
+            <h2 style={{ fontSize: "17px", fontWeight: "bold", color: "#1f2937" }}>{formatJa(date)}</h2>
+            {HOLIDAYS[date] && (
+              <span style={{ fontSize: "11px", color: "#ef4444", fontWeight: "600" }}>🎌 {HOLIDAYS[date]}</span>
+            )}
+          </div>
+          <button
+            onClick={() => { setEditMode(m => !m); cancelPress(); setQuickForm(null); }}
+            style={{
+              display: "flex", alignItems: "center", gap: "5px",
+              padding: "7px 14px", borderRadius: "20px", border: "none",
+              backgroundColor: editMode ? "#f59e0b" : "#f3f4f6",
+              color: editMode ? "white" : "#6b7280",
+              fontSize: "12px", fontWeight: "700", cursor: "pointer",
+              transition: "all 0.2s",
+              boxShadow: editMode ? "0 2px 8px rgba(245,158,11,0.4)" : "none",
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+            {editMode ? "編集中" : "編集"}
+          </button>
         </div>
-        <button
-          onClick={() => setAddMode(m => !m)}
-          style={{
-            marginLeft: "auto",
-            display: "flex", alignItems: "center", gap: "5px",
-            padding: "6px 12px", borderRadius: "20px", border: "none",
-            backgroundColor: addMode ? "#3b82f6" : "#f3f4f6",
-            color: addMode ? "white" : "#6b7280",
-            fontSize: "12px", fontWeight: "600", cursor: "pointer",
-            transition: "all 0.2s",
-          }}
+
+        {/* 編集モードのヒントバー */}
+        {editMode && !highlight && !quickForm && (
+          <div style={{
+            backgroundColor: "#fffbeb", borderBottom: "1px solid #fde68a",
+            padding: "6px 16px", fontSize: "11px", color: "#92400e", fontWeight: "500",
+            textAlign: "center",
+          }}>
+            ✏️ 2秒長押し → そのままドラッグ → 離すで予定追加
+          </div>
+        )}
+
+        {/* タイムライン */}
+        <div
+          ref={scrollRef}
+          style={{ flex: 1, overflowY: "auto", padding: "12px 0 120px", position: "relative", userSelect: "none" }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={() => { if (!dragRef.current.active) cancelPress(); }}
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-          </svg>
-          {addMode ? "追加中" : "追加"}
-        </button>
-      </div>
-
-      {/* タイムライン */}
-      <div
-        ref={scrollRef}
-        style={{ flex: 1, overflowY: "auto", padding: "12px 0 120px", position: "relative", userSelect: "none", cursor: addMode ? "crosshair" : "default" }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={cancelDrag}
-      >
-        <div style={{ position: "relative" }}>
-          {HOURS.flatMap(h => [0, 15, 30, 45].map(m => ({ h, m }))).map(({ h, m }) => {
-            const isHour = m === 0;
-            const isHalf = m === 30;
-            return (
-              <div key={`${h}-${m}`} style={{
-                display: "flex", height: `${SLOT_H / 4}px`,
-                borderBottom: isHour ? "1px solid #e5e7eb" : isHalf ? "1px solid #f3f4f6" : "1px dashed #f9fafb",
-              }}>
-                <div style={{
-                  width: "56px", flexShrink: 0, paddingLeft: "12px",
-                  paddingTop: isHour ? "3px" : "1px",
-                  fontSize: isHour ? "11px" : "9px",
-                  color: isHour ? "#9ca3af" : "#d1d5db", fontWeight: "500",
+          <div style={{ position: "relative" }}>
+            {HOURS.flatMap(h => [0, 15, 30, 45].map(m => ({ h, m }))).map(({ h, m }) => {
+              const isHour = m === 0;
+              const isHalf = m === 30;
+              return (
+                <div key={`${h}-${m}`} style={{
+                  display: "flex", height: `${SLOT_H / 4}px`,
+                  borderBottom: isHour ? "1px solid #e5e7eb" : isHalf ? "1px solid #f3f4f6" : "1px dashed #f9fafb",
                 }}>
-                  {isHour ? `${String(h % 24).padStart(2, "0")}:00` : isHalf ? ":30" : ""}
+                  <div style={{
+                    width: "56px", flexShrink: 0, paddingLeft: "12px",
+                    paddingTop: isHour ? "3px" : "1px",
+                    fontSize: isHour ? "11px" : "9px",
+                    color: isHour ? "#9ca3af" : "#d1d5db", fontWeight: "500",
+                  }}>
+                    {isHour ? `${String(h % 24).padStart(2, "0")}:00` : isHalf ? ":30" : ""}
+                  </div>
+                  <div style={{ flex: 1, borderLeft: "1px solid #e5e7eb" }} />
                 </div>
-                <div style={{ flex: 1, borderLeft: "1px solid #e5e7eb" }} />
+              );
+            })}
+
+            {/* ドラッグハイライト */}
+            {highlight && (
+              <div style={{
+                position: "absolute", top: `${highlight.top}px`, left: "56px", right: "0",
+                height: `${Math.max(highlight.height, 4)}px`,
+                backgroundColor: "rgba(245,158,11,0.12)",
+                border: "2px solid #f59e0b", borderRadius: "6px",
+                pointerEvents: "none", zIndex: 15,
+              }}>
+                {highlight.height > 18 && (
+                  <span style={{ fontSize: "10px", color: "#92400e", fontWeight: "700", padding: "2px 4px", display: "block" }}>
+                    {yToTime(highlight.top)} – {yToTime(highlight.top + highlight.height)}
+                  </span>
+                )}
               </div>
-            );
-          })}
+            )}
 
-          {/* ドラッグハイライト */}
-          {highlight && (
-            <div style={{
-              position: "absolute", top: `${highlight.top}px`, left: "56px", right: "0",
-              height: `${Math.max(highlight.height, 4)}px`,
-              backgroundColor: "rgba(59,130,246,0.12)",
-              border: "2px solid #3b82f6", borderRadius: "6px",
-              pointerEvents: "none", zIndex: 15,
-            }}>
-              {highlight.height > 18 && (
-                <span style={{ fontSize: "10px", color: "#1d4ed8", fontWeight: "700", padding: "2px 4px", display: "block" }}>
-                  {yToTime(highlight.top)} – {yToTime(highlight.top + highlight.height)}
-                </span>
-              )}
-            </div>
-          )}
+            {/* 単日イベントブロック */}
+            {dayEvents.filter(e => e.startTime && e.endTime && e.date === e.endDate).map(ev => {
+              const startMin = timeToMin(ev.startTime);
+              const endMin = timeToMin(ev.endTime);
+              const topPx = (startMin - 4 * 60) / 60 * SLOT_H;
+              const heightPx = Math.max((endMin - startMin) / 60 * SLOT_H, 24);
+              return (
+                <button
+                  key={ev.id}
+                  data-event="true"
+                  onClick={() => onEdit(ev)}
+                  style={{
+                    position: "absolute", top: `${topPx}px`, left: "64px", right: "12px",
+                    height: `${heightPx}px`, backgroundColor: ev.color + "22",
+                    borderLeft: `4px solid ${ev.color}`, borderRadius: "0 8px 8px 0",
+                    padding: "4px 8px", display: "flex", flexDirection: "column",
+                    justifyContent: "center", gap: "2px", cursor: "pointer",
+                    border: "none", textAlign: "left", zIndex: 10,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: "13px", fontWeight: "bold", color: "#1f2937" }}>{ev.title}</span>
+                    <span style={{
+                      fontSize: "10px", fontWeight: "700", padding: "2px 6px", borderRadius: "4px",
+                      backgroundColor: ev.isReserved ? "#dbeafe" : "#fee2e2",
+                      color: ev.isReserved ? "#1d4ed8" : "#b91c1c",
+                    }}>
+                      {ev.isReserved ? "予約済 ✓" : "未予約"}
+                    </span>
+                  </div>
+                  {heightPx > 40 && (
+                    <span style={{ fontSize: "11px", color: "#6b7280" }}>
+                      {ev.startTime}〜{ev.endTime}　{ev.people}名
+                    </span>
+                  )}
+                </button>
+              );
+            })}
 
-          {/* 単日イベントブロック */}
-          {dayEvents.filter(e => e.startTime && e.endTime && e.date === e.endDate).map(ev => {
-            const startMin = timeToMin(ev.startTime);
-            const endMin = timeToMin(ev.endTime);
-            const topPx = (startMin - 4 * 60) / 60 * SLOT_H;
-            const heightPx = Math.max((endMin - startMin) / 60 * SLOT_H, 24);
-            return (
+            {/* 複数日イベント */}
+            {dayEvents.filter(e => e.date !== e.endDate).map((ev, i) => (
               <button
-                key={ev.id}
+                key={ev.id + "-multi"}
                 data-event="true"
                 onClick={() => onEdit(ev)}
                 style={{
-                  position: "absolute", top: `${topPx}px`, left: "64px", right: "12px",
-                  height: `${heightPx}px`, backgroundColor: ev.color + "22",
-                  borderLeft: `4px solid ${ev.color}`, borderRadius: "0 8px 8px 0",
-                  padding: "4px 8px", display: "flex", flexDirection: "column",
-                  justifyContent: "center", gap: "2px", cursor: "pointer",
-                  border: "none", textAlign: "left", zIndex: 10,
+                  position: "absolute", top: `${4 + i * 28}px`, left: "64px", right: "12px",
+                  height: "24px", backgroundColor: ev.color, borderRadius: "6px",
+                  padding: "0 8px", display: "flex", alignItems: "center",
+                  justifyContent: "space-between", cursor: "pointer", border: "none", zIndex: 20,
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: "13px", fontWeight: "bold", color: "#1f2937" }}>{ev.title}</span>
-                  <span style={{
-                    fontSize: "10px", fontWeight: "700", padding: "2px 6px", borderRadius: "4px",
-                    backgroundColor: ev.isReserved ? "#dbeafe" : "#fee2e2",
-                    color: ev.isReserved ? "#1d4ed8" : "#b91c1c",
-                  }}>
-                    {ev.isReserved ? "Reserved ✓" : "NOT Reserved"}
-                  </span>
-                </div>
-                {heightPx > 40 && (
-                  <span style={{ fontSize: "11px", color: "#6b7280" }}>
-                    {ev.startTime}〜{ev.endTime}　{ev.people}名
-                  </span>
-                )}
+                <span style={{ fontSize: "12px", fontWeight: "600", color: "white" }}>{ev.title}</span>
+                <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.85)", backgroundColor: "rgba(0,0,0,0.2)", borderRadius: "3px", padding: "1px 4px" }}>
+                  {ev.people}名 {ev.isReserved ? "✓" : ""}
+                </span>
               </button>
-            );
-          })}
-
-          {/* 複数日イベント */}
-          {dayEvents.filter(e => e.date !== e.endDate).map((ev, i) => (
-            <button
-              key={ev.id + "-multi"}
-              data-event="true"
-              onClick={() => onEdit(ev)}
-              style={{
-                position: "absolute", top: `${4 + i * 28}px`, left: "64px", right: "12px",
-                height: "24px", backgroundColor: ev.color, borderRadius: "6px",
-                padding: "0 8px", display: "flex", alignItems: "center",
-                justifyContent: "space-between", cursor: "pointer", border: "none", zIndex: 20,
-              }}
-            >
-              <span style={{ fontSize: "12px", fontWeight: "600", color: "white" }}>{ev.title}</span>
-              <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.85)", backgroundColor: "rgba(0,0,0,0.2)", borderRadius: "3px", padding: "1px 4px" }}>
-                {ev.people}名 {ev.isReserved ? "✓" : ""}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* + ボタン */}
-      <button
-        onClick={() => onAdd(date)}
-        style={{
-          position: "absolute", bottom: "100px", right: "20px",
-          width: "52px", height: "52px", borderRadius: "50%",
-          backgroundColor: "#3b82f6", border: "none", color: "white",
-          fontSize: "28px", cursor: "pointer",
-          boxShadow: "0 4px 14px rgba(59,130,246,0.5)",
-          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 30,
-        }}
-      >
-        ＋
-      </button>
-
-      {/* クイックフォーム（ドラッグ後のインライン入力） */}
-      {quickForm && (
-        <>
-          {/* オーバーレイ（クリックで閉じる） */}
-          <div
-            style={{ position: "fixed", inset: 0, zIndex: 150 }}
-            onClick={() => { setQuickForm(null); setAddMode(false); }}
-          />
-          <div style={{
-            position: "fixed",
-            top: `${Math.min(Math.max(70, quickForm.anchorClientY - 20), (typeof window !== "undefined" ? window.innerHeight : 700) - 300)}px`,
-            right: "12px",
-            width: "230px",
-            backgroundColor: "white",
-            borderRadius: "18px",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08)",
-            padding: "16px",
-            zIndex: 160,
-          }}>
-            {/* 時刻表示 */}
-            <div style={{
-              fontSize: "12px", color: "#6b7280", fontWeight: "600",
-              marginBottom: "10px", display: "flex", alignItems: "center", gap: "4px",
-            }}>
-              <span style={{
-                backgroundColor: quickForm.color + "22",
-                color: quickForm.color,
-                borderRadius: "6px", padding: "2px 8px",
-              }}>
-                {quickForm.startTime} – {quickForm.endTime}
-              </span>
-            </div>
-
-            {/* タイトル入力 */}
-            <input
-              autoFocus
-              type="text"
-              value={quickForm.title}
-              onChange={e => setQuickForm(q => q ? { ...q, title: e.target.value } : null)}
-              placeholder="タイトルを入力…"
-              onKeyDown={e => {
-                if (e.key === "Enter") saveQuick();
-                if (e.key === "Escape") setQuickForm(null);
-              }}
-              style={{
-                width: "100%", border: "1.5px solid #e5e7eb", borderRadius: "10px",
-                padding: "9px 11px", fontSize: "14px", outline: "none",
-                boxSizing: "border-box", marginBottom: "12px",
-                transition: "border-color 0.15s",
-              }}
-              onFocus={e => { e.target.style.borderColor = "#3b82f6"; }}
-              onBlur={e => { e.target.style.borderColor = "#e5e7eb"; }}
-            />
-
-            {/* 色選択 */}
-            <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
-              {COLORS.map(c => (
-                <button
-                  key={c}
-                  onClick={() => setQuickForm(q => q ? { ...q, color: c } : null)}
-                  style={{
-                    width: "26px", height: "26px", borderRadius: "50%",
-                    backgroundColor: c, border: "none", cursor: "pointer", flexShrink: 0,
-                    boxShadow: quickForm.color === c ? `0 0 0 2.5px white, 0 0 0 4.5px ${c}` : "none",
-                    transition: "box-shadow 0.15s",
-                  }}
-                />
-              ))}
-            </div>
-
-            {/* ボタン */}
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                onClick={() => { setQuickForm(null); setAddMode(false); }}
-                style={{
-                  flex: 1, padding: "8px", borderRadius: "10px",
-                  border: "1px solid #e5e7eb", background: "white",
-                  color: "#6b7280", fontSize: "13px", cursor: "pointer",
-                }}
-              >
-                キャンセル
-              </button>
-              <button
-                onClick={saveQuick}
-                disabled={!quickForm.title.trim()}
-                style={{
-                  flex: 2, padding: "8px", borderRadius: "10px", border: "none",
-                  backgroundColor: quickForm.title.trim() ? quickForm.color : "#d1d5db",
-                  color: "white", fontSize: "13px", fontWeight: "bold",
-                  cursor: quickForm.title.trim() ? "pointer" : "default",
-                  transition: "background-color 0.15s",
-                }}
-              >
-                保存
-              </button>
-            </div>
+            ))}
           </div>
-        </>
-      )}
-    </div>
+        </div>
+
+        {/* 長押しインジケーター（2秒のリングアニメーション） */}
+        {pressPos && (
+          <>
+            <div style={{
+              position: "fixed", left: pressPos.x, top: pressPos.y,
+              width: "48px", height: "48px", borderRadius: "50%",
+              border: "3px solid #f59e0b",
+              animation: `press-ring ${LONG_PRESS_MS}ms ease-out forwards`,
+              pointerEvents: "none", zIndex: 300,
+            }} />
+            <div style={{
+              position: "fixed", left: pressPos.x, top: pressPos.y,
+              width: "12px", height: "12px", borderRadius: "50%",
+              backgroundColor: "#f59e0b",
+              animation: `press-fill ${LONG_PRESS_MS}ms ease-out forwards`,
+              pointerEvents: "none", zIndex: 300,
+            }} />
+          </>
+        )}
+
+        {/* クイックフォーム */}
+        {quickForm && (
+          <>
+            <div
+              style={{ position: "fixed", inset: 0, zIndex: 150 }}
+              onClick={() => { setQuickForm(null); setEditMode(false); }}
+            />
+            <div style={{
+              position: "fixed",
+              top: `${Math.min(Math.max(70, quickForm.anchorClientY - 20), (typeof window !== "undefined" ? window.innerHeight : 700) - 320)}px`,
+              right: "12px", width: "250px",
+              backgroundColor: "white", borderRadius: "18px",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+              padding: "16px", zIndex: 160,
+            }}>
+              {/* 選択範囲の時刻 */}
+              <div style={{ display: "flex", gap: "6px", marginBottom: "12px", alignItems: "center" }}>
+                <input
+                  type="time" value={quickForm.startTime}
+                  onChange={e => setQuickForm(q => q ? { ...q, startTime: e.target.value } : null)}
+                  style={{ flex: 1, border: "1px solid #e5e7eb", borderRadius: "8px", padding: "6px 8px", fontSize: "13px", outline: "none" }}
+                />
+                <span style={{ color: "#9ca3af", fontSize: "12px" }}>–</span>
+                <input
+                  type="time" value={quickForm.endTime}
+                  onChange={e => setQuickForm(q => q ? { ...q, endTime: e.target.value } : null)}
+                  style={{ flex: 1, border: "1px solid #e5e7eb", borderRadius: "8px", padding: "6px 8px", fontSize: "13px", outline: "none" }}
+                />
+              </div>
+
+              {/* タイトル */}
+              <input
+                autoFocus
+                type="text"
+                value={quickForm.title}
+                onChange={e => setQuickForm(q => q ? { ...q, title: e.target.value } : null)}
+                placeholder="タイトルを入力…"
+                onKeyDown={e => { if (e.key === "Enter") saveQuick(); if (e.key === "Escape") { setQuickForm(null); setEditMode(false); } }}
+                style={{
+                  width: "100%", border: "1.5px solid #e5e7eb", borderRadius: "10px",
+                  padding: "9px 11px", fontSize: "14px", outline: "none",
+                  boxSizing: "border-box", marginBottom: "12px",
+                }}
+                onFocus={e => { e.target.style.borderColor = "#f59e0b"; }}
+                onBlur={e => { e.target.style.borderColor = "#e5e7eb"; }}
+              />
+
+              {/* 予約状況（色が変わる） */}
+              <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
+                {[
+                  { label: "🔵 予約済", value: true, bg: "#dbeafe", border: "#3b82f6", color: "#1d4ed8" },
+                  { label: "🔴 未予約", value: false, bg: "#fee2e2", border: "#ef4444", color: "#b91c1c" },
+                ].map(opt => (
+                  <button
+                    key={String(opt.value)}
+                    onClick={() => setQuickForm(q => q ? { ...q, isReserved: opt.value } : null)}
+                    style={{
+                      flex: 1, padding: "8px 4px", borderRadius: "10px", cursor: "pointer",
+                      fontWeight: "700", fontSize: "12px",
+                      backgroundColor: quickForm.isReserved === opt.value ? opt.bg : "#f9fafb",
+                      color: quickForm.isReserved === opt.value ? opt.color : "#9ca3af",
+                      border: `2px solid ${quickForm.isReserved === opt.value ? opt.border : "transparent"}`,
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* ボタン */}
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  onClick={() => { setQuickForm(null); setEditMode(false); }}
+                  style={{ flex: 1, padding: "9px", borderRadius: "10px", border: "1px solid #e5e7eb", background: "white", color: "#6b7280", fontSize: "13px", cursor: "pointer" }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={saveQuick}
+                  disabled={!quickForm.title.trim()}
+                  style={{
+                    flex: 2, padding: "9px", borderRadius: "10px", border: "none",
+                    backgroundColor: quickForm.title.trim() ? (quickForm.isReserved ? "#3b82f6" : "#ef4444") : "#d1d5db",
+                    color: "white", fontSize: "13px", fontWeight: "bold",
+                    cursor: quickForm.title.trim() ? "pointer" : "default",
+                    transition: "background-color 0.2s",
+                  }}
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </>
   );
 }
 
