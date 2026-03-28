@@ -323,6 +323,7 @@ function DayView({
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef({ active: false, startY: 0, endY: 0, startClientX: 0, intentDecided: false });
 
+  const [addMode, setAddMode] = useState(false);
   const [highlight, setHighlight] = useState<{ top: number; height: number } | null>(null);
   const [quickForm, setQuickForm] = useState<{
     startTime: string; endTime: string; color: string; title: string; anchorClientY: number;
@@ -355,29 +356,17 @@ function DayView({
     const el = scrollRef.current;
     if (!el) return;
     const onTouchStart = (e: TouchEvent) => {
+      if (!addMode) return; // 追加モードのときだけドラッグ開始
       const t = e.touches[0];
       const y = getContentY(t.clientY);
-      // イベントブロック上はスキップ
       if ((e.target as HTMLElement).closest("[data-event]")) return;
-      dragRef.current = { active: false, startY: y, endY: y, startClientX: t.clientX, intentDecided: false };
+      dragRef.current = { active: true, startY: y, endY: y, startClientX: t.clientX, intentDecided: true };
+      setHighlight({ top: y, height: 0 });
     };
     const onTouchMove = (e: TouchEvent) => {
-      const t = e.touches[0];
-      const dy = Math.abs(getContentY(t.clientY) - dragRef.current.startY);
-      const dx = Math.abs(t.clientX - dragRef.current.startClientX);
-
-      // まだ意図が決まっていない場合、縦横の動き量で判定
-      if (!dragRef.current.intentDecided && (dy > 6 || dx > 6)) {
-        dragRef.current.intentDecided = true;
-        if (dy >= dx) {
-          // 縦方向 → ドラッグ選択
-          dragRef.current.active = true;
-          setHighlight({ top: dragRef.current.startY, height: dy });
-        }
-        // 横方向 → スクロールに任せる（active=false のまま）
-      }
       if (!dragRef.current.active) return;
       e.preventDefault();
+      const t = e.touches[0];
       const y = getContentY(t.clientY);
       dragRef.current.endY = y;
       setHighlight({ top: Math.min(dragRef.current.startY, y), height: Math.abs(y - dragRef.current.startY) });
@@ -396,10 +385,11 @@ function DayView({
       el.removeEventListener("touchend", onTouchEnd);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date]);
+  }, [date, addMode]);
 
-  // ── マウスイベント（即座にドラッグ開始）
+  // ── マウスイベント（追加モード時のみドラッグ開始）
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (!addMode) return;
     if ((e.target as HTMLElement).closest("[data-event]")) return;
     if (e.button !== 0) return;
     const y = getContentY(e.clientY);
@@ -430,6 +420,7 @@ function DayView({
       people: 2, isReserved: false, color: quickForm.color, note: "",
     });
     setQuickForm(null);
+    setAddMode(false);
   };
 
   return (
@@ -443,13 +434,30 @@ function DayView({
             <span style={{ fontSize: "11px", color: "#ef4444", fontWeight: "600" }}>🎌 {HOLIDAYS[date]}</span>
           )}
         </div>
-        <span style={{ fontSize: "10px", color: "#9ca3af" }}>ドラッグで範囲選択</span>
+        <button
+          onClick={() => setAddMode(m => !m)}
+          style={{
+            marginLeft: "auto",
+            display: "flex", alignItems: "center", gap: "5px",
+            padding: "6px 12px", borderRadius: "20px", border: "none",
+            backgroundColor: addMode ? "#3b82f6" : "#f3f4f6",
+            color: addMode ? "white" : "#6b7280",
+            fontSize: "12px", fontWeight: "600", cursor: "pointer",
+            transition: "all 0.2s",
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+          {addMode ? "追加中" : "追加"}
+        </button>
       </div>
 
       {/* タイムライン */}
       <div
         ref={scrollRef}
-        style={{ flex: 1, overflowY: "auto", padding: "12px 0 120px", position: "relative", userSelect: "none" }}
+        style={{ flex: 1, overflowY: "auto", padding: "12px 0 120px", position: "relative", userSelect: "none", cursor: addMode ? "crosshair" : "default" }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -576,7 +584,7 @@ function DayView({
           {/* オーバーレイ（クリックで閉じる） */}
           <div
             style={{ position: "fixed", inset: 0, zIndex: 150 }}
-            onClick={() => setQuickForm(null)}
+            onClick={() => { setQuickForm(null); setAddMode(false); }}
           />
           <div style={{
             position: "fixed",
@@ -643,7 +651,7 @@ function DayView({
             {/* ボタン */}
             <div style={{ display: "flex", gap: "8px" }}>
               <button
-                onClick={() => setQuickForm(null)}
+                onClick={() => { setQuickForm(null); setAddMode(false); }}
                 style={{
                   flex: 1, padding: "8px", borderRadius: "10px",
                   border: "1px solid #e5e7eb", background: "white",
