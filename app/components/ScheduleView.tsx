@@ -339,7 +339,7 @@ function DayView({
   };
 
   // 30分単位にスナップしたハイライト範囲を計算
-  const SNAP_PX = SLOT_H / 2; // 30px = 30分
+  const SNAP_PX = SLOT_H / 4; // 15px = 15分
   const snapHighlight = (y1: number, y2: number) => {
     const top = Math.round(Math.min(y1, y2) / SNAP_PX) * SNAP_PX;
     const bottom = Math.ceil(Math.max(y1, y2) / SNAP_PX) * SNAP_PX;
