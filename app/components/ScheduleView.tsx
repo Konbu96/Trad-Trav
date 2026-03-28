@@ -336,9 +336,19 @@ function DayView({
     const rect = scrollRef.current.getBoundingClientRect();
     return clientY - rect.top + scrollRef.current.scrollTop - 12;
   };
+
+  // 30分単位にスナップしたハイライト範囲を計算
+  const SNAP_PX = SLOT_H / 2; // 30px = 30分
+  const snapHighlight = (y1: number, y2: number) => {
+    const top = Math.floor(Math.min(y1, y2) / SNAP_PX) * SNAP_PX;
+    const bottom = Math.ceil(Math.max(y1, y2) / SNAP_PX) * SNAP_PX;
+    return { top, height: Math.max(bottom - top, SNAP_PX) };
+  };
+
+  // Y座標 → 時刻文字列（スナップはsnapHighlightで済ませる）
   const yToTime = (contentY: number): string => {
-    const snapped = Math.round(contentY / SLOT_H * 60 / 15) * 15;
-    const absMin = Math.max(4 * 60, Math.min(27 * 60 + 45, snapped + 4 * 60));
+    const totalMin = Math.round(contentY / SLOT_H * 60);
+    const absMin = Math.max(4 * 60, Math.min(27 * 60 + 30, totalMin + 4 * 60));
     return `${String(Math.floor(absMin / 60) % 24).padStart(2, "0")}:${String(absMin % 60).padStart(2, "0")}`;
   };
 
@@ -351,14 +361,13 @@ function DayView({
   };
 
   const finalizeDrag = (endY: number, clientY: number) => {
-    const { startY } = dragRef.current;
-    const top = Math.min(startY, endY);
-    const height = Math.abs(endY - startY);
     dragRef.current.active = false;
     // highlight はボックスが閉じるまで維持（保存・キャンセル時に消す）
-    if (height < 10) return;
+    const snapped = snapHighlight(dragRef.current.startY, endY);
+    if (snapped.height < SNAP_PX) return;
+    setHighlight(snapped);
     setQuickForm({
-      startTime: yToTime(top), endTime: yToTime(top + height),
+      startTime: yToTime(snapped.top), endTime: yToTime(snapped.top + snapped.height),
       isReserved: false, title: "", anchorClientY: clientY,
     });
   };
@@ -385,7 +394,7 @@ function DayView({
       const t = e.touches[0];
       const y = getContentY(t.clientY);
       dragRef.current.endY = y;
-      setHighlight({ top: Math.min(dragRef.current.startY, y), height: Math.abs(y - dragRef.current.startY) });
+      setHighlight(snapHighlight(dragRef.current.startY, y));
     };
 
     const switchToDragging = () => {
@@ -473,7 +482,7 @@ function DayView({
     }
     const y = getContentY(e.clientY);
     dragRef.current.endY = y;
-    setHighlight({ top: Math.min(dragRef.current.startY, y), height: Math.abs(y - dragRef.current.startY) });
+    setHighlight(snapHighlight(dragRef.current.startY, y));
   };
   const handleMouseUp = (e: React.MouseEvent) => {
     if (!dragRef.current.active) { cancelPress(); return; }
