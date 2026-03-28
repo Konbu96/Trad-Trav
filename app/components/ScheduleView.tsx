@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // 日本の祝日
 const HOLIDAYS: Record<string, string> = {
@@ -300,7 +300,7 @@ function AddEventSheet({
 }
 
 // ────────────────────────────
-// 日ビュー（タイムライン）
+// 日ビュー（タイムライン + 長押しドラッグ追加）
 // ────────────────────────────
 function DayView({
   date,
@@ -308,34 +308,156 @@ function DayView({
   onBack,
   onAdd,
   onEdit,
+  onSaveDirect,
 }: {
   date: string;
   events: ScheduleEvent[];
   onBack: () => void;
   onAdd: (date: string) => void;
   onEdit: (ev: ScheduleEvent) => void;
+  onSaveDirect: (ev: ScheduleEvent) => void;
 }) {
   const dayEvents = events.filter(e => dateInRange(date, e.date, e.endDate));
-  const SLOT_H = 60; // px per hour
+  const SLOT_H = 60;
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragRef = useRef({ active: false, startY: 0, endY: 0 });
+
+  const [highlight, setHighlight] = useState<{ top: number; height: number } | null>(null);
+  const [quickForm, setQuickForm] = useState<{
+    startTime: string; endTime: string; color: string; title: string; anchorClientY: number;
+  } | null>(null);
+
+  // Y座標（コンテンツ相対）→ 時刻文字列（15分刻み）
+  const getContentY = (clientY: number) => {
+    if (!scrollRef.current) return 0;
+    const rect = scrollRef.current.getBoundingClientRect();
+    return clientY - rect.top + scrollRef.current.scrollTop - 12;
+  };
+  const yToTime = (contentY: number): string => {
+    const snapped = Math.round(contentY / SLOT_H * 60 / 15) * 15;
+    const absMin = Math.max(4 * 60, Math.min(27 * 60 + 45, snapped + 4 * 60));
+    return `${String(Math.floor(absMin / 60) % 24).padStart(2, "0")}:${String(absMin % 60).padStart(2, "0")}`;
+  };
+
+  const finalizeDrag = (endY: number, clientY: number) => {
+    const { startY } = dragRef.current;
+    const top = Math.min(startY, endY);
+    const height = Math.abs(endY - startY);
+    dragRef.current.active = false;
+    setHighlight(null);
+    if (height < 15) return;
+    setQuickForm({ startTime: yToTime(top), endTime: yToTime(top + height), color: COLORS[0], title: "", anchorClientY: clientY });
+  };
+
+  // ── タッチイベント（passive:false が必要なため useEffect で登録）
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      const y = getContentY(t.clientY);
+      dragRef.current = { active: false, startY: y, endY: y };
+      longPressRef.current = setTimeout(() => {
+        dragRef.current.active = true;
+        setHighlight({ top: y, height: 0 });
+      }, 400);
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!dragRef.current.active) {
+        if (Math.abs(getContentY(t.clientY) - dragRef.current.startY) > 8) {
+          if (longPressRef.current) clearTimeout(longPressRef.current);
+        }
+        return;
+      }
+      e.preventDefault();
+      const y = getContentY(t.clientY);
+      dragRef.current.endY = y;
+      setHighlight({ top: Math.min(dragRef.current.startY, y), height: Math.abs(y - dragRef.current.startY) });
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (longPressRef.current) clearTimeout(longPressRef.current);
+      if (!dragRef.current.active) { setHighlight(null); return; }
+      const t = e.changedTouches[0];
+      finalizeDrag(dragRef.current.endY, t.clientY);
+    };
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd);
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date]);
+
+  // ── マウスイベント
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("[data-event]")) return;
+    const y = getContentY(e.clientY);
+    dragRef.current = { active: false, startY: y, endY: y };
+    longPressRef.current = setTimeout(() => {
+      dragRef.current.active = true;
+      setHighlight({ top: y, height: 0 });
+    }, 400);
+  };
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!dragRef.current.active) return;
+    const y = getContentY(e.clientY);
+    dragRef.current.endY = y;
+    setHighlight({ top: Math.min(dragRef.current.startY, y), height: Math.abs(y - dragRef.current.startY) });
+  };
+  const handleMouseUp = (e: React.MouseEvent) => {
+    if (longPressRef.current) clearTimeout(longPressRef.current);
+    if (!dragRef.current.active) { setHighlight(null); return; }
+    finalizeDrag(dragRef.current.endY, e.clientY);
+  };
+  const cancelDrag = () => {
+    if (longPressRef.current) clearTimeout(longPressRef.current);
+    dragRef.current.active = false;
+    setHighlight(null);
+  };
+
+  const saveQuick = () => {
+    if (!quickForm?.title.trim()) return;
+    onSaveDirect({
+      id: Date.now().toString(),
+      title: quickForm.title, date, endDate: date,
+      startTime: quickForm.startTime, endTime: quickForm.endTime,
+      people: 2, isReserved: false, color: quickForm.color, note: "",
+    });
+    setQuickForm(null);
+  };
 
   return (
     <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", backgroundColor: "#f8fafc" }}>
       {/* ヘッダー */}
       <div style={{ backgroundColor: "white", borderBottom: "1px solid #e5e7eb", padding: "16px 20px", paddingTop: "48px", display: "flex", alignItems: "center", gap: "12px" }}>
         <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#6b7280", padding: "4px" }}>←</button>
-        <div>
+        <div style={{ flex: 1 }}>
           <h2 style={{ fontSize: "17px", fontWeight: "bold", color: "#1f2937" }}>{formatJa(date)}</h2>
           {HOLIDAYS[date] && (
             <span style={{ fontSize: "11px", color: "#ef4444", fontWeight: "600" }}>🎌 {HOLIDAYS[date]}</span>
           )}
         </div>
+        <span style={{ fontSize: "10px", color: "#9ca3af" }}>長押し＆ドラッグで追加</span>
       </div>
 
       {/* タイムライン */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 0 120px", position: "relative" }}>
+      <div
+        ref={scrollRef}
+        style={{ flex: 1, overflowY: "auto", padding: "12px 0 120px", position: "relative", userSelect: "none" }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={cancelDrag}
+      >
         <div style={{ position: "relative" }}>
           {HOURS.map(h => (
-            <div key={h} style={{ display: "flex", height: `${SLOT_H}px`, borderBottom: "1px solid #f3f4f6", position: "relative" }}>
+            <div key={h} style={{ display: "flex", height: `${SLOT_H}px`, borderBottom: "1px solid #f3f4f6" }}>
               <div style={{ width: "56px", flexShrink: 0, paddingTop: "4px", paddingLeft: "12px", fontSize: "11px", color: "#9ca3af", fontWeight: "500" }}>
                 {`${String(h % 24).padStart(2, "0")}:00`}
               </div>
@@ -343,35 +465,41 @@ function DayView({
             </div>
           ))}
 
-          {/* イベントブロック */}
-          {dayEvents.filter(e => e.startTime && e.endTime).map(ev => {
+          {/* ドラッグハイライト */}
+          {highlight && (
+            <div style={{
+              position: "absolute", top: `${highlight.top}px`, left: "56px", right: "0",
+              height: `${Math.max(highlight.height, 4)}px`,
+              backgroundColor: "rgba(59,130,246,0.12)",
+              border: "2px solid #3b82f6", borderRadius: "6px",
+              pointerEvents: "none", zIndex: 15,
+            }}>
+              {highlight.height > 18 && (
+                <span style={{ fontSize: "10px", color: "#1d4ed8", fontWeight: "700", padding: "2px 4px", display: "block" }}>
+                  {yToTime(highlight.top)} – {yToTime(highlight.top + highlight.height)}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* 単日イベントブロック */}
+          {dayEvents.filter(e => e.startTime && e.endTime && e.date === e.endDate).map(ev => {
             const startMin = timeToMin(ev.startTime);
             const endMin = timeToMin(ev.endTime);
-                const topPx = (startMin - 4 * 60) / 60 * SLOT_H;
+            const topPx = (startMin - 4 * 60) / 60 * SLOT_H;
             const heightPx = Math.max((endMin - startMin) / 60 * SLOT_H, 24);
-
             return (
               <button
                 key={ev.id}
+                data-event="true"
                 onClick={() => onEdit(ev)}
                 style={{
-                  position: "absolute",
-                  top: `${topPx}px`,
-                  left: "64px",
-                  right: "12px",
-                  height: `${heightPx}px`,
-                  backgroundColor: ev.color + "22",
-                  borderLeft: `4px solid ${ev.color}`,
-                  borderRadius: "0 8px 8px 0",
-                  padding: "4px 8px",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  gap: "2px",
-                  cursor: "pointer",
-                  border: "none",
-                  textAlign: "left",
-                  zIndex: 10,
+                  position: "absolute", top: `${topPx}px`, left: "64px", right: "12px",
+                  height: `${heightPx}px`, backgroundColor: ev.color + "22",
+                  borderLeft: `4px solid ${ev.color}`, borderRadius: "0 8px 8px 0",
+                  padding: "4px 8px", display: "flex", flexDirection: "column",
+                  justifyContent: "center", gap: "2px", cursor: "pointer",
+                  border: "none", textAlign: "left", zIndex: 10,
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -393,26 +521,17 @@ function DayView({
             );
           })}
 
-          {/* 複数日イベント（時刻なし）*/}
+          {/* 複数日イベント */}
           {dayEvents.filter(e => e.date !== e.endDate).map((ev, i) => (
             <button
               key={ev.id + "-multi"}
+              data-event="true"
               onClick={() => onEdit(ev)}
               style={{
-                position: "absolute",
-                top: `${4 + i * 28}px`,
-                left: "64px",
-                right: "12px",
-                height: "24px",
-                backgroundColor: ev.color,
-                borderRadius: "6px",
-                padding: "0 8px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                cursor: "pointer",
-                border: "none",
-                zIndex: 20,
+                position: "absolute", top: `${4 + i * 28}px`, left: "64px", right: "12px",
+                height: "24px", backgroundColor: ev.color, borderRadius: "6px",
+                padding: "0 8px", display: "flex", alignItems: "center",
+                justifyContent: "space-between", cursor: "pointer", border: "none", zIndex: 20,
               }}
             >
               <span style={{ fontSize: "12px", fontWeight: "600", color: "white" }}>{ev.title}</span>
@@ -433,12 +552,111 @@ function DayView({
           backgroundColor: "#3b82f6", border: "none", color: "white",
           fontSize: "28px", cursor: "pointer",
           boxShadow: "0 4px 14px rgba(59,130,246,0.5)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 30,
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 30,
         }}
       >
         ＋
       </button>
+
+      {/* クイックフォーム（ドラッグ後のインライン入力） */}
+      {quickForm && (
+        <>
+          {/* オーバーレイ（クリックで閉じる） */}
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 150 }}
+            onClick={() => setQuickForm(null)}
+          />
+          <div style={{
+            position: "fixed",
+            top: `${Math.min(Math.max(70, quickForm.anchorClientY - 20), (typeof window !== "undefined" ? window.innerHeight : 700) - 300)}px`,
+            right: "12px",
+            width: "230px",
+            backgroundColor: "white",
+            borderRadius: "18px",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08)",
+            padding: "16px",
+            zIndex: 160,
+          }}>
+            {/* 時刻表示 */}
+            <div style={{
+              fontSize: "12px", color: "#6b7280", fontWeight: "600",
+              marginBottom: "10px", display: "flex", alignItems: "center", gap: "4px",
+            }}>
+              <span style={{
+                backgroundColor: quickForm.color + "22",
+                color: quickForm.color,
+                borderRadius: "6px", padding: "2px 8px",
+              }}>
+                {quickForm.startTime} – {quickForm.endTime}
+              </span>
+            </div>
+
+            {/* タイトル入力 */}
+            <input
+              autoFocus
+              type="text"
+              value={quickForm.title}
+              onChange={e => setQuickForm(q => q ? { ...q, title: e.target.value } : null)}
+              placeholder="タイトルを入力…"
+              onKeyDown={e => {
+                if (e.key === "Enter") saveQuick();
+                if (e.key === "Escape") setQuickForm(null);
+              }}
+              style={{
+                width: "100%", border: "1.5px solid #e5e7eb", borderRadius: "10px",
+                padding: "9px 11px", fontSize: "14px", outline: "none",
+                boxSizing: "border-box", marginBottom: "12px",
+                transition: "border-color 0.15s",
+              }}
+              onFocus={e => { e.target.style.borderColor = "#3b82f6"; }}
+              onBlur={e => { e.target.style.borderColor = "#e5e7eb"; }}
+            />
+
+            {/* 色選択 */}
+            <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
+              {COLORS.map(c => (
+                <button
+                  key={c}
+                  onClick={() => setQuickForm(q => q ? { ...q, color: c } : null)}
+                  style={{
+                    width: "26px", height: "26px", borderRadius: "50%",
+                    backgroundColor: c, border: "none", cursor: "pointer", flexShrink: 0,
+                    boxShadow: quickForm.color === c ? `0 0 0 2.5px white, 0 0 0 4.5px ${c}` : "none",
+                    transition: "box-shadow 0.15s",
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* ボタン */}
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                onClick={() => setQuickForm(null)}
+                style={{
+                  flex: 1, padding: "8px", borderRadius: "10px",
+                  border: "1px solid #e5e7eb", background: "white",
+                  color: "#6b7280", fontSize: "13px", cursor: "pointer",
+                }}
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={saveQuick}
+                disabled={!quickForm.title.trim()}
+                style={{
+                  flex: 2, padding: "8px", borderRadius: "10px", border: "none",
+                  backgroundColor: quickForm.title.trim() ? quickForm.color : "#d1d5db",
+                  color: "white", fontSize: "13px", fontWeight: "bold",
+                  cursor: quickForm.title.trim() ? "pointer" : "default",
+                  transition: "background-color 0.15s",
+                }}
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -685,6 +903,7 @@ export default function ScheduleView() {
           onBack={() => setView("month")}
           onAdd={openAdd}
           onEdit={openEdit}
+          onSaveDirect={handleSave}
         />
       )}
 
