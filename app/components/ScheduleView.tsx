@@ -378,32 +378,46 @@ function DayView({
         dragRef.current.active = true;
         setPressPos(null);
         setHighlight({ top: y, height: 0 });
+        // ドラッグ開始後にスクロール阻止リスナーへ切り替え
+        el.removeEventListener("touchmove", onTouchMoveTracking);
+        el.addEventListener("touchmove", onTouchMoveDragging, { passive: false });
       }, LONG_PRESS_MS);
     };
-    const onTouchMove = (e: TouchEvent) => {
+
+    // ── passive: true（スクロール自由、動いたら長押しキャンセルだけ）
+    const onTouchMoveTracking = (e: TouchEvent) => {
       const t = e.touches[0];
-      if (!dragRef.current.active) {
-        // 長押し中に大きく動いたらキャンセル
-        const moved = Math.hypot(t.clientX - dragRef.current.startClientX, t.clientY - dragRef.current.startClientY);
-        if (moved > 10) cancelPress();
-        return;
-      }
+      const moved = Math.hypot(
+        t.clientX - dragRef.current.startClientX,
+        t.clientY - dragRef.current.startClientY,
+      );
+      if (moved > 10) cancelPress();
+    };
+
+    // ── passive: false（ドラッグ中のみ使用、スクロール阻止）
+    const onTouchMoveDragging = (e: TouchEvent) => {
       e.preventDefault();
+      const t = e.touches[0];
       const y = getContentY(t.clientY);
       dragRef.current.endY = y;
       setHighlight({ top: Math.min(dragRef.current.startY, y), height: Math.abs(y - dragRef.current.startY) });
     };
+
     const onTouchEnd = (e: TouchEvent) => {
+      // スクロール自由リスナーに戻す
+      el.removeEventListener("touchmove", onTouchMoveDragging);
+      el.addEventListener("touchmove", onTouchMoveTracking, { passive: true });
       if (!dragRef.current.active) { cancelPress(); return; }
       const t = e.changedTouches[0];
       finalizeDrag(dragRef.current.endY, t.clientY);
     };
     el.addEventListener("touchstart", onTouchStart, { passive: true });
-    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchmove", onTouchMoveTracking, { passive: true }); // 最初はpassive
     el.addEventListener("touchend", onTouchEnd);
     return () => {
       el.removeEventListener("touchstart", onTouchStart);
-      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchmove", onTouchMoveTracking);
+      el.removeEventListener("touchmove", onTouchMoveDragging);
       el.removeEventListener("touchend", onTouchEnd);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
