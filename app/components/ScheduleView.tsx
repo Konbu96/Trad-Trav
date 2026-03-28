@@ -579,10 +579,10 @@ function DayView({
                 <div key={`${h}-${m}`} style={{
                   display: "flex", height: `${SLOT_H / 4}px`,
                   boxShadow: isHour
-                    ? "inset 0 -1px 0 0 #e5e7eb"
+                    ? "inset 0 1px 0 0 #e5e7eb"
                     : isHalf
-                      ? "inset 0 -1px 0 0 #f3f4f6"
-                      : "inset 0 -1px 0 0 #f9fafb",
+                      ? "inset 0 1px 0 0 #f3f4f6"
+                      : "inset 0 1px 0 0 #f9fafb",
                 }}>
                   <div style={{
                     width: "56px", flexShrink: 0, paddingLeft: "12px",
