@@ -318,7 +318,7 @@ function DayView({
 }) {
   const dayEvents = events.filter(e => dateInRange(date, e.date, e.endDate));
   const SLOT_H = 60;
-  const LONG_PRESS_MS = 1000;
+  const LONG_PRESS_MS = 500;
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -378,6 +378,7 @@ function DayView({
         dragRef.current.active = true;
         setPressPos(null);
         setHighlight({ top: y, height: 0 });
+        navigator.vibrate?.(40); // 触覚フィードバック
         // ドラッグ開始後にスクロール阻止リスナーへ切り替え
         el.removeEventListener("touchmove", onTouchMoveTracking);
         el.addEventListener("touchmove", onTouchMoveDragging, { passive: false });
@@ -435,6 +436,7 @@ function DayView({
       dragRef.current.active = true;
       setPressPos(null);
       setHighlight({ top: y, height: 0 });
+      navigator.vibrate?.(40);
     }, LONG_PRESS_MS);
   };
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -518,7 +520,7 @@ function DayView({
             padding: "6px 16px", fontSize: "11px", color: "#92400e", fontWeight: "500",
             textAlign: "center",
           }}>
-            ✏️ 2秒長押し → そのままドラッグ → 離すで予定追加
+            ✏️ 長押し → そのままドラッグ → 離すで予定追加
           </div>
         )}
 
