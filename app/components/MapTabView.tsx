@@ -37,6 +37,7 @@ interface MapTabViewProps {
   favoriteSpotIds: number[];
   onToggleFavorite: (spotId: number) => void;
   recommendedSpotIds: number[] | null;
+  onOpenLanguageHelper?: (spotName: string) => void;
 }
 
 export default function MapTabView({
@@ -46,6 +47,7 @@ export default function MapTabView({
   favoriteSpotIds,
   onToggleFavorite,
   recommendedSpotIds,
+  onOpenLanguageHelper,
 }: MapTabViewProps) {
   const [activeSubTab, setActiveSubTab] = useState<"map" | "search">("search");
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
@@ -336,6 +338,7 @@ export default function MapTabView({
           onClose={() => setSelectedSpot(null)}
           isFavorite={favoriteSpotIds.includes(selectedSpot.id)}
           onToggleFavorite={() => onToggleFavorite(selectedSpot.id)}
+          onOpenLanguageHelper={onOpenLanguageHelper}
         />
       )}
     </div>

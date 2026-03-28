@@ -34,6 +34,7 @@ function AppContent() {
   const [favoriteSpotIds, setFavoriteSpotIds] = useState<number[]>([]);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>("map");
   const [jumpToSpotId, setJumpToSpotId] = useState<number | null>(null);
+  const [languageHelperSpot, setLanguageHelperSpot] = useState<string | null>(null);
 
   // 診断結果からおすすめスポットIDを計算
   const recommendedSpotIds = diagnosisResult
@@ -82,6 +83,13 @@ function AppContent() {
 
   const handleScreenChange = (screen: ScreenType) => {
     setCurrentScreen(screen);
+    if (screen !== "chat") setLanguageHelperSpot(null);
+  };
+
+  // 言語ヘルパーをスポット連携で開く
+  const handleOpenLanguageHelper = (spotName: string) => {
+    setLanguageHelperSpot(spotName);
+    setCurrentScreen("chat");
   };
 
   // マップタブへジャンプ（プランビューや閲覧履歴から）
@@ -163,6 +171,7 @@ function AppContent() {
               onToggleFavorite={handleToggleFavorite}
               onSpotView={handleSpotView}
               onStartDiagnosis={() => setShowDiagnosis(true)}
+              onOpenLanguageHelper={handleOpenLanguageHelper}
             />
           )}
 
@@ -175,12 +184,16 @@ function AppContent() {
               favoriteSpotIds={favoriteSpotIds}
               onToggleFavorite={handleToggleFavorite}
               recommendedSpotIds={recommendedSpotIds}
+              onOpenLanguageHelper={handleOpenLanguageHelper}
             />
           )}
 
-          {/* 翻訳 */}
+          {/* 言語ヘルパー */}
           {currentScreen === "chat" && (
-            <TranslationView />
+            <TranslationView
+              spotName={languageHelperSpot}
+              initialCategory={languageHelperSpot ? "reservation" : "general"}
+            />
           )}
 
           {/* マイページ */}

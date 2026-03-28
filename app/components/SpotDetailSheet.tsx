@@ -24,6 +24,7 @@ interface SpotDetailSheetProps {
   isFavorite?: boolean;
   onToggleFavorite?: (spotId: number) => void;
   isLoadingInfo?: boolean;
+  onOpenLanguageHelper?: (spotName: string) => void;
 }
 
 // 星評価を表示
@@ -475,7 +476,7 @@ function PhotosTab({ spot }: { spot: Spot }) {
 const MAP_TUTORIAL_KEY = "trad-trav-map-tutorial-done"; // MapView と同じキー
 const TAB_TUTORIAL_KEY = "trad-trav-tab-tutorial-done";
 
-export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onToggleFavorite, isLoadingInfo = false }: SpotDetailSheetProps) {
+export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onToggleFavorite, isLoadingInfo = false, onOpenLanguageHelper }: SpotDetailSheetProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "photos" | "reservation">("overview");
   const [dragY, setDragY] = useState(0);
@@ -673,11 +674,25 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
         >
           <div>
             <h2 style={{ fontSize: "24px", fontWeight: "bold", color: "#111827", marginBottom: "10px" }}>{spot.name}</h2>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
               <StarRating rating={Math.round(avgRating)} />
               <span style={{ fontSize: "14px", color: "#6b7280" }}>
                 {avgRating.toFixed(1)}
               </span>
+              {onOpenLanguageHelper && (
+                <button
+                  onClick={() => onOpenLanguageHelper(spot.name)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "4px",
+                    backgroundColor: "#eff6ff", color: "#1d4ed8",
+                    border: "1px solid #bfdbfe", borderRadius: "20px",
+                    padding: "4px 12px", fontSize: "12px", fontWeight: "600",
+                    cursor: "pointer",
+                  }}
+                >
+                  🌐 言語ヘルプ・予約相談
+                </button>
+              )}
             </div>
           </div>
 

@@ -12,6 +12,7 @@ interface PlanViewProps {
   onToggleFavorite: (spotId: number) => void;
   onSpotView: (spot: { id: number; name: string; category: string }) => void;
   onStartDiagnosis?: () => void;
+  onOpenLanguageHelper?: (spotName: string) => void;
 }
 
 type DayKey = "short" | "medium" | "long" | "extended";
@@ -120,17 +121,25 @@ export default function PlanView({
   onToggleFavorite,
   onSpotView,
   onStartDiagnosis,
+  onOpenLanguageHelper,
 }: PlanViewProps) {
   const [interests, setInterests] = useState<string[]>(diagnosisResult?.interests || []);
   const [days, setDays] = useState<string>(diagnosisResult?.duration || "");
   const [companion, setCompanion] = useState<string>(diagnosisResult?.companion || "");
   const [pace, setPace] = useState<string>("slow");
   const [season, setSeason] = useState<string>("summer");
+  const [tripStartDate, setTripStartDate] = useState<string>("");
   const [dayPlan, setDayPlan] = useState<{ day: number; spots: Spot[] }[]>([]);
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
-  // 結果シートの表示状態（アニメーション付き）
   const [showResult, setShowResult] = useState(false);
   const [resultVisible, setResultVisible] = useState(false);
+
+  const getDateForDay = (day: number): string => {
+    if (!tripStartDate) return "";
+    const date = new Date(tripStartDate);
+    date.setDate(date.getDate() + day - 1);
+    return date.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric", weekday: "short" });
+  };
 
   const canGenerate = interests.length > 0 && !!days && !!companion;
 
@@ -327,6 +336,33 @@ export default function PlanView({
             </div>
           </section>
 
+          {/* 旅行開始日（任意） */}
+          <section>
+            <h2 className="font-bold text-gray-800 mb-1">旅行開始日 <span className="text-xs font-normal text-gray-400">（任意）</span></h2>
+            <p className="text-xs text-gray-500 mb-3">入力するとプランに実際の日付が表示されます</p>
+            <div
+              className="flex items-center gap-3 bg-white rounded-xl p-4"
+              style={{ border: tripStartDate ? "2px solid #ec4899" : "2px solid #e5e7eb" }}
+            >
+              <span className="text-xl">📅</span>
+              <input
+                type="date"
+                value={tripStartDate}
+                onChange={e => setTripStartDate(e.target.value)}
+                className="flex-1 outline-none text-sm font-medium"
+                style={{ color: tripStartDate ? "#1f2937" : "#9ca3af", background: "transparent", border: "none" }}
+              />
+              {tripStartDate && (
+                <button
+                  onClick={() => setTripStartDate("")}
+                  className="text-gray-400 text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </section>
+
           {/* 生成ボタン */}
           <button
             onClick={handleGenerate}
@@ -398,6 +434,9 @@ export default function PlanView({
                   <div className="text-white text-sm font-bold px-4 py-1.5 rounded-full" style={{ backgroundColor: "#ec4899" }}>
                     DAY {day}
                   </div>
+                  {getDateForDay(day) && (
+                    <span className="text-sm font-medium text-gray-500">{getDateForDay(day)}</span>
+                  )}
                   <div className="flex-1 h-px bg-gray-200" />
                 </div>
                 <div className="space-y-3">
@@ -419,18 +458,27 @@ export default function PlanView({
                         <div className="flex gap-2 mt-3">
                           <button
                             onClick={() => handleSpotTap(spot)}
-                            className="flex-1 text-sm rounded-xl py-2 font-medium"
+                            className="flex-1 text-xs rounded-xl py-2 font-medium"
                             style={{ color: "#ec4899", border: "1px solid #f9a8d4" }}
                           >
-                            詳細を見る
+                            詳細
                           </button>
                           <button
                             onClick={() => onJumpToSpot(spot.id)}
-                            className="flex-1 text-sm text-white rounded-xl py-2 font-medium flex items-center justify-center gap-1"
+                            className="flex-1 text-xs text-white rounded-xl py-2 font-medium flex items-center justify-center gap-1"
                             style={{ backgroundColor: "#ec4899" }}
                           >
-                            🗺️ 地図で見る
+                            🗺️ 地図
                           </button>
+                          {onOpenLanguageHelper && (
+                            <button
+                              onClick={() => onOpenLanguageHelper(spot.name)}
+                              className="flex-1 text-xs rounded-xl py-2 font-medium flex items-center justify-center gap-1"
+                              style={{ backgroundColor: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe" }}
+                            >
+                              🌐 予約相談
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -459,6 +507,7 @@ export default function PlanView({
           onClose={() => setSelectedSpot(null)}
           isFavorite={favoriteSpotIds.includes(selectedSpot.id)}
           onToggleFavorite={() => onToggleFavorite(selectedSpot.id)}
+          onOpenLanguageHelper={onOpenLanguageHelper}
         />
       )}
     </div>
