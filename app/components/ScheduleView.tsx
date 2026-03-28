@@ -355,7 +355,7 @@ function DayView({
     const top = Math.min(startY, endY);
     const height = Math.abs(endY - startY);
     dragRef.current.active = false;
-    setHighlight(null);
+    // highlight はボックスが閉じるまで維持（保存・キャンセル時に消す）
     if (height < 10) return;
     setQuickForm({
       startTime: yToTime(top), endTime: yToTime(top + height),
@@ -464,6 +464,7 @@ function DayView({
       people: 2, isReserved: quickForm.isReserved, color, note: "",
     });
     setQuickForm(null);
+    setHighlight(null);
   };
 
   return (
@@ -655,9 +656,7 @@ function DayView({
           <>
             <div
               style={{ position: "fixed", inset: 0, zIndex: 150 }}
-              onClick={() => { setQuickForm(null); setEditMode(false); }}
-            />
-            <div style={{
+              onClick={() => { setQuickForm(null); setHighlight(null); setEditMode(false); }}
               position: "fixed",
               top: `${Math.min(Math.max(70, quickForm.anchorClientY - 20), (typeof window !== "undefined" ? window.innerHeight : 700) - 320)}px`,
               right: "12px", width: "250px",
@@ -687,7 +686,7 @@ function DayView({
                 value={quickForm.title}
                 onChange={e => setQuickForm(q => q ? { ...q, title: e.target.value } : null)}
                 placeholder="タイトルを入力…"
-                onKeyDown={e => { if (e.key === "Enter") saveQuick(); if (e.key === "Escape") { setQuickForm(null); setEditMode(false); } }}
+                onKeyDown={e => { if (e.key === "Enter") saveQuick(); if (e.key === "Escape") { setQuickForm(null); setHighlight(null); setEditMode(false); } }}
                 style={{
                   width: "100%", border: "1.5px solid #e5e7eb", borderRadius: "10px",
                   padding: "9px 11px", fontSize: "14px", outline: "none",
@@ -723,7 +722,7 @@ function DayView({
               {/* ボタン */}
               <div style={{ display: "flex", gap: "8px" }}>
                 <button
-                  onClick={() => { setQuickForm(null); setEditMode(false); }}
+                  onClick={() => { setQuickForm(null); setHighlight(null); setEditMode(false); }}
                   style={{ flex: 1, padding: "9px", borderRadius: "10px", border: "1px solid #e5e7eb", background: "white", color: "#6b7280", fontSize: "13px", cursor: "pointer" }}
                 >
                   キャンセル
