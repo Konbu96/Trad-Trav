@@ -321,6 +321,7 @@ function DayView({
   const LONG_PRESS_MS = 300;
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragRef = useRef({ active: false, startY: 0, endY: 0, startClientX: 0, startClientY: 0 });
 
@@ -332,9 +333,9 @@ function DayView({
   } | null>(null);
 
   const getContentY = (clientY: number) => {
-    if (!scrollRef.current) return 0;
-    const rect = scrollRef.current.getBoundingClientRect();
-    return clientY - rect.top + scrollRef.current.scrollTop - 12;
+    if (!contentRef.current) return 0;
+    // getBoundingClientRect().top はビューポート基準かつスクロール反映済みなので scrollTop 不要
+    return clientY - contentRef.current.getBoundingClientRect().top;
   };
 
   // 30分単位にスナップしたハイライト範囲を計算
@@ -570,7 +571,7 @@ function DayView({
           onMouseLeave={() => { if (!dragRef.current.active) cancelPress(); }}
           onContextMenu={e => editMode && e.preventDefault()}
         >
-          <div style={{ position: "relative" }}>
+          <div ref={contentRef} style={{ position: "relative" }}>
             {HOURS.flatMap(h => [0, 15, 30, 45].map(m => ({ h, m }))).map(({ h, m }) => {
               const isHour = m === 0;
               const isHalf = m === 30;
