@@ -33,7 +33,7 @@ export interface ScheduleEvent {
 
 const COLORS = ["#3b82f6", "#ec4899", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"];
 const COLOR_LABELS = ["ブルー", "ピンク", "グリーン", "アンバー", "パープル", "レッド"];
-const HOURS = Array.from({ length: 17 }, (_, i) => i + 6); // 6:00〜22:00
+const HOURS = Array.from({ length: 24 }, (_, i) => i + 4); // 4:00〜翌3:00
 const DOW = ["月", "火", "水", "木", "金", "土", "日"];
 const STORAGE_KEY = "trad-trav-schedule";
 
@@ -337,7 +337,7 @@ function DayView({
           {HOURS.map(h => (
             <div key={h} style={{ display: "flex", height: `${SLOT_H}px`, borderBottom: "1px solid #f3f4f6", position: "relative" }}>
               <div style={{ width: "56px", flexShrink: 0, paddingTop: "4px", paddingLeft: "12px", fontSize: "11px", color: "#9ca3af", fontWeight: "500" }}>
-                {`${String(h).padStart(2, "0")}:00`}
+                {`${String(h % 24).padStart(2, "0")}:00`}
               </div>
               <div style={{ flex: 1, borderLeft: "1px solid #e5e7eb" }} />
             </div>
@@ -347,7 +347,7 @@ function DayView({
           {dayEvents.filter(e => e.startTime && e.endTime).map(ev => {
             const startMin = timeToMin(ev.startTime);
             const endMin = timeToMin(ev.endTime);
-            const topPx = (startMin - 6 * 60) / 60 * SLOT_H;
+                const topPx = (startMin - 4 * 60) / 60 * SLOT_H;
             const heightPx = Math.max((endMin - startMin) / 60 * SLOT_H, 24);
 
             return (
