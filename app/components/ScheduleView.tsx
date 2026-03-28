@@ -695,7 +695,7 @@ function DayView({
           <>
             <div
               style={{ position: "fixed", inset: 0, zIndex: 150 }}
-              onClick={() => { setQuickForm(null); setHighlight(null); setEditMode(false); }}
+              onClick={() => { setQuickForm(null); setHighlight(null); }}
             />
             <div style={{
               position: "fixed",
@@ -727,7 +727,7 @@ function DayView({
                 value={quickForm.title}
                 onChange={e => setQuickForm(q => q ? { ...q, title: e.target.value } : null)}
                 placeholder="タイトルを入力…"
-                onKeyDown={e => { if (e.key === "Enter") saveQuick(); if (e.key === "Escape") { setQuickForm(null); setHighlight(null); setEditMode(false); } }}
+                onKeyDown={e => { if (e.key === "Enter") saveQuick(); if (e.key === "Escape") { setQuickForm(null); setHighlight(null); } }}
                 style={{
                   width: "100%", border: "1.5px solid #e5e7eb", borderRadius: "10px",
                   padding: "9px 11px", fontSize: "14px", outline: "none",
@@ -763,7 +763,7 @@ function DayView({
               {/* ボタン */}
               <div style={{ display: "flex", gap: "8px" }}>
                 <button
-                  onClick={() => { setQuickForm(null); setHighlight(null); setEditMode(false); }}
+                  onClick={() => { setQuickForm(null); setHighlight(null); }}
                   style={{ flex: 1, padding: "9px", borderRadius: "10px", border: "1px solid #e5e7eb", background: "white", color: "#6b7280", fontSize: "13px", cursor: "pointer" }}
                 >
                   キャンセル
