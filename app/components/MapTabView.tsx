@@ -127,7 +127,7 @@ export default function MapTabView({
                   color: isActive ? "#ec4899" : "#6b7280",
                 }}
               >
-                {tab === "map" ? "🗺️ マップ" : "🔍 スポット検索"}
+                {tab === "map" ? "🗺️ マップ" : "🔍 体験を探す"}
               </button>
             );
           })}
