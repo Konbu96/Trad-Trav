@@ -405,6 +405,7 @@ function DayView({
     const onTouchStart = (e: TouchEvent) => {
       if (!editMode) return;
       if ((e.target as HTMLElement).closest("[data-event]")) return;
+      e.preventDefault(); // iOS のコールアウト・テキスト選択を防止
       const t = e.touches[0];
       const y = getContentY(t.clientY);
       dragRef.current = { active: false, startY: y, endY: y, startClientX: t.clientX, startClientY: t.clientY };
@@ -426,12 +427,14 @@ function DayView({
     };
 
     // iOS でシステムが touch を横取りしたときもリセット
+    // ただしドラッグ中（active）は無視する
     const onTouchCancel = () => {
+      if (dragRef.current.active) return; // ドラッグ中はiOSのtouchcancelを無視
       switchToTracking();
       cancelPress();
     };
 
-    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchstart", onTouchStart, { passive: false }); // iOSのコールアウト防止のためpassive:false
     el.addEventListener("touchmove", onTouchMoveTracking, { passive: true });
     el.addEventListener("touchend", onTouchEnd);
     el.addEventListener("touchcancel", onTouchCancel);
@@ -548,7 +551,7 @@ function DayView({
         {/* タイムライン */}
         <div
           ref={scrollRef}
-          style={{ flex: 1, overflowY: "auto", padding: "12px 0 120px", position: "relative", userSelect: "none" }}
+          style={{ flex: 1, overflowY: "auto", padding: "12px 0 120px", position: "relative", userSelect: "none", WebkitTouchCallout: "none" }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
