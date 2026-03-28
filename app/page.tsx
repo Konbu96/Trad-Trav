@@ -9,6 +9,7 @@ import MyPageView from "./components/MyPageView";
 import AuthView from "./components/AuthView";
 import PlanView from "./components/PlanView";
 import MapTabView from "./components/MapTabView";
+import ScheduleView from "./components/ScheduleView";
 import { LanguageProvider } from "./i18n/LanguageContext";
 import { saveDiagnosisResult, getDiagnosisResult, getViewHistory, addViewHistory, getFavorites, toggleFavorite, type ViewHistoryItem, auth } from "./lib/firebase";
 import { getRecommendedSpotIds } from "./data/spots";
@@ -162,17 +163,9 @@ function AppContent() {
       {/* メインコンテンツ */}
       {!showSplash && !showDiagnosis && (
         <>
-          {/* プラン */}
+          {/* 予定表 */}
           {currentScreen === "plan" && (
-            <PlanView
-              diagnosisResult={diagnosisResult}
-              onJumpToSpot={handleJumpToSpot}
-              favoriteSpotIds={favoriteSpotIds}
-              onToggleFavorite={handleToggleFavorite}
-              onSpotView={handleSpotView}
-              onStartDiagnosis={() => setShowDiagnosis(true)}
-              onOpenLanguageHelper={handleOpenLanguageHelper}
-            />
+            <ScheduleView />
           )}
 
           {/* マップ（サブタブ: マップ / 検索） */}
