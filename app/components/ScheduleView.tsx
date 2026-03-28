@@ -578,7 +578,11 @@ function DayView({
               return (
                 <div key={`${h}-${m}`} style={{
                   display: "flex", height: `${SLOT_H / 4}px`,
-                  borderBottom: isHour ? "1px solid #e5e7eb" : isHalf ? "1px solid #f3f4f6" : "1px dashed #f9fafb",
+                  boxShadow: isHour
+                    ? "inset 0 -1px 0 0 #e5e7eb"
+                    : isHalf
+                      ? "inset 0 -1px 0 0 #f3f4f6"
+                      : "inset 0 -1px 0 0 #f9fafb",
                 }}>
                   <div style={{
                     width: "56px", flexShrink: 0, paddingLeft: "12px",
@@ -588,7 +592,7 @@ function DayView({
                   }}>
                     {isHour ? `${String(h % 24).padStart(2, "0")}:00` : isHalf ? ":30" : ""}
                   </div>
-                  <div style={{ flex: 1, borderLeft: "1px solid #e5e7eb" }} />
+                  <div style={{ flex: 1, boxShadow: "inset 1px 0 0 0 #e5e7eb" }} />
                 </div>
               );
             })}
