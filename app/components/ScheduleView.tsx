@@ -546,14 +546,17 @@ function DayView({
           </button>
         </div>
 
-        {/* 編集モードのヒントバー */}
-        {editMode && !highlight && !quickForm && (
+        {/* 編集モードのヒントバー（常に表示してレイアウトシフトを防止） */}
+        {editMode && (
           <div style={{
             backgroundColor: "#fffbeb", borderBottom: "1px solid #fde68a",
-            padding: "6px 16px", fontSize: "11px", color: "#92400e", fontWeight: "500",
-            textAlign: "center",
+            padding: "6px 16px", fontSize: "11px", fontWeight: "600",
+            textAlign: "center", color: "#92400e",
           }}>
-            ✏️ 長押し → そのままドラッグ → 離すで予定追加
+            {highlight
+              ? `🕐 ${yToTime(highlight.top)} – ${yToTime(highlight.top + highlight.height)}`
+              : "✏️ 長押し → そのままドラッグ → 離すで予定追加"
+            }
           </div>
         )}
 
