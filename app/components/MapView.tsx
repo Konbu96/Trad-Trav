@@ -8,6 +8,8 @@ import SearchBar, { type SearchLocation, type SearchResult } from "./SearchBar";
 import SpotDetailSheet from "./SpotDetailSheet";
 import { recommendedSpots, type Spot } from "../data/spots";
 
+type SearchResultSpot = Spot & { placeId?: string };
+
 // 宮城県の中心座標
 const MIYAGI_CENTER: [number, number] = [38.45, 140.9];
 const DEFAULT_ZOOM = 8;
@@ -142,6 +144,19 @@ function getCategoryLabel(category?: string, type?: string): string {
     highway: "道路",
     building: "建物",
     place: "場所",
+    point_of_interest: "観光",
+    establishment: "施設",
+    tourist_attraction: "観光スポット",
+    museum: "博物館・美術館",
+    art_gallery: "美術館・ギャラリー",
+    park: "公園",
+    shrine: "神社",
+    temple: "寺院",
+    restaurant: "飲食店",
+    cafe: "カフェ",
+    lodging: "宿泊施設",
+    hotel: "宿泊施設",
+    spa: "温泉・スパ",
   };
   if (category && map[category]) return map[category];
   if (type) {
@@ -167,8 +182,10 @@ function getCategoryLabel(category?: string, type?: string): string {
 }
 
 function buildAddress(loc: SearchLocation): string {
+  if (loc.formattedAddress) {
+    return loc.formattedAddress;
+  }
   if (!loc.address) {
-    // display_nameをそのまま使う
     return loc.name;
   }
   const a = loc.address;
@@ -183,9 +200,8 @@ function buildAddress(loc: SearchLocation): string {
   return parts.length > 0 ? parts.join(" ") : loc.name;
 }
 
-function searchLocationToSpot(location: SearchLocation, index: number): Spot {
-  const nameParts = location.name.split(",");
-  const shortName = nameParts[0].trim();
+function searchLocationToSpot(location: SearchLocation, index: number): SearchResultSpot {
+  const shortName = location.name.trim();
   const category = getCategoryLabel(location.category, location.type);
   const address = buildAddress(location);
   const ext = location.extratags || {};
@@ -210,6 +226,7 @@ function searchLocationToSpot(location: SearchLocation, index: number): Spot {
     category,
     reviews: [],
     infos,
+    placeId: location.placeId,
   };
 }
 
@@ -219,7 +236,7 @@ function SearchMarkers({
   onLocationClick 
 }: { 
   locations: SearchLocation[];
-  onLocationClick: (spot: Spot) => void;
+  onLocationClick: (spot: SearchResultSpot) => void;
 }) {
   const [pinIcon, setPinIcon] = useState<L.DivIcon | null>(null);
 
@@ -437,41 +454,47 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
   };
 
   // 検索結果のピンをクリックした時
-  const handleSearchLocationClick = async (spot: Spot) => {
+  const handleSearchLocationClick = async (spot: SearchResultSpot) => {
     // まず既存情報で即座に詳細シートを表示
     setSelectedSpot({ ...spot });
     if (onSpotView) {
       onSpotView({ id: spot.id, name: spot.name, category: spot.category });
     }
 
-    // HOKKAIDO LOVE! から追加情報を非同期で取得
+    const placeId = spot.placeId;
+    if (!placeId) {
+      return;
+    }
+
+    // Google Places から追加情報を非同期で取得
     setIsFetchingSpotInfo(true);
     try {
-      const res = await fetch(`/api/spot-info?name=${encodeURIComponent(spot.name)}`);
+      const res = await fetch(`/api/google-places/detail?placeId=${encodeURIComponent(placeId)}`);
       if (res.ok) {
         const info = await res.json();
         const extraInfos: Spot["infos"] = [];
         if (info.hours)       extraInfos.push({ type: "hours",      label: "営業時間", value: info.hours });
         if (info.address)     extraInfos.push({ type: "address",    label: "住所",     value: info.address });
         if (info.phone)       extraInfos.push({ type: "phone",      label: "電話番号", value: info.phone });
-        if (info.closedDays)  extraInfos.push({ type: "closedDays", label: "休業日",   value: info.closedDays });
-        if (info.price)       extraInfos.push({ type: "price",      label: "料金",     value: info.price });
-        if (info.parking)     extraInfos.push({ type: "parking",    label: "駐車場",   value: info.parking });
-        if (info.access)      extraInfos.push({ type: "access",     label: "アクセス", value: info.access });
-        if (info.website)     extraInfos.push({ type: "website",    label: "公式サイト", value: info.website });
-        if (info.sourceUrl)   extraInfos.push({ type: "website",    label: "HOKKAIDO LOVE!", value: info.sourceUrl });
+        if (info.website)     extraInfos.push({ type: "website",    label: "Webサイト", value: info.website });
+        if (info.mapsUrl)     extraInfos.push({ type: "website",    label: "Google Maps", value: info.mapsUrl });
 
         if (extraInfos.length > 0) {
           setSelectedSpot(prev => prev ? {
             ...prev,
-            // 名前はAPIから取得したものが信頼できる場合のみ上書き
-            name: (info.name && !info.name.includes("HOKKAIDO LOVE")) ? info.name : prev.name,
-            infos: extraInfos,
+            name: info.name || prev.name,
+            category: info.category ? getCategoryLabel(info.category, info.category) : prev.category,
+            infos: [
+              ...prev.infos.filter(prevInfo =>
+                !extraInfos.some(nextInfo => nextInfo.type === prevInfo.type && nextInfo.label === prevInfo.label)
+              ),
+              ...extraInfos,
+            ],
           } : prev);
         }
       }
     } catch (err) {
-      console.warn("HOKKAIDO LOVE! 情報の取得に失敗:", err);
+      console.warn("Google Places 情報の取得に失敗:", err);
     } finally {
       setIsFetchingSpotInfo(false);
     }

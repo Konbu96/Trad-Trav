@@ -7,6 +7,9 @@ export interface SearchLocation {
   lat: number;
   lng: number;
   name: string;
+  placeId?: string;
+  formattedAddress?: string;
+  source?: "google";
   osm_id?: number;
   osm_type?: string;
   category?: string;
@@ -51,96 +54,10 @@ interface SearchBarProps {
   hasSearchResults?: boolean;
 }
 
-// 宮城県の座標範囲
-const MIYAGI_BOUNDS = {
-  minLat: 37.75,
-  maxLat: 39.05,
-  minLng: 140.45,
-  maxLng: 141.95,
+type GooglePlacesSearchResponse = {
+  locations?: SearchLocation[];
+  error?: string;
 };
-
-// 座標が宮城県内かチェック
-function isInMiyagi(lat: number, lng: number): boolean {
-  return (
-    lat >= MIYAGI_BOUNDS.minLat &&
-    lat <= MIYAGI_BOUNDS.maxLat &&
-    lng >= MIYAGI_BOUNDS.minLng &&
-    lng <= MIYAGI_BOUNDS.maxLng
-  );
-}
-
-type NominatimResult = {
-  lat: string;
-  lon: string;
-  display_name: string;
-  osm_id: number;
-  osm_type: string;
-  category: string;
-  type: string;
-  importance: number;
-  extratags?: SearchLocation["extratags"];
-  address?: SearchLocation["address"];
-};
-
-function toSearchLocation(r: NominatimResult): SearchLocation {
-  return {
-    lat: parseFloat(r.lat),
-    lng: parseFloat(r.lon),
-    name: r.display_name,
-    osm_id: r.osm_id,
-    osm_type: r.osm_type,
-    category: r.category,
-    type: r.type,
-    extratags: r.extratags,
-    address: r.address,
-  };
-}
-
-// Nominatim APIで地名から座標を取得（複数結果対応、宮城のみ）
-async function geocodeLocations(query: string): Promise<SearchLocation[]> {
-  const NOMINATIM = "https://nominatim.openstreetmap.org/search";
-  // Miyagi viewbox: left(west), top(north), right(east), bottom(south)
-  const VIEWBOX = "140.45,39.05,141.95,37.75";
-  const HEADERS = { "Accept-Language": "ja", "User-Agent": "trad-trav-app" };
-
-  const baseParams = {
-    format: "json",
-    limit: "20",
-    addressdetails: "1",
-    extratags: "1",
-    countrycodes: "jp",
-  };
-
-  try {
-    // Step 1: クエリそのまま + viewbox bounded で検索（最も精度が高い）
-    const p1 = new URLSearchParams({ ...baseParams, q: query, viewbox: VIEWBOX, bounded: "1" });
-    const r1 = await fetch(`${NOMINATIM}?${p1}`, { headers: HEADERS });
-    if (!r1.ok) throw new Error("Geocoding failed");
-    let data: NominatimResult[] = await r1.json();
-
-    // Step 2: 結果が少ない場合、bounded なしで宮城全域を検索
-    if (data.length < 3) {
-      const p2 = new URLSearchParams({ ...baseParams, q: query, viewbox: VIEWBOX });
-      const r2 = await fetch(`${NOMINATIM}?${p2}`, { headers: HEADERS });
-      if (r2.ok) {
-        const d2: NominatimResult[] = await r2.json();
-        // 重複除去してマージ
-        const existing = new Set(data.map(d => d.osm_id));
-        data = [...data, ...d2.filter(d => !existing.has(d.osm_id))];
-      }
-    }
-
-    // 宮城県内のみフィルタリング → importance 降順にソート
-    const results = data
-      .map(toSearchLocation)
-      .filter(loc => isInMiyagi(loc.lat, loc.lng));
-
-    return results.slice(0, 10);
-  } catch (error) {
-    console.error("Geocoding error:", error);
-    return [];
-  }
-}
 
 export default function SearchBar({ 
   onLocationSearch, 
@@ -158,7 +75,13 @@ export default function SearchBar({
 
     setIsSearching(true);
     try {
-      const locations = await geocodeLocations(query);
+      const res = await fetch(`/api/google-places/search?query=${encodeURIComponent(query)}`);
+      const data: GooglePlacesSearchResponse = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Google search failed");
+      }
+
+      const locations = data.locations || [];
       if (locations.length > 0) {
         onLocationSearch({ locations, query });
         setActiveQuery(query); // 検索クエリを保持
@@ -167,6 +90,9 @@ export default function SearchBar({
       } else {
         alert("場所が見つかりませんでした");
       }
+    } catch (error) {
+      console.error("Google Places search error:", error);
+      alert("検索に失敗しました。Google Maps API の設定を確認してください。");
     } finally {
       setIsSearching(false);
     }
