@@ -20,7 +20,7 @@ const MapView = dynamic(() => import("./MapView"), {
 const CATEGORIES = ["すべて", "観光", "体験", "グルメ"] as const;
 type Category = typeof CATEGORIES[number];
 
-const AREAS = ["すべて", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県"] as const;
+const AREAS = ["宮城県"] as const;
 type Area = typeof AREAS[number];
 
 const CATEGORY_EMOJI: Record<Category, string> = {
@@ -56,12 +56,12 @@ export default function MapTabView({
   // 検索フォームの状態
   const [selectedCategory, setSelectedCategory] = useState<Category>("すべて");
   const [keyword, setKeyword] = useState("");
-  const [selectedArea, setSelectedArea] = useState<Area>("すべて");
+  const [selectedArea, setSelectedArea] = useState<Area>("宮城県");
 
   // 実際に適用されたフィルタ（「検索する」ボタン押下後）
   const [appliedCategory, setAppliedCategory] = useState<Category>("すべて");
   const [appliedKeyword, setAppliedKeyword] = useState("");
-  const [appliedArea, setAppliedArea] = useState<Area>("すべて");
+  const [appliedArea, setAppliedArea] = useState<Area>("宮城県");
   const [hasSearched, setHasSearched] = useState(false);
 
   const handleSearch = () => {
@@ -74,10 +74,10 @@ export default function MapTabView({
   const handleClearAll = () => {
     setSelectedCategory("すべて");
     setKeyword("");
-    setSelectedArea("すべて");
+    setSelectedArea("宮城県");
     setAppliedCategory("すべて");
     setAppliedKeyword("");
-    setAppliedArea("すべて");
+    setAppliedArea("宮城県");
     setHasSearched(false);
   };
 
@@ -90,7 +90,6 @@ export default function MapTabView({
         spot.name.includes(appliedKeyword) ||
         spot.description?.includes(appliedKeyword);
       const matchArea =
-        appliedArea === "すべて" ||
         spot.infos?.some(i => i.type === "address" && i.value.includes(appliedArea));
       return matchCategory && matchKeyword && matchArea;
     });
@@ -225,7 +224,7 @@ export default function MapTabView({
                           color: isActive ? "#be185d" : "#374151",
                         }}
                       >
-                        {area === "すべて" ? "🗾 すべて" : area.replace("県", "")}
+                        {area.replace("県", "")}
                       </button>
                     );
                   })}
@@ -268,7 +267,7 @@ export default function MapTabView({
                 <div className="text-center py-10 text-gray-400">
                   <p className="text-5xl mb-3">🏯</p>
                   <p className="text-sm font-medium text-gray-500">条件を選んで検索してください</p>
-                  <p className="text-xs mt-1 text-gray-400">東北全{recommendedSpots.length}スポットから探せます</p>
+                  <p className="text-xs mt-1 text-gray-400">宮城全{recommendedSpots.length}スポットから探せます</p>
                 </div>
               )}
 

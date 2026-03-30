@@ -39,10 +39,12 @@ export interface Review {
   date: string;
 }
 
+export const MIYAGI_SPOT_IDS = [5, 13, 20] as const;
+
 // interest ID → スポットID のマッピング
 export const INTEREST_SPOT_MAP: Record<string, number[]> = {
-  performing_arts: [1, 2, 3, 4, 5, 6, 7, 8, 9],   // 伝統芸能・踊り・祭り
-  crafts:          [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], // 伝統工芸・ものづくり
+  performing_arts: [5],   // 宮城の伝統芸能
+  crafts: [13, 20],       // 宮城の伝統工芸・ものづくり
 };
 
 // interest ID → おすすめカテゴリ
@@ -65,15 +67,15 @@ export function getRecommendedSpotIds(interests: string[]): number[] {
   interests.forEach(interest => {
     (INTEREST_SPOT_MAP[interest] || []).forEach(id => ids.add(id));
   });
-  // 足りない場合は人気スポットで補完
-  if (ids.size < 5) {
-    [1, 3, 5, 6, 10, 13, 14, 16, 18, 20].forEach(id => ids.add(id));
+  // 足りない場合は宮城の代表スポットで補完
+  if (ids.size < 3) {
+    MIYAGI_SPOT_IDS.forEach(id => ids.add(id));
   }
-  return Array.from(ids).slice(0, 10);
+  return Array.from(ids).slice(0, MIYAGI_SPOT_IDS.length);
 }
 
-// 東北・伝統文化体験スポットデータ
-export const recommendedSpots: Spot[] = [
+// 伝統文化体験スポットの元データ
+const ALL_SPOTS: Spot[] = [
   // ── 伝統芸能・踊り・祭り ──────────────────────────────────────
   {
     id: 1,
@@ -511,3 +513,7 @@ export const recommendedSpots: Spot[] = [
     ],
   },
 ];
+
+export const recommendedSpots: Spot[] = ALL_SPOTS.filter(spot =>
+  MIYAGI_SPOT_IDS.includes(spot.id as (typeof MIYAGI_SPOT_IDS)[number])
+);

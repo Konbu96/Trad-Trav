@@ -51,21 +51,21 @@ interface SearchBarProps {
   hasSearchResults?: boolean;
 }
 
-// 東北の座標範囲
-const TOHOKU_BOUNDS = {
-  minLat: 35.5,
-  maxLat: 42.0,
-  minLng: 138.0,
-  maxLng: 142.5,
+// 宮城県の座標範囲
+const MIYAGI_BOUNDS = {
+  minLat: 37.75,
+  maxLat: 39.05,
+  minLng: 140.45,
+  maxLng: 141.95,
 };
 
-// 座標が東北内かチェック
-function isInTohoku(lat: number, lng: number): boolean {
+// 座標が宮城県内かチェック
+function isInMiyagi(lat: number, lng: number): boolean {
   return (
-    lat >= TOHOKU_BOUNDS.minLat &&
-    lat <= TOHOKU_BOUNDS.maxLat &&
-    lng >= TOHOKU_BOUNDS.minLng &&
-    lng <= TOHOKU_BOUNDS.maxLng
+    lat >= MIYAGI_BOUNDS.minLat &&
+    lat <= MIYAGI_BOUNDS.maxLat &&
+    lng >= MIYAGI_BOUNDS.minLng &&
+    lng <= MIYAGI_BOUNDS.maxLng
   );
 }
 
@@ -96,11 +96,11 @@ function toSearchLocation(r: NominatimResult): SearchLocation {
   };
 }
 
-// Nominatim APIで地名から座標を取得（複数結果対応、東北のみ）
+// Nominatim APIで地名から座標を取得（複数結果対応、宮城のみ）
 async function geocodeLocations(query: string): Promise<SearchLocation[]> {
   const NOMINATIM = "https://nominatim.openstreetmap.org/search";
-  // Tohoku viewbox: left(west), top(north), right(east), bottom(south)
-  const VIEWBOX = "138.0,42.0,142.5,35.5";
+  // Miyagi viewbox: left(west), top(north), right(east), bottom(south)
+  const VIEWBOX = "140.45,39.05,141.95,37.75";
   const HEADERS = { "Accept-Language": "ja", "User-Agent": "trad-trav-app" };
 
   const baseParams = {
@@ -118,7 +118,7 @@ async function geocodeLocations(query: string): Promise<SearchLocation[]> {
     if (!r1.ok) throw new Error("Geocoding failed");
     let data: NominatimResult[] = await r1.json();
 
-    // Step 2: 結果が少ない場合、bounded なしで東北全域を検索
+    // Step 2: 結果が少ない場合、bounded なしで宮城全域を検索
     if (data.length < 3) {
       const p2 = new URLSearchParams({ ...baseParams, q: query, viewbox: VIEWBOX });
       const r2 = await fetch(`${NOMINATIM}?${p2}`, { headers: HEADERS });
@@ -130,10 +130,10 @@ async function geocodeLocations(query: string): Promise<SearchLocation[]> {
       }
     }
 
-    // 東北内のみフィルタリング → importance 降順にソート
+    // 宮城県内のみフィルタリング → importance 降順にソート
     const results = data
       .map(toSearchLocation)
-      .filter(loc => isInTohoku(loc.lat, loc.lng));
+      .filter(loc => isInMiyagi(loc.lat, loc.lng));
 
     return results.slice(0, 10);
   } catch (error) {

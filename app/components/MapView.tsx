@@ -8,9 +8,9 @@ import SearchBar, { type SearchLocation, type SearchResult } from "./SearchBar";
 import SpotDetailSheet from "./SpotDetailSheet";
 import { recommendedSpots, type Spot } from "../data/spots";
 
-// 東北の中心座標
-const TOHOKU_CENTER: [number, number] = [38.9, 140.4];
-const DEFAULT_ZOOM = 7;
+// 宮城県の中心座標
+const MIYAGI_CENTER: [number, number] = [38.45, 140.9];
+const DEFAULT_ZOOM = 8;
 
 // ハートピンアイコン（お気に入り）
 const createHeartPinIcon = () => {
@@ -412,8 +412,8 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
     // チュートリアルが表示中なら閉じる
     if (showTutorial) handleCloseTutorial();
     // 現在位置からスポットまでの距離を計算
-    const latDiff = Math.abs(spot.lat - TOHOKU_CENTER[0]);
-    const lngDiff = Math.abs(spot.lng - TOHOKU_CENTER[1]);
+    const latDiff = Math.abs(spot.lat - MIYAGI_CENTER[0]);
+    const lngDiff = Math.abs(spot.lng - MIYAGI_CENTER[1]);
     const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
     
     // 距離に応じて遅延時間を計算（最小500ms、最大2500ms）
@@ -506,11 +506,11 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
       <div className="absolute inset-0 z-0">
         <MapContainer
           key={mapKey.current}
-          center={TOHOKU_CENTER}
+          center={MIYAGI_CENTER}
           zoom={DEFAULT_ZOOM}
           zoomControl={false}
           className="w-full h-full"
-          minZoom={6}
+          minZoom={7}
           maxZoom={16}
           // ズーム設定（速度重視）
           zoomSnap={0}
@@ -523,10 +523,10 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
           inertia={true}
           inertiaDeceleration={5000}
           inertiaMaxSpeed={3000}
-          // 東北の範囲に制限
+          // 宮城県の範囲に制限
           maxBounds={[
-            [35.5, 138.0], // 南西
-            [42.0, 142.5], // 北東
+            [37.75, 140.45], // 南西
+            [39.05, 141.95], // 北東
           ]}
           maxBoundsViscosity={1.0}
         >
@@ -557,8 +557,8 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
             const withVideo = candidates.filter(s => s.videos && s.videos.length > 0);
             const pool = withVideo.length > 0 ? withVideo : candidates;
             const tutorialSpot = pool.reduce((best, s) => {
-              const dBest = Math.hypot(best.lat - TOHOKU_CENTER[0], best.lng - TOHOKU_CENTER[1]);
-              const dS    = Math.hypot(s.lat    - TOHOKU_CENTER[0], s.lng    - TOHOKU_CENTER[1]);
+              const dBest = Math.hypot(best.lat - MIYAGI_CENTER[0], best.lng - MIYAGI_CENTER[1]);
+              const dS    = Math.hypot(s.lat    - MIYAGI_CENTER[0], s.lng    - MIYAGI_CENTER[1]);
               return dS < dBest ? s : best;
             });
             return <TutorialPositionUpdater spot={tutorialSpot} onPositionChange={handleTutorialPosition} />;
