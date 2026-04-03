@@ -1,22 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import BottomNavigation from "./components/BottomNavigation";
 import SplashScreen from "./components/SplashScreen";
-import TranslationView from "./components/TranslationView";
 import DiagnosisView, { type DiagnosisResult } from "./components/DiagnosisView";
 import MyPageView from "./components/MyPageView";
 import AuthView from "./components/AuthView";
-import PlanView from "./components/PlanView";
 import MapTabView from "./components/MapTabView";
-import ScheduleView from "./components/ScheduleView";
+import MannerView from "./components/MannerView";
 import { LanguageProvider } from "./i18n/LanguageContext";
 import { saveDiagnosisResult, getDiagnosisResult, getViewHistory, addViewHistory, getFavorites, toggleFavorite, type ViewHistoryItem, auth } from "./lib/firebase";
 import { getRecommendedSpotIds } from "./data/spots";
 import { signOut } from "firebase/auth";
 
 // 画面の種類
-export type ScreenType = "plan" | "map" | "chat" | "mypage";
+export type ScreenType = "map" | "manner" | "mypage";
 
 // ユーザー情報
 export interface User {
@@ -24,6 +22,14 @@ export interface User {
   name: string;
   email: string;
 }
+
+export type LocationPermissionState =
+  | "idle"
+  | "requesting"
+  | "granted"
+  | "denied"
+  | "unsupported"
+  | "error";
 
 function AppContent() {
   const [showSplash, setShowSplash] = useState(true);
@@ -35,7 +41,11 @@ function AppContent() {
   const [favoriteSpotIds, setFavoriteSpotIds] = useState<number[]>([]);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>("map");
   const [jumpToSpotId, setJumpToSpotId] = useState<number | null>(null);
-  const [languageHelperSpot, setLanguageHelperSpot] = useState<string | null>(null);
+  const [mannerHelperSpot, setMannerHelperSpot] = useState<string | null>(null);
+  const [locationPermissionState, setLocationPermissionState] = useState<LocationPermissionState>("idle");
+  const [locationError, setLocationError] = useState("");
+  const [currentPosition, setCurrentPosition] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationSettingsFocusKey, setLocationSettingsFocusKey] = useState(0);
 
   // 診断結果からおすすめスポットIDを計算
   const recommendedSpotIds = diagnosisResult
@@ -71,7 +81,7 @@ function AppContent() {
   const handleDiagnosisComplete = async (result: DiagnosisResult) => {
     setDiagnosisResult(result);
     setShowDiagnosis(false);
-    setCurrentScreen("plan");
+    setCurrentScreen("map");
 
     if (user?.id) {
       try {
@@ -84,13 +94,54 @@ function AppContent() {
 
   const handleScreenChange = (screen: ScreenType) => {
     setCurrentScreen(screen);
-    if (screen !== "chat") setLanguageHelperSpot(null);
+    if (screen !== "manner") setMannerHelperSpot(null);
   };
 
-  // 言語ヘルパーをスポット連携で開く
+  const handleRequestLocationPermission = useCallback(() => {
+    if (!navigator.geolocation) {
+      setLocationPermissionState("unsupported");
+      setLocationError("この端末では位置情報を利用できません。");
+      return;
+    }
+
+    setLocationPermissionState("requesting");
+    setLocationError("");
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCurrentPosition({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        setLocationPermissionState("granted");
+      },
+      (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          setLocationPermissionState("denied");
+          setLocationError("位置情報の許可がオフになっています。");
+          return;
+        }
+
+        setLocationPermissionState("error");
+        setLocationError("位置情報を取得できませんでした。");
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      }
+    );
+  }, []);
+
+  const handleOpenLocationSettings = () => {
+    setCurrentScreen("mypage");
+    setLocationSettingsFocusKey((prev) => prev + 1);
+  };
+
+  // マナーAIをスポット連携で開く
   const handleOpenLanguageHelper = (spotName: string) => {
-    setLanguageHelperSpot(spotName);
-    setCurrentScreen("chat");
+    setMannerHelperSpot(spotName);
+    setCurrentScreen("manner");
   };
 
   // マップタブへジャンプ（プランビューや閲覧履歴から）
@@ -163,11 +214,6 @@ function AppContent() {
       {/* メインコンテンツ */}
       {!showSplash && !showDiagnosis && (
         <>
-          {/* 予定表 */}
-          {currentScreen === "plan" && (
-            <ScheduleView />
-          )}
-
           {/* マップ（サブタブ: マップ / 検索） */}
           {currentScreen === "map" && (
             <MapTabView
@@ -181,11 +227,12 @@ function AppContent() {
             />
           )}
 
-          {/* 言語ヘルパー */}
-          {currentScreen === "chat" && (
-            <TranslationView
-              spotName={languageHelperSpot}
-              initialCategory={languageHelperSpot ? "reservation" : "general"}
+          {/* マナー */}
+          {currentScreen === "manner" && (
+            <MannerView
+              spotName={mannerHelperSpot}
+              locationPermissionState={locationPermissionState}
+              onOpenLocationSettings={handleOpenLocationSettings}
             />
           )}
 
@@ -197,8 +244,13 @@ function AppContent() {
               viewHistory={viewHistory}
               onLogout={handleLogout}
               onJumpToSpot={handleJumpToSpot}
-              onStartDiagnosis={() => { setShowDiagnosis(true); setCurrentScreen("plan"); }}
+              onStartDiagnosis={() => { setShowDiagnosis(true); setCurrentScreen("map"); }}
               onLoginRequest={() => setShowAuth(true)}
+              locationPermissionState={locationPermissionState}
+              locationError={locationError}
+              currentPosition={currentPosition}
+              onRequestLocationPermission={handleRequestLocationPermission}
+              locationSettingsFocusKey={locationSettingsFocusKey}
             />
           )}
 

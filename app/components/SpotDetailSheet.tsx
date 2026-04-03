@@ -38,6 +38,67 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
+function ExpandableReviewText({ text }: { text: string }) {
+  const textRef = useRef<HTMLParagraphElement | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  useEffect(() => {
+    const element = textRef.current;
+    if (!element) return;
+
+    const measureOverflow = () => {
+      const computedStyle = window.getComputedStyle(element);
+      const lineHeight = Number.parseFloat(computedStyle.lineHeight);
+
+      if (!Number.isFinite(lineHeight)) {
+        setIsOverflowing(false);
+        return;
+      }
+
+      const maxHeight = lineHeight * 5;
+      setIsOverflowing(element.scrollHeight - maxHeight > 1);
+    };
+
+    measureOverflow();
+    window.addEventListener("resize", measureOverflow);
+    return () => window.removeEventListener("resize", measureOverflow);
+  }, [text]);
+
+  return (
+    <div>
+      <p
+        ref={textRef}
+        style={{
+          fontSize: "14px",
+          color: "#4b5563",
+          lineHeight: "1.7",
+          whiteSpace: "pre-line",
+          overflow: isExpanded ? "visible" : "hidden",
+          display: isExpanded ? "block" : "-webkit-box",
+          WebkitBoxOrient: "vertical",
+          WebkitLineClamp: isExpanded ? "unset" : 5,
+        }}
+      >
+        {text}
+      </p>
+      {isOverflowing && (
+        <button
+          onClick={() => setIsExpanded(prev => !prev)}
+          style={{
+            marginTop: "10px",
+            fontSize: "13px",
+            fontWeight: 700,
+            color: "#ec4899",
+          }}
+        >
+          {isExpanded ? "閉じる" : "もっと見る"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // カテゴリバッジ
 function CategoryBadge({ category }: { category: string }) {
   const colors: Record<string, string> = {
@@ -211,7 +272,7 @@ function OverviewTab({ spot, isLoadingInfo }: { spot: Spot; isLoadingInfo?: bool
               flexShrink: 0,
             }} />
             <span style={{ fontSize: "13px", color: "#9ca3af" }}>
-              HOKKAIDO LOVE! から情報を取得中...
+              Google Places から情報を取得中...
             </span>
           </div>
         ) : infosWithoutReservation.length > 0 ? (
@@ -380,7 +441,7 @@ function ReviewsTab({ spot }: { spot: Spot }) {
             <div style={{ marginBottom: "10px" }}>
               <StarRating rating={review.rating} />
             </div>
-            <p style={{ fontSize: "14px", color: "#4b5563", lineHeight: "1.7" }}>{review.comment}</p>
+            <ExpandableReviewText text={review.comment} />
           </div>
         ))}
       </div>
@@ -690,7 +751,7 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
                     cursor: "pointer",
                   }}
                 >
-                  🌐 言語ヘルプ・予約相談
+                  🤖 マナーAI・相談
                 </button>
               )}
             </div>

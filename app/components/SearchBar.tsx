@@ -9,6 +9,10 @@ export interface SearchLocation {
   name: string;
   placeId?: string;
   formattedAddress?: string;
+  photos?: string[];
+  summary?: string;
+  officialSourceUrl?: string;
+  genreLabel?: string;
   source?: "google";
   osm_id?: number;
   osm_type?: string;

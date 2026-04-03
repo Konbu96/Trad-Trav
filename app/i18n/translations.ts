@@ -17,12 +17,11 @@ export const translations = {
 
     // ナビゲーション
     nav: {
-      plan: "予定表",
       mypage: "マイページ",
       reservations: "予約一覧",
       map: "体験予約",
       posts: "投稿",
-      chat: "言語",
+      manner: "マナー",
     },
 
     // スプラッシュ
@@ -191,12 +190,11 @@ export const translations = {
 
     // Navigation
     nav: {
-      plan: "Schedule",
       mypage: "My Page",
       reservations: "Reservations",
       map: "Experiences",
       posts: "Posts",
-      chat: "Language",
+      manner: "Manners",
     },
 
     // Splash

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DiagnosisResult } from "./DiagnosisView";
 import { useLanguage } from "../i18n/LanguageContext";
 import { DefaultAvatarIcon } from "./icons";
 import { recommendedSpots, getRecommendedSpotIds, INTEREST_CATEGORY_MAP } from "../data/spots";
+import type { LocationPermissionState } from "../page";
 
 interface User {
   name: string;
@@ -26,15 +27,34 @@ interface MyPageViewProps {
   onJumpToSpot?: (spotId: number) => void;
   onStartDiagnosis?: () => void;
   onLoginRequest?: () => void;
+  locationPermissionState?: LocationPermissionState;
+  locationError?: string;
+  currentPosition?: { latitude: number; longitude: number } | null;
+  onRequestLocationPermission?: () => void;
+  locationSettingsFocusKey?: number;
 }
 
-export default function MyPageView({ diagnosisResult, user, viewHistory = [], onLogout, onJumpToSpot, onStartDiagnosis, onLoginRequest }: MyPageViewProps) {
+export default function MyPageView({
+  diagnosisResult,
+  user,
+  viewHistory = [],
+  onLogout,
+  onJumpToSpot,
+  onStartDiagnosis,
+  onLoginRequest,
+  locationPermissionState = "idle",
+  locationError = "",
+  currentPosition = null,
+  onRequestLocationPermission,
+  locationSettingsFocusKey = 0,
+}: MyPageViewProps) {
   const { language, setLanguage, t } = useLanguage();
   const [userName, setUserName] = useState(user?.name || t.mypage.guest);
   const [isEditingName, setIsEditingName] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [showTravelTypeModal, setShowTravelTypeModal] = useState(false);
+  const locationSectionRef = useRef<HTMLDivElement | null>(null);
 
   const displayedHistory = showAllHistory ? viewHistory : viewHistory.slice(0, 3);
 
@@ -66,6 +86,11 @@ export default function MyPageView({ diagnosisResult, user, viewHistory = [], on
     }
     return style;
   };
+
+  useEffect(() => {
+    if (!locationSettingsFocusKey) return;
+    locationSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [locationSettingsFocusKey]);
 
   return (
     <div
@@ -475,6 +500,74 @@ export default function MyPageView({ diagnosisResult, user, viewHistory = [], on
         <h2 style={{ fontSize: "16px", fontWeight: "600", color: "#374151", marginBottom: "12px" }}>
           {t.mypage.settings}
         </h2>
+        <div
+          ref={locationSectionRef}
+          style={{
+            backgroundColor: "white",
+            borderRadius: "16px",
+            padding: "18px 16px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+            marginBottom: "12px",
+            border: "1px solid #fce7f3",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+            <div style={{
+              width: "42px",
+              height: "42px",
+              borderRadius: "14px",
+              backgroundColor: "#fdf2f8",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "20px",
+              flexShrink: 0,
+            }}>
+              📍
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: "15px", fontWeight: "600", color: "#1f2937" }}>
+                位置情報の利用
+              </p>
+              <p style={{ fontSize: "12px", color: "#6b7280", lineHeight: "1.7", marginTop: "4px" }}>
+                許可すると、状況に合わせたマナー表示に今後使えるようになります。
+              </p>
+            </div>
+          </div>
+
+          {onRequestLocationPermission && (
+            <button
+              onClick={onRequestLocationPermission}
+              style={{
+                marginTop: "14px",
+                borderRadius: "999px",
+                backgroundColor: locationPermissionState === "requesting" ? "#f9a8d4" : "#ec4899",
+                color: "white",
+                padding: "10px 14px",
+                fontSize: "13px",
+                fontWeight: "700",
+                opacity: locationPermissionState === "requesting" ? 0.9 : 1,
+              }}
+            >
+              {locationPermissionState === "requesting" ? "取得中..." : "現在地を使う"}
+            </button>
+          )}
+
+          {locationPermissionState === "granted" && currentPosition && (
+            <div style={{ marginTop: "10px" }}>
+              <p style={{ fontSize: "12px", color: "#166534", fontWeight: "700" }}>現在地を取得しました</p>
+              <p style={{ fontSize: "12px", color: "#374151", lineHeight: "1.6", marginTop: "2px" }}>
+                緯度 {currentPosition.latitude.toFixed(5)} / 経度 {currentPosition.longitude.toFixed(5)}
+              </p>
+            </div>
+          )}
+
+          {(locationPermissionState === "denied" || locationPermissionState === "unsupported" || locationPermissionState === "error") && locationError && (
+            <p style={{ fontSize: "12px", color: "#b91c1c", lineHeight: "1.6", marginTop: "10px" }}>
+              {locationError}
+            </p>
+          )}
+        </div>
         <div
           style={{
             backgroundColor: "white",

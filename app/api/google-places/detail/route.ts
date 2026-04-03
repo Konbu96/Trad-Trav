@@ -1,5 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 
+type GooglePlaceReview = {
+  rating?: number;
+  publishTime?: string;
+  text?: {
+    text?: string;
+  };
+  authorAttribution?: {
+    displayName?: string;
+  };
+};
+
+type GooglePlacePhoto = {
+  name?: string;
+};
+
 type GooglePlaceDetailResponse = {
   displayName?: { text?: string };
   formattedAddress?: string;
@@ -10,10 +25,42 @@ type GooglePlaceDetailResponse = {
   regularOpeningHours?: {
     weekdayDescriptions?: string[];
   };
+  reviews?: GooglePlaceReview[];
+  photos?: GooglePlacePhoto[];
   error?: {
     message?: string;
   };
 };
+
+type GooglePhotoMediaResponse = {
+  photoUri?: string;
+};
+
+async function getPhotoUri(apiKey: string, photoName: string) {
+  const requestUrl = `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=1200&skipHttpRedirect=true`;
+
+  try {
+    const res = await fetch(requestUrl, {
+      headers: {
+        "X-Goog-Api-Key": apiKey,
+      },
+      cache: "no-store",
+    });
+
+    if (!res.ok) return null;
+
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const data: GooglePhotoMediaResponse = await res.json();
+      return data.photoUri || null;
+    }
+
+    return res.url && res.url !== requestUrl ? res.url : null;
+  } catch (error) {
+    console.error("google-places detail photo fetch error:", error);
+    return null;
+  }
+}
 
 export async function GET(req: NextRequest) {
   const placeId = req.nextUrl.searchParams.get("placeId")?.trim();
@@ -38,6 +85,8 @@ export async function GET(req: NextRequest) {
           "nationalPhoneNumber",
           "googleMapsUri",
           "regularOpeningHours.weekdayDescriptions",
+          "reviews",
+          "photos",
         ].join(","),
       },
       cache: "no-store",
@@ -51,6 +100,23 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const reviews = (data.reviews || [])
+      .map(review => ({
+        author: review.authorAttribution?.displayName || "Google ユーザー",
+        rating: Math.max(1, Math.min(5, Math.round(review.rating || 0))) || 0,
+        comment: review.text?.text || "",
+        date: (review.publishTime || "").split("T")[0] || "",
+      }))
+      .filter(review => review.rating > 0 && review.comment);
+
+    const photoNames = (data.photos || [])
+      .map(photo => photo.name)
+      .filter((name): name is string => Boolean(name))
+      .slice(0, 8);
+
+    const photos = (await Promise.all(photoNames.map(photoName => getPhotoUri(apiKey, photoName))))
+      .filter((uri): uri is string => Boolean(uri));
+
     return NextResponse.json({
       name: data.displayName?.text,
       address: data.formattedAddress,
@@ -59,6 +125,8 @@ export async function GET(req: NextRequest) {
       website: data.websiteUri,
       mapsUrl: data.googleMapsUri,
       hours: data.regularOpeningHours?.weekdayDescriptions?.join(" / "),
+      reviews,
+      photos,
     });
   } catch (error) {
     console.error("google-places detail error:", error);

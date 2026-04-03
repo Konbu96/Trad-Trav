@@ -226,6 +226,7 @@ function searchLocationToSpot(location: SearchLocation, index: number): SearchRe
     category,
     reviews: [],
     infos,
+    photos: location.photos,
     placeId: location.placeId,
   };
 }
@@ -339,6 +340,7 @@ interface MapViewProps {
   favoriteSpotIds?: number[];
   onToggleFavorite?: (spotId: number) => void;
   recommendedSpotIds?: number[] | null;
+  externalSearchLocations?: SearchLocation[] | null;
 }
 
 const TUTORIAL_KEY = "trad-trav-map-tutorial-done";
@@ -366,7 +368,15 @@ function TutorialPositionUpdater({
   return null;
 }
 
-export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favoriteSpotIds = [], onToggleFavorite, recommendedSpotIds }: MapViewProps) {
+export default function MapView({
+  onSpotView,
+  jumpToSpotId,
+  onJumpComplete,
+  favoriteSpotIds = [],
+  onToggleFavorite,
+  recommendedSpotIds,
+  externalSearchLocations,
+}: MapViewProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [searchLocations, setSearchLocations] = useState<SearchLocation[]>([]);
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
@@ -424,6 +434,11 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
   const handleClearSearch = () => {
     setSearchLocations([]);
   };
+
+  useEffect(() => {
+    if (!externalSearchLocations) return;
+    setSearchLocations(externalSearchLocations);
+  }, [externalSearchLocations]);
 
   const handleSpotClick = (spot: Spot) => {
     // チュートリアルが表示中なら閉じる
@@ -484,6 +499,8 @@ export default function MapView({ onSpotView, jumpToSpotId, onJumpComplete, favo
             ...prev,
             name: info.name || prev.name,
             category: info.category ? getCategoryLabel(info.category, info.category) : prev.category,
+            reviews: info.reviews?.length ? info.reviews : prev.reviews,
+            photos: info.photos?.length ? info.photos : prev.photos,
             infos: [
               ...prev.infos.filter(prevInfo =>
                 !extraInfos.some(nextInfo => nextInfo.type === prevInfo.type && nextInfo.label === prevInfo.label)
