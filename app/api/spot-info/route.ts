@@ -88,7 +88,7 @@ async function scrapeDetail(detailUrl: string): Promise<SpotBasicInfo | null> {
       value = $el.next("td").text().trim();
     }
 
-    if (value) (info as Record<string, string>)[key] = value;
+    if (value) info[key] = value;
   });
 
   // パターン2: テーブルの行で th/td が横並びのケース
@@ -97,7 +97,7 @@ async function scrapeDetail(detailUrl: string): Promise<SpotBasicInfo | null> {
     const th = $row.find("th").text().trim();
     const td = $row.find("td").text().trim();
     const key = LABEL_MAP[th];
-    if (key && td) (info as Record<string, string>)[key] = td;
+    if (key && td) info[key] = td;
   });
 
   // 関連リンク（公式サイト）

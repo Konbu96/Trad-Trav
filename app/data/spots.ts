@@ -28,6 +28,8 @@ export interface Spot {
   category: string;
   reviews: Review[];
   infos: SpotInfo[];  // 情報をリストで管理
+  photos?: string[];
+  videos?: string[];
 }
 
 export interface Review {
@@ -223,4 +225,34 @@ export const recommendedSpots: Spot[] = [
     ],
   },
 ];
+
+export type InterestCategory = {
+  label: string;
+  emoji: string;
+};
+
+export const INTEREST_CATEGORY_MAP: Record<string, InterestCategory[]> = {
+  performing_arts: [
+    { label: "伝統芸能・踊り", emoji: "🎭" },
+    { label: "祭り・行事", emoji: "🎪" },
+  ],
+  crafts: [
+    { label: "伝統工芸・ものづくり", emoji: "🏺" },
+    { label: "体験・ワークショップ", emoji: "🛠️" },
+  ],
+};
+
+const INTEREST_SPOT_ID_MAP: Record<string, number[]> = {
+  performing_arts: [1, 2, 5],
+  crafts: [3, 4, 6],
+};
+
+export function getRecommendedSpotIds(interests: string[]) {
+  if (!Array.isArray(interests) || interests.length === 0) {
+    return recommendedSpots.map((spot) => spot.id);
+  }
+
+  const ids = Array.from(new Set(interests.flatMap((interest) => INTEREST_SPOT_ID_MAP[interest] || [])));
+  return ids.length > 0 ? ids : recommendedSpots.map((spot) => spot.id);
+}
 

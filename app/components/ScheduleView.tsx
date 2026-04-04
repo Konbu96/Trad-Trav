@@ -245,7 +245,7 @@ function AddEventSheet({
                 key={String(v)}
                 onClick={() => setReservation(v)}
                 style={{
-                  flex: 1, padding: "8px", borderRadius: "10px", border: "none",
+                  flex: 1, padding: "8px", borderRadius: "10px",
                   cursor: "pointer", fontWeight: "600", fontSize: "13px",
                   backgroundColor: ev.isReserved === v ? (v ? "#dbeafe" : "#fee2e2") : "#f3f4f6",
                   color: ev.isReserved === v ? (v ? "#1d4ed8" : "#b91c1c") : "#6b7280",
