@@ -96,6 +96,18 @@ export const MANNER_ITEMS: MannerItem[] = [
     scenes: ["museum", "facility"],
   },
   {
+    id: "facility-ask-staff",
+    categoryId: "facility",
+    title: "困ったときはスタッフに確認する",
+    shortDescription: "資料館や展示施設は場所ごとにルールが違うため、迷ったらスタッフに聞くのがいちばん安全です。",
+    details: [
+      "撮影、見学ルート、立入可否などは自己判断せずに確認します。",
+      "展示の近くで不安なことがあるときは、小さな声でスタッフに相談します。",
+    ],
+    keywords: ["スタッフ", "確認", "質問", "資料館", "博物館", "案内"],
+    scenes: ["museum", "facility"],
+  },
+  {
     id: "experience-instruction",
     categoryId: "experience",
     title: "最初の説明をよく聞く",
@@ -168,4 +180,44 @@ export function searchMannerItems(query: string) {
 
     return haystacks.some((value) => value.includes(normalized));
   });
+}
+
+const DEFAULT_MANNER_ITEM_IDS = [
+  "facility-photo",
+  "facility-voice",
+  "experience-instruction",
+] as const;
+
+function getDefaultMannerItems(limit: number) {
+  return MANNER_ITEMS.filter((item) => DEFAULT_MANNER_ITEM_IDS.includes(item.id as (typeof DEFAULT_MANNER_ITEM_IDS)[number]))
+    .slice(0, limit);
+}
+
+export function getRecommendedMannerItemsByScenes(scenes: string[], limit: number = 3) {
+  const normalizedScenes = Array.from(new Set(scenes.filter(Boolean)));
+  if (normalizedScenes.length === 0) {
+    return getDefaultMannerItems(limit);
+  }
+
+  const scoredItems = MANNER_ITEMS.map((item) => {
+    const matchedScenes = item.scenes.filter((scene) => normalizedScenes.includes(scene)).length;
+    let score = matchedScenes * 100;
+
+    if (normalizedScenes.includes("museum") && item.categoryId === "facility") score += 18;
+    if (normalizedScenes.includes("workshop") && item.categoryId === "experience") score += 18;
+    if (normalizedScenes.includes("craft") && item.categoryId === "experience") score += 14;
+    if (normalizedScenes.includes("festival") && item.categoryId === "community") score += 18;
+    if ((normalizedScenes.includes("train") || normalizedScenes.includes("bus")) && item.categoryId === "transit") score += 18;
+    if (normalizedScenes.includes("walking") && item.categoryId === "community") score += 8;
+
+    return { item, score };
+  })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.item.title.localeCompare(b.item.title, "ja"));
+
+  if (scoredItems.length === 0) {
+    return getDefaultMannerItems(limit);
+  }
+
+  return scoredItems.slice(0, limit).map((entry) => entry.item);
 }

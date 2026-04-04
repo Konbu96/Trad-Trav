@@ -387,18 +387,39 @@ export default function MapTabView({
   return (
     <div className="absolute inset-0 flex flex-col">
       {/* サブタブヘッダー */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 pt-12 z-10">
-        <div className="flex">
+      <div
+        className="flex-shrink-0 pt-12 z-10"
+        style={{
+          background: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
+          boxShadow: "0 2px 10px rgba(236,72,153,0.18)",
+        }}
+      >
+        <div
+          style={{
+            minHeight: "92px",
+            color: "white",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "0 20px",
+          }}
+        >
+          <h1 style={{ fontSize: "20px", fontWeight: 800, textAlign: "center" }}>
+            宮城の伝統文化体験
+          </h1>
+        </div>
+        <div className="flex" style={{ backgroundColor: "rgba(255,255,255,0.14)" }}>
           {(["map", "search"] as const).map((tab) => {
             const isActive = activeSubTab === tab;
             return (
               <button
                 key={tab}
                 onClick={() => setActiveSubTab(tab)}
-                className="flex-1 py-3 text-sm font-medium border-b-2 transition-colors"
+                className="flex-1 py-2.5 text-sm font-medium border-b-2 transition-colors"
                 style={{
-                  borderBottomColor: isActive ? "#ec4899" : "transparent",
-                  color: isActive ? "#ec4899" : "#6b7280",
+                  borderBottomColor: isActive ? "#ffffff" : "transparent",
+                  color: "#ffffff",
+                  backgroundColor: isActive ? "rgba(255,255,255,0.12)" : "transparent",
                 }}
               >
                 {tab === "map" ? "🗺️ マップ" : "🔍 体験を探す"}
@@ -429,10 +450,16 @@ export default function MapTabView({
         {/* 検索パネル */}
         {activeSubTab === "search" && (
           <div className="absolute inset-0 bg-gray-50 overflow-y-auto" style={{ paddingBottom: "80px" }}>
-            <div className="bg-white border-b border-gray-100 px-4 pt-4 pb-5">
+            <div
+              className="px-4 pt-4 pb-5"
+              style={{
+                backgroundColor: "white",
+                borderBottom: "1px solid #fce7f3",
+              }}
+            >
               <div className="mb-4">
-                <div className="flex items-center gap-2 bg-gray-100 rounded-2xl px-4 py-3">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400 flex-shrink-0">
+                <div className="flex items-center gap-2 rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(255,255,255,0.9)" }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-pink-400 flex-shrink-0">
                     <circle cx="11" cy="11" r="8" />
                     <path d="m21 21-4.35-4.35" />
                   </svg>
@@ -456,7 +483,7 @@ export default function MapTabView({
               </div>
 
               {!hasSearched && (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs" style={{ color: "#9d174d" }}>
                   ジャンルごとに、Google Maps から拾った写真付きスポットを5件ずつ表示しています。
                 </p>
               )}

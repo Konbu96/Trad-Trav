@@ -8,13 +8,15 @@ import MyPageView from "./components/MyPageView";
 import AuthView from "./components/AuthView";
 import MapTabView from "./components/MapTabView";
 import MannerView from "./components/MannerView";
+import NowInfoView from "./components/NowInfoView";
 import { LanguageProvider } from "./i18n/LanguageContext";
 import { saveDiagnosisResult, getDiagnosisResult, getViewHistory, addViewHistory, getFavorites, toggleFavorite, type ViewHistoryItem, auth } from "./lib/firebase";
+import { makeLocationKey } from "./lib/location";
 import { getRecommendedSpotIds } from "./data/spots";
 import { signOut } from "firebase/auth";
 
 // 画面の種類
-export type ScreenType = "map" | "manner" | "mypage";
+export type ScreenType = "map" | "now" | "manner" | "mypage";
 
 // ユーザー情報
 export interface User {
@@ -38,6 +40,18 @@ export interface CurrentAddress {
   formattedAddress: string;
 }
 
+const ASSUMED_SENDAI_POSITION = {
+  latitude: 38.2682,
+  longitude: 140.8694,
+};
+
+const ASSUMED_SENDAI_ADDRESS: CurrentAddress = {
+  prefecture: "宮城県",
+  city: "仙台市",
+  town: "青葉区",
+  formattedAddress: "宮城県仙台市青葉区",
+};
+
 function AppContent() {
   const [showSplash, setShowSplash] = useState(true);
   const [showAuth, setShowAuth] = useState(false);
@@ -53,6 +67,7 @@ function AppContent() {
   const [locationError, setLocationError] = useState("");
   const [currentPosition, setCurrentPosition] = useState<{ latitude: number; longitude: number } | null>(null);
   const [currentAddress, setCurrentAddress] = useState<CurrentAddress | null>(null);
+  const [isUsingMockLocation, setIsUsingMockLocation] = useState(false);
   const [locationSettingsFocusKey, setLocationSettingsFocusKey] = useState(0);
   const locationWatchIdRef = useRef<number | null>(null);
   const lastReverseGeocodeKeyRef = useRef<string>("");
@@ -134,12 +149,31 @@ function AppContent() {
     }
   }, []);
 
+  const applyAssumedSendaiLocation = useCallback(() => {
+    setCurrentPosition(ASSUMED_SENDAI_POSITION);
+    setCurrentAddress(ASSUMED_SENDAI_ADDRESS);
+    setLocationPermissionState("granted");
+    setLocationError("");
+    setIsUsingMockLocation(true);
+  }, []);
+
+  const isDesktopLikeDevice = useCallback(() => {
+    if (typeof navigator === "undefined") return false;
+    return /Macintosh|Windows|Linux/i.test(navigator.userAgent) && !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  }, []);
+
   const handleRequestLocationPermission = useCallback(() => {
+    if (isDesktopLikeDevice()) {
+      applyAssumedSendaiLocation();
+      return;
+    }
+
     if (!navigator.geolocation) {
       setLocationPermissionState("unsupported");
       setLocationError("この端末では位置情報を利用できません。");
       setCurrentPosition(null);
       setCurrentAddress(null);
+      setIsUsingMockLocation(false);
       return;
     }
 
@@ -148,6 +182,7 @@ function AppContent() {
       setLocationError("位置情報は安全な接続のページでのみ利用できます。");
       setCurrentPosition(null);
       setCurrentAddress(null);
+      setIsUsingMockLocation(false);
       return;
     }
 
@@ -158,6 +193,7 @@ function AppContent() {
 
     setLocationPermissionState("requesting");
     setLocationError("");
+    setIsUsingMockLocation(false);
     locationWatchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const latitude = position.coords.latitude;
@@ -165,8 +201,9 @@ function AppContent() {
         setCurrentPosition({ latitude, longitude });
         setLocationPermissionState("granted");
         setLocationError("");
+        setIsUsingMockLocation(false);
 
-        const nextKey = `${latitude.toFixed(3)}:${longitude.toFixed(3)}`;
+        const nextKey = makeLocationKey(latitude, longitude);
         if (lastReverseGeocodeKeyRef.current !== nextKey) {
           lastReverseGeocodeKeyRef.current = nextKey;
           void reverseGeocode(latitude, longitude);
@@ -178,6 +215,7 @@ function AppContent() {
           setLocationError("位置情報の許可がオフになっています。");
           setCurrentPosition(null);
           setCurrentAddress(null);
+          setIsUsingMockLocation(false);
           if (locationWatchIdRef.current !== null) {
             navigator.geolocation.clearWatch(locationWatchIdRef.current);
             locationWatchIdRef.current = null;
@@ -190,6 +228,7 @@ function AppContent() {
           setLocationError("現在地を特定できませんでした。GPSや通信状況をご確認ください。");
           setCurrentPosition(null);
           setCurrentAddress(null);
+          setIsUsingMockLocation(false);
           return;
         }
 
@@ -198,6 +237,7 @@ function AppContent() {
           setLocationError("位置情報の取得がタイムアウトしました。少し待ってから再度お試しください。");
           setCurrentPosition(null);
           setCurrentAddress(null);
+          setIsUsingMockLocation(false);
           return;
         }
 
@@ -205,6 +245,7 @@ function AppContent() {
         setLocationError("位置情報を取得できませんでした。");
         setCurrentPosition(null);
         setCurrentAddress(null);
+        setIsUsingMockLocation(false);
       },
       {
         enableHighAccuracy: true,
@@ -212,7 +253,13 @@ function AppContent() {
         maximumAge: 60000,
       }
     );
-  }, [reverseGeocode]);
+  }, [applyAssumedSendaiLocation, isDesktopLikeDevice, reverseGeocode]);
+
+  useEffect(() => {
+    if (isDesktopLikeDevice()) {
+      applyAssumedSendaiLocation();
+    }
+  }, [applyAssumedSendaiLocation, isDesktopLikeDevice]);
 
   useEffect(() => () => {
     if (locationWatchIdRef.current !== null && navigator.geolocation) {
@@ -320,6 +367,20 @@ function AppContent() {
             <MannerView
               spotName={mannerHelperSpot}
               locationPermissionState={locationPermissionState}
+              isUsingMockLocation={isUsingMockLocation}
+              onOpenLocationSettings={handleOpenLocationSettings}
+            />
+          )}
+
+          {/* なう情報 */}
+          {currentScreen === "now" && (
+            <NowInfoView
+              locationPermissionState={locationPermissionState}
+              locationError={locationError}
+              currentPosition={currentPosition}
+              currentAddress={currentAddress}
+              isUsingMockLocation={isUsingMockLocation}
+              onRequestLocationPermission={handleRequestLocationPermission}
               onOpenLocationSettings={handleOpenLocationSettings}
             />
           )}
@@ -338,6 +399,7 @@ function AppContent() {
               locationError={locationError}
               currentPosition={currentPosition}
               currentAddress={currentAddress}
+              isUsingMockLocation={isUsingMockLocation}
               onRequestLocationPermission={handleRequestLocationPermission}
               locationSettingsFocusKey={locationSettingsFocusKey}
             />

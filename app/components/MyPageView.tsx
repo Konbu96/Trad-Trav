@@ -31,6 +31,7 @@ interface MyPageViewProps {
   locationError?: string;
   currentPosition?: { latitude: number; longitude: number } | null;
   currentAddress?: CurrentAddress | null;
+  isUsingMockLocation?: boolean;
   onRequestLocationPermission?: () => void;
   locationSettingsFocusKey?: number;
 }
@@ -47,6 +48,7 @@ export default function MyPageView({
   locationError = "",
   currentPosition = null,
   currentAddress = null,
+  isUsingMockLocation = false,
   onRequestLocationPermission,
   locationSettingsFocusKey = 0,
 }: MyPageViewProps) {
@@ -133,29 +135,44 @@ export default function MyPageView({
         style={{
           backgroundColor: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
           background: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
-          padding: "48px 24px 32px",
+          minHeight: "132px",
+          padding: "0 24px",
           color: "white",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
-        <h1 style={{ fontSize: "20px", fontWeight: "bold", marginBottom: "20px" }}>
+        <h1 style={{ fontSize: "22px", fontWeight: 800, textAlign: "center" }}>
           {t.mypage.title}
         </h1>
+      </div>
 
-        {/* プロフィール */}
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          {/* アバター */}
+      <div style={{ padding: "20px 24px 0" }}>
+        <div
+          style={{
+            backgroundColor: "white",
+            borderRadius: "22px",
+            padding: "18px 16px",
+            boxShadow: "0 2px 10px rgba(15,23,42,0.06)",
+            border: "1px solid #fce7f3",
+            display: "flex",
+            alignItems: "center",
+            gap: "16px",
+          }}
+        >
           <div
             style={{
               width: "72px",
               height: "72px",
               borderRadius: "50%",
               overflow: "hidden",
+              flexShrink: 0,
             }}
           >
-            <DefaultAvatarIcon size={72} backgroundColor="rgba(255, 255, 255, 0.3)" silhouetteColor="rgba(255, 255, 255, 0.7)" />
+            <DefaultAvatarIcon size={72} backgroundColor="#fdf2f8" silhouetteColor="#f472b6" />
           </div>
 
-          {/* 名前 */}
           <div style={{ flex: 1 }}>
             {isEditingName ? (
               <input
@@ -166,11 +183,11 @@ export default function MyPageView({
                 onKeyDown={(e) => e.key === "Enter" && setIsEditingName(false)}
                 autoFocus
                 style={{
-                  backgroundColor: "rgba(255, 255, 255, 0.2)",
-                  border: "none",
-                  borderRadius: "8px",
+                  backgroundColor: "#fff1f2",
+                  border: "1px solid #fbcfe8",
+                  borderRadius: "10px",
                   padding: "8px 12px",
-                  color: "white",
+                  color: "#111827",
                   fontSize: "18px",
                   fontWeight: "600",
                   outline: "none",
@@ -183,20 +200,21 @@ export default function MyPageView({
                 style={{
                   background: "none",
                   border: "none",
-                  color: "white",
+                  color: "#111827",
                   fontSize: "18px",
-                  fontWeight: "600",
+                  fontWeight: "700",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   gap: "8px",
+                  padding: 0,
                 }}
               >
                 {userName}
                 <span style={{ fontSize: "14px", opacity: 0.7 }}>✏️</span>
               </button>
             )}
-            <p style={{ fontSize: "13px", opacity: 0.8, marginTop: "4px" }}>
+            <p style={{ fontSize: "13px", color: "#6b7280", marginTop: "4px" }}>
               {t.mypage.editName}
             </p>
           </div>
@@ -567,7 +585,9 @@ export default function MyPageView({
                 marginTop: "14px",
                 borderRadius: "999px",
                 backgroundColor:
-                  locationPermissionState === "granted"
+                  isUsingMockLocation
+                    ? "#f59e0b"
+                    : locationPermissionState === "granted"
                     ? "#16a34a"
                     : locationPermissionState === "requesting"
                       ? "#f9a8d4"
@@ -579,17 +599,21 @@ export default function MyPageView({
                 opacity: locationPermissionState === "requesting" ? 0.9 : 1,
               }}
             >
-              {locationPermissionState === "granted"
+              {locationPermissionState === "requesting"
+                ? "取得中..."
+                : isUsingMockLocation
+                  ? "仙台市の仮位置を使用中"
+                  : locationPermissionState === "granted"
                 ? "現在地を監視中"
-                : locationPermissionState === "requesting"
-                  ? "取得中..."
                   : "現在地を共有する"}
             </button>
           )}
 
-          {locationPermissionState === "granted" && currentPosition && (
+          {currentPosition && (
             <div style={{ marginTop: "10px" }}>
-              <p style={{ fontSize: "12px", color: "#166534", fontWeight: "700" }}>現在地を継続監視しています</p>
+              <p style={{ fontSize: "12px", color: isUsingMockLocation ? "#b45309" : "#166534", fontWeight: "700" }}>
+                {isUsingMockLocation ? "PC確認用に仮の現在地を表示しています" : "現在地を継続監視しています"}
+              </p>
               {currentAddress && (
                 <p style={{ fontSize: "12px", color: "#1f2937", lineHeight: "1.6", marginTop: "4px" }}>
                   {currentAddress.prefecture}{currentAddress.city}{currentAddress.town}

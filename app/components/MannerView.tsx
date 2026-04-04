@@ -16,6 +16,7 @@ import {
 interface MannerViewProps {
   spotName?: string | null;
   locationPermissionState?: LocationPermissionState;
+  isUsingMockLocation?: boolean;
   onOpenLocationSettings?: () => void;
 }
 
@@ -50,6 +51,7 @@ function getHelperReply(query: string, spotName?: string | null) {
 export default function MannerView({
   spotName,
   locationPermissionState = "idle",
+  isUsingMockLocation = false,
   onOpenLocationSettings,
 }: MannerViewProps) {
   const router = useRouter();
@@ -192,13 +194,19 @@ export default function MannerView({
         }
       `}</style>
       <div style={{ height: "100%", overflowY: "auto", paddingBottom: "120px" }}>
-        <div style={{ backgroundColor: "white", borderBottom: "1px solid #e5e7eb", padding: "16px 20px", paddingTop: "48px" }}>
-          <h1 style={{ fontSize: "18px", fontWeight: "bold", color: "#111827", textAlign: "center" }}>
+        <div
+          style={{
+            background: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
+            minHeight: "132px",
+            padding: "0 24px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <h1 style={{ fontSize: "22px", fontWeight: 800, color: "white", textAlign: "center" }}>
             マナーガイド
           </h1>
-          <p style={{ fontSize: "12px", color: "#9ca3af", textAlign: "center", marginTop: "4px" }}>
-            カテゴリ別のマナーと、AIヘルプをまとめて確認できます
-          </p>
         </div>
 
         <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -234,7 +242,7 @@ export default function MannerView({
             )}
             {locationPermissionState === "granted" && (
               <p style={{ fontSize: "12px", color: "#166534", lineHeight: "1.6", marginTop: "8px", fontWeight: 700 }}>
-                現在地の利用が許可されています。
+                {isUsingMockLocation ? "現在は仙台市の仮位置を使用しています。" : "現在地の利用が許可されています。"}
               </p>
             )}
             {spotName && (
@@ -344,13 +352,19 @@ export default function MannerView({
             zIndex: 10,
           }}
         >
-          <div style={{ backgroundColor: "white", borderBottom: "1px solid #e5e7eb", padding: "16px 20px", paddingTop: "48px" }}>
-            <h1 style={{ fontSize: "18px", fontWeight: "bold", color: "#111827", textAlign: "center" }}>
+          <div
+            style={{
+              background: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
+              minHeight: "132px",
+              padding: "0 24px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <h1 style={{ fontSize: "22px", fontWeight: 800, color: "white", textAlign: "center" }}>
               {selectedCategory.label}
             </h1>
-            <p style={{ fontSize: "12px", color: "#9ca3af", textAlign: "center", marginTop: "4px" }}>
-              マナー詳細
-            </p>
           </div>
 
           <MannerCategoryPage

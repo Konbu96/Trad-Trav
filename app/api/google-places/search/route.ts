@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getPhotoUri } from "../_lib/photo";
+import { normalizePlacesText } from "../_lib/text";
 
 const MIYAGI_BOUNDS = {
   minLat: 37.75,
@@ -95,12 +97,6 @@ const NON_TRADITIONAL_EXCLUDE_KEYWORDS = [
   "アクセサリー作り",
 ];
 
-function normalizeText(text: string) {
-  return text
-    .toLowerCase()
-    .replace(/[()（）「」『』・\s]/g, "");
-}
-
 function isInMiyagi(lat: number, lng: number) {
   return (
     lat >= MIYAGI_BOUNDS.minLat &&
@@ -154,8 +150,8 @@ function isTraditionalCulturePlace(place: GoogleTextSearchPlace) {
 }
 
 function matchesQueryName(place: GoogleTextSearchPlace, query: string) {
-  const normalizedName = normalizeText(place.displayName?.text || "");
-  const normalizedQuery = normalizeText(query);
+  const normalizedName = normalizePlacesText(place.displayName?.text || "");
+  const normalizedQuery = normalizePlacesText(query);
   return normalizedQuery.length > 0 && normalizedName.includes(normalizedQuery);
 }
 
@@ -178,33 +174,6 @@ function getExperienceScore(place: GoogleTextSearchPlace, query: string) {
   if (isGenericCraftButNotTraditional(searchable)) score -= 40;
 
   return score;
-}
-
-async function getPhotoUri(apiKey: string, photoName: string) {
-  const requestUrl = `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=1200&skipHttpRedirect=true`;
-
-  try {
-    const res = await fetch(requestUrl, {
-      headers: {
-        "X-Goog-Api-Key": apiKey,
-      },
-      cache: "no-store",
-    });
-
-    if (!res.ok) return null;
-
-    const contentType = res.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      const data = await res.json() as { photoUri?: string };
-      return data.photoUri || null;
-    }
-
-    // Some Google media responses can resolve to the final image URL directly.
-    return res.url && res.url !== requestUrl ? res.url : null;
-  } catch (error) {
-    console.error("google-places photo fetch error:", error);
-    return null;
-  }
 }
 
 async function searchPlaces(apiKey: string, textQuery: string) {
