@@ -138,6 +138,16 @@ function AppContent() {
     if (!navigator.geolocation) {
       setLocationPermissionState("unsupported");
       setLocationError("この端末では位置情報を利用できません。");
+      setCurrentPosition(null);
+      setCurrentAddress(null);
+      return;
+    }
+
+    if (!window.isSecureContext) {
+      setLocationPermissionState("error");
+      setLocationError("位置情報は安全な接続のページでのみ利用できます。");
+      setCurrentPosition(null);
+      setCurrentAddress(null);
       return;
     }
 
@@ -166,6 +176,8 @@ function AppContent() {
         if (error.code === error.PERMISSION_DENIED) {
           setLocationPermissionState("denied");
           setLocationError("位置情報の許可がオフになっています。");
+          setCurrentPosition(null);
+          setCurrentAddress(null);
           if (locationWatchIdRef.current !== null) {
             navigator.geolocation.clearWatch(locationWatchIdRef.current);
             locationWatchIdRef.current = null;
@@ -173,8 +185,26 @@ function AppContent() {
           return;
         }
 
+        if (error.code === error.POSITION_UNAVAILABLE) {
+          setLocationPermissionState("error");
+          setLocationError("現在地を特定できませんでした。GPSや通信状況をご確認ください。");
+          setCurrentPosition(null);
+          setCurrentAddress(null);
+          return;
+        }
+
+        if (error.code === error.TIMEOUT) {
+          setLocationPermissionState("error");
+          setLocationError("位置情報の取得がタイムアウトしました。少し待ってから再度お試しください。");
+          setCurrentPosition(null);
+          setCurrentAddress(null);
+          return;
+        }
+
         setLocationPermissionState("error");
         setLocationError("位置情報を取得できませんでした。");
+        setCurrentPosition(null);
+        setCurrentAddress(null);
       },
       {
         enableHighAccuracy: true,

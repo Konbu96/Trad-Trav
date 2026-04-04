@@ -94,6 +94,30 @@ export default function MyPageView({
     locationSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [locationSettingsFocusKey]);
 
+  const getLocationErrorGuide = () => {
+    if (locationPermissionState === "denied") {
+      return "ブラウザや端末の設定で、このサイトの位置情報を許可してください。";
+    }
+
+    if (locationPermissionState === "unsupported") {
+      return "この端末やブラウザでは、位置情報機能が使えない可能性があります。";
+    }
+
+    if (locationError.includes("タイムアウト")) {
+      return "屋外や電波の良い場所に移動して、もう一度お試しください。";
+    }
+
+    if (locationError.includes("安全な接続")) {
+      return "https の URL で開いているか確認してください。";
+    }
+
+    if (locationError.includes("特定できません")) {
+      return "GPS、Wi-Fi、モバイル通信がオンになっているか確認してください。";
+    }
+
+    return "少し時間を置いてから、もう一度お試しください。";
+  };
+
   return (
     <div
       style={{
@@ -583,9 +607,25 @@ export default function MyPageView({
           )}
 
           {(locationPermissionState === "denied" || locationPermissionState === "unsupported" || locationPermissionState === "error") && locationError && (
-            <p style={{ fontSize: "12px", color: "#b91c1c", lineHeight: "1.6", marginTop: "10px" }}>
-              {locationError}
-            </p>
+            <div
+              style={{
+                marginTop: "12px",
+                borderRadius: "14px",
+                backgroundColor: "#fff1f2",
+                border: "1px solid #fecdd3",
+                padding: "12px 14px",
+              }}
+            >
+              <p style={{ fontSize: "12px", color: "#b91c1c", fontWeight: "700" }}>
+                位置情報を取得できませんでした
+              </p>
+              <p style={{ fontSize: "12px", color: "#991b1b", lineHeight: "1.7", marginTop: "4px" }}>
+                {locationError}
+              </p>
+              <p style={{ fontSize: "11px", color: "#7f1d1d", lineHeight: "1.7", marginTop: "6px" }}>
+                {getLocationErrorGuide()}
+              </p>
+            </div>
           )}
         </div>
         <div
