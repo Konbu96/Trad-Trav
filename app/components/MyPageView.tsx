@@ -5,7 +5,7 @@ import type { DiagnosisResult } from "./DiagnosisView";
 import { useLanguage } from "../i18n/LanguageContext";
 import { DefaultAvatarIcon } from "./icons";
 import { recommendedSpots, getRecommendedSpotIds, INTEREST_CATEGORY_MAP } from "../data/spots";
-import type { LocationPermissionState } from "../page";
+import type { CurrentAddress, LocationPermissionState } from "../page";
 
 interface User {
   name: string;
@@ -30,6 +30,7 @@ interface MyPageViewProps {
   locationPermissionState?: LocationPermissionState;
   locationError?: string;
   currentPosition?: { latitude: number; longitude: number } | null;
+  currentAddress?: CurrentAddress | null;
   onRequestLocationPermission?: () => void;
   locationSettingsFocusKey?: number;
 }
@@ -45,6 +46,7 @@ export default function MyPageView({
   locationPermissionState = "idle",
   locationError = "",
   currentPosition = null,
+  currentAddress = null,
   onRequestLocationPermission,
   locationSettingsFocusKey = 0,
 }: MyPageViewProps) {
@@ -451,7 +453,6 @@ export default function MyPageView({
                     alignItems: "center",
                     background: "none",
                     border: "none",
-                    borderBottom: index < displayedHistory.length - 1 || viewHistory.length > 3 ? "1px solid #f3f4f6" : "none",
                     cursor: onJumpToSpot ? "pointer" : "default",
                     textAlign: "left",
                   }}
@@ -541,7 +542,12 @@ export default function MyPageView({
               style={{
                 marginTop: "14px",
                 borderRadius: "999px",
-                backgroundColor: locationPermissionState === "requesting" ? "#f9a8d4" : "#ec4899",
+                backgroundColor:
+                  locationPermissionState === "granted"
+                    ? "#16a34a"
+                    : locationPermissionState === "requesting"
+                      ? "#f9a8d4"
+                      : "#ec4899",
                 color: "white",
                 padding: "10px 14px",
                 fontSize: "13px",
@@ -549,16 +555,30 @@ export default function MyPageView({
                 opacity: locationPermissionState === "requesting" ? 0.9 : 1,
               }}
             >
-              {locationPermissionState === "requesting" ? "取得中..." : "現在地を使う"}
+              {locationPermissionState === "granted"
+                ? "現在地を監視中"
+                : locationPermissionState === "requesting"
+                  ? "取得中..."
+                  : "現在地を共有する"}
             </button>
           )}
 
           {locationPermissionState === "granted" && currentPosition && (
             <div style={{ marginTop: "10px" }}>
-              <p style={{ fontSize: "12px", color: "#166534", fontWeight: "700" }}>現在地を取得しました</p>
+              <p style={{ fontSize: "12px", color: "#166534", fontWeight: "700" }}>現在地を継続監視しています</p>
+              {currentAddress && (
+                <p style={{ fontSize: "12px", color: "#1f2937", lineHeight: "1.6", marginTop: "4px" }}>
+                  {currentAddress.prefecture}{currentAddress.city}{currentAddress.town}
+                </p>
+              )}
               <p style={{ fontSize: "12px", color: "#374151", lineHeight: "1.6", marginTop: "2px" }}>
                 緯度 {currentPosition.latitude.toFixed(5)} / 経度 {currentPosition.longitude.toFixed(5)}
               </p>
+              {currentAddress?.formattedAddress && (
+                <p style={{ fontSize: "11px", color: "#6b7280", lineHeight: "1.6", marginTop: "4px" }}>
+                  {currentAddress.formattedAddress}
+                </p>
+              )}
             </div>
           )}
 

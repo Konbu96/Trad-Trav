@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import BottomNavigation from "./components/BottomNavigation";
 import SplashScreen from "./components/SplashScreen";
 import DiagnosisView, { type DiagnosisResult } from "./components/DiagnosisView";
@@ -31,6 +31,13 @@ export type LocationPermissionState =
   | "unsupported"
   | "error";
 
+export interface CurrentAddress {
+  prefecture: string;
+  city: string;
+  town: string;
+  formattedAddress: string;
+}
+
 function AppContent() {
   const [showSplash, setShowSplash] = useState(true);
   const [showAuth, setShowAuth] = useState(false);
@@ -45,7 +52,10 @@ function AppContent() {
   const [locationPermissionState, setLocationPermissionState] = useState<LocationPermissionState>("idle");
   const [locationError, setLocationError] = useState("");
   const [currentPosition, setCurrentPosition] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [currentAddress, setCurrentAddress] = useState<CurrentAddress | null>(null);
   const [locationSettingsFocusKey, setLocationSettingsFocusKey] = useState(0);
+  const locationWatchIdRef = useRef<number | null>(null);
+  const lastReverseGeocodeKeyRef = useRef<string>("");
 
   // 診断結果からおすすめスポットIDを計算
   const recommendedSpotIds = diagnosisResult
@@ -97,6 +107,33 @@ function AppContent() {
     if (screen !== "manner") setMannerHelperSpot(null);
   };
 
+  const reverseGeocode = useCallback(async (latitude: number, longitude: number) => {
+    try {
+      const res = await fetch(`/api/google-places/reverse-geocode?lat=${encodeURIComponent(latitude)}&lng=${encodeURIComponent(longitude)}`);
+      const data = await res.json() as {
+        prefecture?: string;
+        city?: string;
+        town?: string;
+        formattedAddress?: string;
+        error?: string;
+      };
+
+      if (!res.ok) {
+        throw new Error(data.error || "reverse geocode failed");
+      }
+
+      setCurrentAddress({
+        prefecture: data.prefecture || "",
+        city: data.city || "",
+        town: data.town || "",
+        formattedAddress: data.formattedAddress || "",
+      });
+    } catch (error) {
+      console.warn("位置情報の住所変換に失敗:", error);
+      setCurrentAddress(null);
+    }
+  }, []);
+
   const handleRequestLocationPermission = useCallback(() => {
     if (!navigator.geolocation) {
       setLocationPermissionState("unsupported");
@@ -104,21 +141,35 @@ function AppContent() {
       return;
     }
 
+    if (locationWatchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(locationWatchIdRef.current);
+      locationWatchIdRef.current = null;
+    }
+
     setLocationPermissionState("requesting");
     setLocationError("");
-
-    navigator.geolocation.getCurrentPosition(
+    locationWatchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
-        setCurrentPosition({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        });
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        setCurrentPosition({ latitude, longitude });
         setLocationPermissionState("granted");
+        setLocationError("");
+
+        const nextKey = `${latitude.toFixed(3)}:${longitude.toFixed(3)}`;
+        if (lastReverseGeocodeKeyRef.current !== nextKey) {
+          lastReverseGeocodeKeyRef.current = nextKey;
+          void reverseGeocode(latitude, longitude);
+        }
       },
       (error) => {
         if (error.code === error.PERMISSION_DENIED) {
           setLocationPermissionState("denied");
           setLocationError("位置情報の許可がオフになっています。");
+          if (locationWatchIdRef.current !== null) {
+            navigator.geolocation.clearWatch(locationWatchIdRef.current);
+            locationWatchIdRef.current = null;
+          }
           return;
         }
 
@@ -131,6 +182,13 @@ function AppContent() {
         maximumAge: 60000,
       }
     );
+  }, [reverseGeocode]);
+
+  useEffect(() => () => {
+    if (locationWatchIdRef.current !== null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(locationWatchIdRef.current);
+      locationWatchIdRef.current = null;
+    }
   }, []);
 
   const handleOpenLocationSettings = () => {
@@ -249,6 +307,7 @@ function AppContent() {
               locationPermissionState={locationPermissionState}
               locationError={locationError}
               currentPosition={currentPosition}
+              currentAddress={currentAddress}
               onRequestLocationPermission={handleRequestLocationPermission}
               locationSettingsFocusKey={locationSettingsFocusKey}
             />
