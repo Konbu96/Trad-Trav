@@ -197,14 +197,14 @@ export default function MannerView({
         <div
           style={{
             background: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
-            minHeight: "132px",
-            padding: "0 24px",
+            minHeight: "92px",
+            padding: "0 20px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <h1 style={{ fontSize: "22px", fontWeight: 800, color: "white", textAlign: "center" }}>
+          <h1 style={{ fontSize: "20px", fontWeight: 800, color: "white", textAlign: "center" }}>
             マナーガイド
           </h1>
         </div>
@@ -355,14 +355,14 @@ export default function MannerView({
           <div
             style={{
               background: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
-              minHeight: "132px",
-              padding: "0 24px",
+              minHeight: "92px",
+              padding: "0 20px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <h1 style={{ fontSize: "22px", fontWeight: 800, color: "white", textAlign: "center" }}>
+            <h1 style={{ fontSize: "20px", fontWeight: 800, color: "white", textAlign: "center" }}>
               {selectedCategory.label}
             </h1>
           </div>

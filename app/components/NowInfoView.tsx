@@ -219,15 +219,15 @@ export default function NowInfoView({
       <div
         style={{
           background: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
-          minHeight: "132px",
-          padding: "0 24px",
+          minHeight: "92px",
+          padding: "0 20px",
           color: "white",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <h1 style={{ fontSize: "22px", fontWeight: 800, textAlign: "center" }}>なう情報</h1>
+        <h1 style={{ fontSize: "20px", fontWeight: 800, textAlign: "center" }}>なう情報</h1>
       </div>
 
       <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: "18px" }}>

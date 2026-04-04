@@ -388,7 +388,7 @@ export default function MapTabView({
     <div className="absolute inset-0 flex flex-col">
       {/* サブタブヘッダー */}
       <div
-        className="flex-shrink-0 pt-12 z-10"
+        className="flex-shrink-0 z-10"
         style={{
           background: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
           boxShadow: "0 2px 10px rgba(236,72,153,0.18)",
@@ -396,12 +396,12 @@ export default function MapTabView({
       >
         <div
           style={{
-            minHeight: "92px",
+            minHeight: "64px",
             color: "white",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            padding: "0 20px",
+            padding: "12px 20px 8px",
           }}
         >
           <h1 style={{ fontSize: "20px", fontWeight: 800, textAlign: "center" }}>
@@ -415,7 +415,7 @@ export default function MapTabView({
               <button
                 key={tab}
                 onClick={() => setActiveSubTab(tab)}
-                className="flex-1 py-2.5 text-sm font-medium border-b-2 transition-colors"
+                className="flex-1 py-2 text-sm font-medium border-b-2 transition-colors"
                 style={{
                   borderBottomColor: isActive ? "#ffffff" : "transparent",
                   color: "#ffffff",

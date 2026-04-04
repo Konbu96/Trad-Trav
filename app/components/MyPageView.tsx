@@ -135,15 +135,15 @@ export default function MyPageView({
         style={{
           backgroundColor: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
           background: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
-          minHeight: "132px",
-          padding: "0 24px",
+          minHeight: "92px",
+          padding: "0 20px",
           color: "white",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <h1 style={{ fontSize: "22px", fontWeight: 800, textAlign: "center" }}>
+        <h1 style={{ fontSize: "20px", fontWeight: 800, textAlign: "center" }}>
           {t.mypage.title}
         </h1>
       </div>
