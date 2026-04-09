@@ -22,7 +22,7 @@ export const translations = {
       map: "体験予約",
       now: "なう情報",
       posts: "投稿",
-      manner: "マナー",
+      manner: "お役立ち",
     },
 
     // スプラッシュ
@@ -196,7 +196,7 @@ export const translations = {
       map: "Experiences",
       now: "Now",
       posts: "Posts",
-      manner: "Manners",
+      manner: "Tips",
     },
 
     // Splash

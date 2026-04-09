@@ -624,7 +624,7 @@ export default function MapView({
               borderRadius: "12px",
               padding: "12px 14px",
               boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
-              border: "1.5px solid #fce7f3",
+              border: "1.5px solid #f7dfe5",
               position: "relative",
             }}
           >
@@ -645,7 +645,7 @@ export default function MapView({
             >
               ✕
             </button>
-            <p style={{ fontSize: "13px", fontWeight: "600", color: "#ec4899", margin: "0 0 4px" }}>
+            <p style={{ fontSize: "13px", fontWeight: "600", color: "#e88fa3", margin: "0 0 4px" }}>
               👆 ここをタップ！
             </p>
             <p style={{ fontSize: "12px", color: "#6b7280", margin: 0, lineHeight: 1.4 }}>

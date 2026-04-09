@@ -3,21 +3,27 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CloseIcon, SearchIcon } from "./icons";
+import HelpfulTopicPage from "./HelpfulTopicPage";
 import MannerCategoryPage from "./MannerCategoryPage";
 import type { LocationPermissionState } from "../page";
+import { MANNER_QUICK_QUESTIONS, searchMannerItems } from "../data/manners";
 import {
-  MANNER_CATEGORIES,
-  MANNER_ITEMS,
-  MANNER_QUICK_QUESTIONS,
-  searchMannerItems,
-  type MannerCategoryId,
-} from "../data/manners";
+  HELPFUL_TABS,
+  TRAVEL_GUIDE_TOPICS,
+  TRIVIA_TOPICS,
+  getHelpfulCards,
+  getHelpfulDetail,
+  type HelpfulDetail,
+  type HelpfulTabId,
+} from "../data/helpfulInfo";
 
 interface MannerViewProps {
   spotName?: string | null;
   locationPermissionState?: LocationPermissionState;
   isUsingMockLocation?: boolean;
   onOpenLocationSettings?: () => void;
+  preferredTab?: HelpfulTabId | null;
+  onPreferredTabApplied?: () => void;
 }
 
 type HelperMessage = {
@@ -25,26 +31,69 @@ type HelperMessage = {
   text: string;
 };
 
+type HelperResult = {
+  title: string;
+  description: string;
+  badge: string;
+};
+
+const DETAIL_ANIMATION_MS = 280;
+
+function isHelpfulTabId(value: string | null): value is HelpfulTabId {
+  return value === "manner" || value === "trivia" || value === "travel";
+}
+
+function searchHelpfulTopics(query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return [];
+
+  return [...TRIVIA_TOPICS, ...TRAVEL_GUIDE_TOPICS].filter((topic) => {
+    const haystacks = [
+      topic.title,
+      topic.subtitle,
+      topic.description,
+      ...topic.details,
+      ...topic.keywords,
+    ].map((value) => value.toLowerCase());
+
+    return haystacks.some((value) => value.includes(normalized));
+  });
+}
+
 function getHelperReply(query: string, spotName?: string | null) {
   const matchedItems = searchMannerItems(query).slice(0, 3);
+  const matchedTopics = searchHelpfulTopics(query).slice(0, 2);
   const intro = spotName
-    ? `「${spotName}」に行く前提で、いま気を付けたいマナーをまとめます。`
-    : "いまの質問に近いマナーをまとめます。";
+    ? `「${spotName}」に行く前提で、いま役立ちそうな情報をまとめます。`
+    : "いまの質問に近いお役立ち情報をまとめます。";
 
-  if (matchedItems.length === 0) {
+  const helperResults: HelperResult[] = [
+    ...matchedItems.map((item) => ({
+      title: item.title,
+      description: item.shortDescription,
+      badge: "マナー",
+    })),
+    ...matchedTopics.map((topic) => ({
+      title: topic.title,
+      description: topic.description,
+      badge: topic.tabId === "trivia" ? "豆知識" : "旅ガイド",
+    })),
+  ];
+
+  if (helperResults.length === 0) {
     return {
-      text: `${intro} 仮実装のため、まずは「写真」「電車」「体験」「祭り」などで聞いてみてください。`,
+      text: `${intro} 仮実装のため、まずは「写真」「電車」「体験」「祭り」「豆知識」などで聞いてみてください。`,
       items: [],
     };
   }
 
-  const summary = matchedItems
-    .map((item) => `・${item.title}: ${item.shortDescription}`)
+  const summary = helperResults
+    .map((item) => `・${item.badge} | ${item.title}: ${item.description}`)
     .join("\n");
 
   return {
     text: `${intro}\n${summary}`,
-    items: matchedItems,
+    items: helperResults,
   };
 }
 
@@ -53,40 +102,60 @@ export default function MannerView({
   locationPermissionState = "idle",
   isUsingMockLocation = false,
   onOpenLocationSettings,
+  preferredTab = null,
+  onPreferredTabApplied,
 }: MannerViewProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const selectedTabParam = searchParams.get("guideTab");
+  const legacyMannerParam = searchParams.get("manner");
+  const selectedDetailParam = searchParams.get("guideDetail") || (legacyMannerParam ? `manner:${legacyMannerParam}` : null);
+
+  const [activeTab, setActiveTab] = useState<HelpfulTabId>(isHelpfulTabId(selectedTabParam) ? selectedTabParam : "manner");
   const [isHelperOpen, setIsHelperOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [helperMessages, setHelperMessages] = useState<HelperMessage[]>([
     {
       role: "assistant",
-      text: "マナーAIは仮実装です。写真撮影、電車での通話、体験予約の注意などを気軽に聞けます。",
+      text: "お役立ちAIは仮実装です。いまはマナー、豆知識、旅ガイドの内容を中心に案内できます。",
     },
   ]);
-  const [helperResults, setHelperResults] = useState<typeof MANNER_ITEMS>([]);
+  const [helperResults, setHelperResults] = useState<HelperResult[]>([]);
   const closeTimerRef = useRef<number | null>(null);
-  const visibleCategoryIdRef = useRef<MannerCategoryId | null>(null);
-  const isClosingCategoryRef = useRef(false);
-
-  const selectedCategoryParam = searchParams.get("manner");
-  const selectedCategoryIdFromQuery = MANNER_CATEGORIES.some((category) => category.id === selectedCategoryParam)
-    ? (selectedCategoryParam as MannerCategoryId)
-    : null;
-  const [visibleCategoryId, setVisibleCategoryId] = useState<MannerCategoryId | null>(selectedCategoryIdFromQuery);
-  const [isClosingCategory, setIsClosingCategory] = useState(false);
-  const activeCategoryId = visibleCategoryId ?? selectedCategoryIdFromQuery;
-
-  const selectedCategory = useMemo(
-    () => MANNER_CATEGORIES.find((category) => category.id === activeCategoryId) ?? null,
-    [activeCategoryId]
-  );
+  const visibleDetailRef = useRef<HelpfulDetail | null>(null);
+  const isClosingDetailRef = useRef(false);
+  const [visibleDetail, setVisibleDetail] = useState<HelpfulDetail | null>(getHelpfulDetail(selectedDetailParam));
+  const [isClosingDetail, setIsClosingDetail] = useState(false);
+  const selectedDetail = visibleDetail ?? getHelpfulDetail(selectedDetailParam);
+  const activeCards = useMemo(() => getHelpfulCards(activeTab), [activeTab]);
 
   useEffect(() => {
-    visibleCategoryIdRef.current = visibleCategoryId;
-    isClosingCategoryRef.current = isClosingCategory;
-  }, [visibleCategoryId, isClosingCategory]);
+    if (isHelpfulTabId(selectedTabParam)) {
+      setActiveTab(selectedTabParam);
+    }
+  }, [selectedTabParam]);
+
+  useEffect(() => {
+    if (!preferredTab) return;
+
+    setActiveTab(preferredTab);
+    setVisibleDetail(null);
+    setIsClosingDetail(false);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("guideTab", preferredTab);
+    params.delete("guideDetail");
+    params.delete("manner");
+    const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    router.replace(nextUrl, { scroll: false });
+    onPreferredTabApplied?.();
+  }, [onPreferredTabApplied, pathname, preferredTab, router, searchParams]);
+
+  useEffect(() => {
+    visibleDetailRef.current = visibleDetail;
+    isClosingDetailRef.current = isClosingDetail;
+  }, [visibleDetail, isClosingDetail]);
 
   useEffect(() => () => {
     if (closeTimerRef.current) {
@@ -97,31 +166,34 @@ export default function MannerView({
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
-      const nextCategoryParam = params.get("manner");
-      const nextCategoryId = MANNER_CATEGORIES.some((category) => category.id === nextCategoryParam)
-        ? (nextCategoryParam as MannerCategoryId)
-        : null;
+      const nextTabParam = params.get("guideTab");
+      if (isHelpfulTabId(nextTabParam)) {
+        setActiveTab(nextTabParam);
+      }
 
-      if (!nextCategoryId && visibleCategoryIdRef.current && !isClosingCategoryRef.current) {
-        setIsClosingCategory(true);
+      const nextDetailParam = params.get("guideDetail") || (params.get("manner") ? `manner:${params.get("manner")}` : null);
+      const nextDetail = getHelpfulDetail(nextDetailParam);
+
+      if (!nextDetail && visibleDetailRef.current && !isClosingDetailRef.current) {
+        setIsClosingDetail(true);
         if (closeTimerRef.current) {
           window.clearTimeout(closeTimerRef.current);
         }
         closeTimerRef.current = window.setTimeout(() => {
-          setVisibleCategoryId(null);
-          setIsClosingCategory(false);
+          setVisibleDetail(null);
+          setIsClosingDetail(false);
           closeTimerRef.current = null;
-        }, 280);
+        }, DETAIL_ANIMATION_MS);
         return;
       }
 
-      if (nextCategoryId) {
+      if (nextDetail) {
         if (closeTimerRef.current) {
           window.clearTimeout(closeTimerRef.current);
           closeTimerRef.current = null;
         }
-        setVisibleCategoryId(nextCategoryId);
-        setIsClosingCategory(false);
+        setVisibleDetail(nextDetail);
+        setIsClosingDetail(false);
       }
     };
 
@@ -129,32 +201,52 @@ export default function MannerView({
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  const openCategoryPage = (categoryId: MannerCategoryId) => {
+  const handleChangeTab = (nextTab: HelpfulTabId) => {
+    setActiveTab(nextTab);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("guideTab", nextTab);
+    params.delete("guideDetail");
+    params.delete("manner");
+    const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    router.replace(nextUrl, { scroll: false });
+  };
+
+  const openDetailPage = (detailKey: string) => {
+    const nextDetail = getHelpfulDetail(detailKey);
+    if (!nextDetail) return;
+
     if (closeTimerRef.current) {
       window.clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
-    setVisibleCategoryId(categoryId);
-    setIsClosingCategory(false);
+
+    const nextTab = detailKey.startsWith("trivia:") ? "trivia" : detailKey.startsWith("travel:") ? "travel" : "manner";
+    setActiveTab(nextTab);
+    setVisibleDetail(nextDetail);
+    setIsClosingDetail(false);
+
     const params = new URLSearchParams(searchParams.toString());
-    params.set("manner", categoryId);
+    params.set("guideTab", nextTab);
+    params.set("guideDetail", detailKey);
+    params.delete("manner");
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
-  const closeCategoryPage = () => {
-    setIsClosingCategory(true);
+  const closeDetailPage = () => {
+    setIsClosingDetail(true);
     if (closeTimerRef.current) {
       window.clearTimeout(closeTimerRef.current);
     }
     closeTimerRef.current = window.setTimeout(() => {
       const params = new URLSearchParams(searchParams.toString());
+      params.delete("guideDetail");
       params.delete("manner");
       const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-      setVisibleCategoryId(null);
-      setIsClosingCategory(false);
+      setVisibleDetail(null);
+      setIsClosingDetail(false);
       router.replace(nextUrl, { scroll: false });
       closeTimerRef.current = null;
-    }, 280);
+    }, DETAIL_ANIMATION_MS);
   };
 
   const handleAskHelper = (nextQuery: string) => {
@@ -193,10 +285,11 @@ export default function MannerView({
           }
         }
       `}</style>
+
       <div style={{ height: "100%", overflowY: "auto", paddingBottom: "120px" }}>
         <div
           style={{
-            background: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
+            background: "linear-gradient(135deg, #e88fa3 0%, #f3a7b8 100%)",
             minHeight: "92px",
             padding: "0 20px",
             display: "flex",
@@ -205,64 +298,90 @@ export default function MannerView({
           }}
         >
           <h1 style={{ fontSize: "20px", fontWeight: 800, color: "white", textAlign: "center" }}>
-            マナーガイド
+            お役立ち情報
           </h1>
         </div>
 
         <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
+          {(locationPermissionState === "granted" || spotName) && (
+            <div
+              style={{
+                backgroundColor: "#fdf3f5",
+                borderRadius: "18px",
+                padding: "14px",
+                border: "1px solid #f3d1da",
+              }}
+            >
+              {locationPermissionState === "granted" && (
+                <>
+                  <p style={{ fontSize: "13px", color: "#b85f74", lineHeight: "1.7" }}>
+                    状況に合わせたマナーやガイド情報を表示しています。
+                  </p>
+                  <p style={{ fontSize: "12px", color: "#166534", lineHeight: "1.6", marginTop: "8px", fontWeight: 700 }}>
+                    {isUsingMockLocation ? "現在は仙台市の仮位置を使用しています。" : "現在地の利用が許可されています。"}
+                  </p>
+                </>
+              )}
+              {spotName && (
+                <p
+                  style={{
+                    fontSize: "12px",
+                    color: "#7c3aed",
+                    fontWeight: 700,
+                    marginTop: locationPermissionState === "granted" ? "6px" : 0,
+                  }}
+                >
+                  スポット連携中: {spotName}
+                </p>
+              )}
+            </div>
+          )}
+
           <div
             style={{
-              backgroundColor: "#fff1f2",
-              borderRadius: "16px",
-              padding: "12px 14px",
-              border: "1px solid #fbcfe8",
+              backgroundColor: "white",
+              borderRadius: "22px",
+              padding: "8px",
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gap: "8px",
+              border: "1px solid #f7dfe5",
+              boxShadow: "0 2px 10px rgba(15,23,42,0.05)",
             }}
           >
-            <p style={{ fontSize: "13px", color: "#be185d", lineHeight: "1.7" }}>
-              位置情報取得を許可すると、状況に合わせたマナー情報をお届けできます。
-            </p>
-            {onOpenLocationSettings && (
-              <button
-                type="button"
-                onClick={onOpenLocationSettings}
-                style={{
-                  marginTop: "10px",
-                  alignSelf: "flex-start",
-                  borderRadius: "999px",
-                  border: "1px solid #f472b6",
-                  backgroundColor: "#fdf2f8",
-                  color: "#be185d",
-                  padding: "8px 16px",
-                  fontSize: "13px",
-                  fontWeight: 700,
-                }}
-              >
-                マイページで位置情報を設定
-              </button>
-            )}
-            {locationPermissionState === "granted" && (
-              <p style={{ fontSize: "12px", color: "#166534", lineHeight: "1.6", marginTop: "8px", fontWeight: 700 }}>
-                {isUsingMockLocation ? "現在は仙台市の仮位置を使用しています。" : "現在地の利用が許可されています。"}
-              </p>
-            )}
-            {spotName && (
-              <p style={{ fontSize: "12px", color: "#7c3aed", fontWeight: 700, marginTop: "6px" }}>
-                スポット連携中: {spotName}
-              </p>
-            )}
+            {HELPFUL_TABS.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => handleChangeTab(tab.id)}
+                  style={{
+                    borderRadius: "16px",
+                    padding: "11px 8px",
+                    backgroundColor: isActive ? "#e88fa3" : "#fdf3f5",
+                    color: isActive ? "white" : "#b85f74",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    boxShadow: isActive ? "0 8px 18px rgba(236,72,153,0.2)" : "none",
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            {MANNER_CATEGORIES.map((category) => (
+            {activeCards.map((card) => (
               <button
-                key={category.id}
-                onClick={() => openCategoryPage(category.id)}
+                key={card.key}
+                onClick={() => openDetailPage(card.key)}
                 style={{
                   width: "100%",
                   textAlign: "left",
                   backgroundColor: "white",
                   border: "1px solid #e5e7eb",
-                  borderRadius: "20px",
+                  borderRadius: "22px",
                   padding: "16px 18px",
                   boxShadow: "0 2px 10px rgba(15,23,42,0.05)",
                   display: "flex",
@@ -277,7 +396,7 @@ export default function MannerView({
                       width: "48px",
                       height: "48px",
                       borderRadius: "16px",
-                      backgroundColor: "#fff1f2",
+                      backgroundColor: "#fdf3f5",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -285,16 +404,17 @@ export default function MannerView({
                       flexShrink: 0,
                     }}
                   >
-                    {category.emoji}
+                    {card.emoji}
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <p style={{ fontSize: "16px", fontWeight: 800, color: "#111827" }}>{category.label}</p>
+                    <p style={{ fontSize: "12px", fontWeight: 700, color: "#e88fa3" }}>{card.subtitle}</p>
+                    <p style={{ fontSize: "16px", fontWeight: 800, color: "#111827", marginTop: "2px" }}>{card.title}</p>
                     <p style={{ fontSize: "12px", color: "#6b7280", lineHeight: "1.6", marginTop: "4px" }}>
-                      {category.description}
+                      {card.description}
                     </p>
                   </div>
                 </div>
-                <span style={{ fontSize: "18px", color: "#ec4899", flexShrink: 0 }}>&gt;</span>
+                <span style={{ fontSize: "18px", color: "#e88fa3", flexShrink: 0 }}>&gt;</span>
               </button>
             ))}
           </div>
@@ -308,12 +428,12 @@ export default function MannerView({
               boxShadow: "0 2px 12px rgba(15,23,42,0.05)",
             }}
           >
-            <p style={{ fontSize: "12px", fontWeight: 700, color: "#ec4899" }}>AIヘルプの使い方</p>
+            <p style={{ fontSize: "12px", fontWeight: 700, color: "#e88fa3" }}>AIヘルプの使い方</p>
             <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#111827", marginTop: "4px" }}>
-              気になるマナーは AI に質問
+              気になることはAIに質問
             </h3>
             <p style={{ fontSize: "14px", color: "#4b5563", lineHeight: "1.8", marginTop: "8px" }}>
-              右下のボタンから開けます。仮実装では、入力内容に近いマナーを検索して返します。
+              右下のボタンから開けます。仮実装では、入力内容に近いマナーや豆知識、旅のヒントを返します。
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "12px" }}>
               {MANNER_QUICK_QUESTIONS.map((question) => (
@@ -322,9 +442,9 @@ export default function MannerView({
                   onClick={() => handleAskHelper(question)}
                   style={{
                     borderRadius: "999px",
-                    border: "1px solid #fbcfe8",
-                    backgroundColor: "#fff1f2",
-                    color: "#be185d",
+                    border: "1px solid #f3d1da",
+                    backgroundColor: "#fdf3f5",
+                    color: "#b85f74",
                     padding: "8px 12px",
                     fontSize: "12px",
                     fontWeight: 700,
@@ -338,7 +458,7 @@ export default function MannerView({
         </div>
       </div>
 
-      {selectedCategory && (
+      {selectedDetail && (
         <div
           style={{
             position: "absolute",
@@ -346,7 +466,7 @@ export default function MannerView({
             backgroundColor: "#f8fafc",
             overflowY: "auto",
             paddingBottom: "120px",
-            animation: isClosingCategory
+            animation: isClosingDetail
               ? "mannerSlideOutToRight 0.28s ease forwards"
               : "mannerSlideInFromRight 0.28s ease forwards",
             zIndex: 10,
@@ -354,7 +474,7 @@ export default function MannerView({
         >
           <div
             style={{
-              background: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
+              background: "linear-gradient(135deg, #e88fa3 0%, #f3a7b8 100%)",
               minHeight: "92px",
               padding: "0 20px",
               display: "flex",
@@ -363,15 +483,23 @@ export default function MannerView({
             }}
           >
             <h1 style={{ fontSize: "20px", fontWeight: 800, color: "white", textAlign: "center" }}>
-              {selectedCategory.label}
+              {selectedDetail.title}
             </h1>
           </div>
 
-          <MannerCategoryPage
-            categoryId={selectedCategory.id}
-            onBack={closeCategoryPage}
-            onAskAi={handleAskHelper}
-          />
+          {selectedDetail.kind === "manner" ? (
+            <MannerCategoryPage
+              categoryId={selectedDetail.categoryId}
+              onBack={closeDetailPage}
+              onAskAi={handleAskHelper}
+            />
+          ) : (
+            <HelpfulTopicPage
+              topic={selectedDetail.topic}
+              onBack={closeDetailPage}
+              onAskAi={handleAskHelper}
+            />
+          )}
         </div>
       )}
 
@@ -384,7 +512,7 @@ export default function MannerView({
           width: "64px",
           height: "64px",
           borderRadius: "999px",
-          background: "linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)",
+          background: "linear-gradient(135deg, #e88fa3 0%, #cc8ab2 100%)",
           color: "white",
           boxShadow: "0 16px 36px rgba(236,72,153,0.32)",
           display: "flex",
@@ -425,9 +553,9 @@ export default function MannerView({
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <p style={{ fontSize: "12px", fontWeight: 700, color: "#ec4899" }}>マナーAI</p>
+                <p style={{ fontSize: "12px", fontWeight: 700, color: "#e88fa3" }}>お役立ちAI</p>
                 <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#111827", marginTop: "4px" }}>
-                  質問しながらマナー検索
+                  質問しながら情報検索
                 </h3>
               </div>
               <button onClick={() => setIsHelperOpen(false)} style={{ color: "#6b7280" }}>
@@ -461,7 +589,7 @@ export default function MannerView({
                   key={`${message.role}-${index}`}
                   style={{
                     alignSelf: message.role === "user" ? "flex-end" : "stretch",
-                    backgroundColor: message.role === "user" ? "#ec4899" : "#f3f4f6",
+                    backgroundColor: message.role === "user" ? "#e88fa3" : "#f3f4f6",
                     color: message.role === "user" ? "white" : "#374151",
                     borderRadius: "18px",
                     padding: "12px 14px",
@@ -479,7 +607,7 @@ export default function MannerView({
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                   {helperResults.map((item) => (
                     <div
-                      key={item.id}
+                      key={`${item.badge}-${item.title}`}
                       style={{
                         borderRadius: "18px",
                         border: "1px solid #e5e7eb",
@@ -487,9 +615,10 @@ export default function MannerView({
                         padding: "14px",
                       }}
                     >
-                      <p style={{ fontSize: "14px", fontWeight: 800, color: "#111827" }}>{item.title}</p>
+                      <p style={{ fontSize: "11px", fontWeight: 700, color: "#e88fa3" }}>{item.badge}</p>
+                      <p style={{ fontSize: "14px", fontWeight: 800, color: "#111827", marginTop: "4px" }}>{item.title}</p>
                       <p style={{ fontSize: "13px", color: "#6b7280", marginTop: "6px", lineHeight: "1.7" }}>
-                        {item.shortDescription}
+                        {item.description}
                       </p>
                     </div>
                   ))}
@@ -530,7 +659,7 @@ export default function MannerView({
                 onClick={() => handleAskHelper(query)}
                 style={{
                   borderRadius: "999px",
-                  backgroundColor: "#ec4899",
+                  backgroundColor: "#e88fa3",
                   color: "white",
                   padding: "8px 12px",
                   fontSize: "12px",

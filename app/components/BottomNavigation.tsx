@@ -84,13 +84,27 @@ export default function BottomNavigation({ currentScreen, onScreenChange }: Bott
                 <button
                   onClick={() => onScreenChange(item.id)}
                   className={`w-full flex flex-col items-center gap-1 py-2 transition-colors ${
-                    isActive ? "text-blue-600" : "text-gray-500"
+                    isActive ? "text-pink-500" : "text-gray-500"
                   }`}
                 >
-                  <span className={isActive ? "text-blue-600" : "text-gray-500"}>
+                  <span
+                    className={isActive ? "text-pink-500" : "text-gray-500"}
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: "10px",
+                      backgroundColor: isActive ? "#fdf3f5" : "transparent",
+                    }}
+                  >
                     {item.icon}
                   </span>
-                  <span className={`text-xs font-medium ${isActive ? "text-blue-600" : "text-gray-500"}`}>
+                  <span
+                    className={`text-xs font-medium ${isActive ? "text-pink-500" : "text-gray-500"}`}
+                    style={{ fontSize: "11px" }}
+                  >
                     {t.nav[item.labelKey]}
                   </span>
                 </button>

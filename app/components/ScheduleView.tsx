@@ -31,7 +31,7 @@ export interface ScheduleEvent {
   note: string;
 }
 
-const COLORS = ["#3b82f6", "#ec4899", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"];
+const COLORS = ["#3b82f6", "#e88fa3", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"];
 const COLOR_LABELS = ["ブルー", "ピンク", "グリーン", "アンバー", "パープル", "レッド"];
 const HOURS = Array.from({ length: 24 }, (_, i) => i + 4); // 4:00〜翌3:00
 const DOW = ["月", "火", "水", "木", "金", "土", "日"];

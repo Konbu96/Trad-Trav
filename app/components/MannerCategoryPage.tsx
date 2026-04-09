@@ -36,7 +36,7 @@ export default function MannerCategoryPage({
         }}
       >
         <span style={{ fontSize: "18px", lineHeight: 1 }}>←</span>
-        マナー一覧へ戻る
+        お役立ち情報へ戻る
       </button>
 
       <div
@@ -53,7 +53,7 @@ export default function MannerCategoryPage({
               width: "34px",
               height: "34px",
               borderRadius: "12px",
-              backgroundColor: "#fff1f2",
+              backgroundColor: "#fdf3f5",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -91,8 +91,8 @@ export default function MannerCategoryPage({
                 width: "30px",
                 height: "30px",
                 borderRadius: "10px",
-                backgroundColor: "#fff1f2",
-                color: "#ec4899",
+                backgroundColor: "#fdf3f5",
+                color: "#e88fa3",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -111,7 +111,7 @@ export default function MannerCategoryPage({
           </div>
 
           <div>
-            <p style={{ fontSize: "11px", fontWeight: 700, color: "#ec4899", marginBottom: "4px" }}>
+            <p style={{ fontSize: "11px", fontWeight: 700, color: "#e88fa3", marginBottom: "4px" }}>
               内容
             </p>
             <p style={{ fontSize: "14px", color: "#1f2937", lineHeight: "1.8" }}>
@@ -120,7 +120,7 @@ export default function MannerCategoryPage({
           </div>
 
           <div>
-            <p style={{ fontSize: "11px", fontWeight: 700, color: "#ec4899", marginBottom: "8px" }}>
+            <p style={{ fontSize: "11px", fontWeight: 700, color: "#e88fa3", marginBottom: "8px" }}>
               ポイント
             </p>
             <div style={{ display: "flex", flexDirection: "column" }}>
@@ -140,7 +140,7 @@ export default function MannerCategoryPage({
                       width: "12px",
                       height: "12px",
                       borderRadius: "999px",
-                      backgroundColor: "#ec4899",
+                      backgroundColor: "#e88fa3",
                       flexShrink: 0,
                       marginTop: "6px",
                     }}
@@ -158,22 +158,22 @@ export default function MannerCategoryPage({
 
       <div
         style={{
-          backgroundColor: "#fff1f2",
+          backgroundColor: "#fdf3f5",
           borderRadius: "20px",
           padding: "16px",
-          border: "1px solid #fbcfe8",
+          border: "1px solid #f3d1da",
         }}
       >
-        <p style={{ fontSize: "12px", fontWeight: 700, color: "#ec4899" }}>迷ったときはAIへ</p>
+        <p style={{ fontSize: "12px", fontWeight: 700, color: "#e88fa3" }}>迷ったときはAIへ</p>
         <p style={{ fontSize: "14px", color: "#374151", lineHeight: "1.8", marginTop: "6px" }}>
-          右下のマナーAIから、このカテゴリに関する質問をそのままできます。
+          右下のお役立ちAIから、このカテゴリに関する質問をそのままできます。
         </p>
         <button
           onClick={() => onAskAi(`${category.label}で気を付けることは？`)}
           style={{
             marginTop: "12px",
             borderRadius: "999px",
-            backgroundColor: "#ec4899",
+            backgroundColor: "#e88fa3",
             color: "white",
             padding: "10px 14px",
             fontSize: "12px",

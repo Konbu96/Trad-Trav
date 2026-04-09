@@ -322,7 +322,7 @@ export default function AuthView({ onLogin, onSkip }: AuthViewProps) {
               style={{
                 background: "none",
                 border: "none",
-                color: "#ec4899",
+                color: "#e88fa3",
                 fontSize: "13px",
                 cursor: "pointer",
                 marginBottom: "20px",
@@ -359,7 +359,7 @@ export default function AuthView({ onLogin, onSkip }: AuthViewProps) {
               padding: "16px",
               borderRadius: "12px",
               border: "none",
-              backgroundColor: isFormValid() && !isLoading ? "#ec4899" : "#e5e7eb",
+              backgroundColor: isFormValid() && !isLoading ? "#e88fa3" : "#e5e7eb",
               color: "white",
               fontSize: "16px",
               fontWeight: "600",
@@ -463,7 +463,7 @@ export default function AuthView({ onLogin, onSkip }: AuthViewProps) {
               {text.noAccount}{" "}
               <button
                 onClick={() => setMode("signup")}
-                style={{ background: "none", border: "none", color: "#ec4899", fontWeight: "600", cursor: "pointer" }}
+                style={{ background: "none", border: "none", color: "#e88fa3", fontWeight: "600", cursor: "pointer" }}
               >
                 {text.signup}
               </button>
@@ -474,7 +474,7 @@ export default function AuthView({ onLogin, onSkip }: AuthViewProps) {
               {text.hasAccount}{" "}
               <button
                 onClick={() => setMode("login")}
-                style={{ background: "none", border: "none", color: "#ec4899", fontWeight: "600", cursor: "pointer" }}
+                style={{ background: "none", border: "none", color: "#e88fa3", fontWeight: "600", cursor: "pointer" }}
               >
                 {text.login}
               </button>
@@ -483,7 +483,7 @@ export default function AuthView({ onLogin, onSkip }: AuthViewProps) {
           {mode === "forgot" && (
             <button
               onClick={() => setMode("login")}
-              style={{ background: "none", border: "none", color: "#ec4899", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}
+              style={{ background: "none", border: "none", color: "#e88fa3", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}
             >
               ← {text.backToLogin}
             </button>

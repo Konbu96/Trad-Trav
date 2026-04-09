@@ -89,7 +89,7 @@ function ExpandableReviewText({ text }: { text: string }) {
             marginTop: "10px",
             fontSize: "13px",
             fontWeight: 700,
-            color: "#ec4899",
+            color: "#e88fa3",
           }}
         >
           {isExpanded ? "閉じる" : "もっと見る"}
@@ -265,7 +265,7 @@ function OverviewTab({ spot, isLoadingInfo }: { spot: Spot; isLoadingInfo?: bool
           <div style={{ padding: "20px", display: "flex", alignItems: "center", gap: "10px" }}>
             <div style={{
               width: "18px", height: "18px",
-              border: "2px solid #ec4899",
+              border: "2px solid #e88fa3",
               borderTopColor: "transparent",
               borderRadius: "50%",
               animation: "spin 0.8s linear infinite",
@@ -340,7 +340,7 @@ function ReservationTab({ spot }: { spot: Spot }) {
                 rel="noopener noreferrer"
                 style={{
                   display: "block",
-                  backgroundColor: "#ec4899",
+                  backgroundColor: "#e88fa3",
                   color: "white",
                   textAlign: "center",
                   padding: "14px 20px",
@@ -751,7 +751,7 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
                     cursor: "pointer",
                   }}
                 >
-                  🤖 マナーAI・相談
+                  🤖 お役立ちAI・相談
                 </button>
               )}
             </div>
@@ -775,7 +775,7 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
                   borderRadius: "12px",
                   padding: "12px 14px",
                   boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
-                  border: "1.5px solid #fce7f3",
+                  border: "1.5px solid #f7dfe5",
                   position: "relative",
                 }}>
                   <button
@@ -795,7 +795,7 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
                   >
                     ✕
                   </button>
-                  <p style={{ fontSize: "13px", fontWeight: "600", color: "#ec4899", margin: "0 0 4px" }}>
+                  <p style={{ fontSize: "13px", fontWeight: "600", color: "#e88fa3", margin: "0 0 4px" }}>
                     👆 タブで情報を切り替え！
                   </p>
                   <p style={{ fontSize: "12px", color: "#6b7280", margin: 0, lineHeight: 1.5 }}>

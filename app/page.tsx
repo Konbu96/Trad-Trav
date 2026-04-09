@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import BottomNavigation from "./components/BottomNavigation";
 import SplashScreen from "./components/SplashScreen";
 import DiagnosisView, { type DiagnosisResult } from "./components/DiagnosisView";
@@ -13,6 +14,7 @@ import { LanguageProvider } from "./i18n/LanguageContext";
 import { saveDiagnosisResult, getDiagnosisResult, getViewHistory, addViewHistory, getFavorites, toggleFavorite, type ViewHistoryItem, auth } from "./lib/firebase";
 import { makeLocationKey } from "./lib/location";
 import { getRecommendedSpotIds } from "./data/spots";
+import type { HelpfulTabId } from "./data/helpfulInfo";
 import { signOut } from "firebase/auth";
 
 // 画面の種類
@@ -53,6 +55,8 @@ const ASSUMED_SENDAI_ADDRESS: CurrentAddress = {
 };
 
 function AppContent() {
+  const router = useRouter();
+  const pathname = usePathname();
   const [showSplash, setShowSplash] = useState(true);
   const [showAuth, setShowAuth] = useState(false);
   const [showDiagnosis, setShowDiagnosis] = useState(false);
@@ -62,7 +66,9 @@ function AppContent() {
   const [favoriteSpotIds, setFavoriteSpotIds] = useState<number[]>([]);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>("map");
   const [jumpToSpotId, setJumpToSpotId] = useState<number | null>(null);
+  const [mapResetKey, setMapResetKey] = useState(0);
   const [mannerHelperSpot, setMannerHelperSpot] = useState<string | null>(null);
+  const [preferredHelpfulTab, setPreferredHelpfulTab] = useState<HelpfulTabId | null>(null);
   const [locationPermissionState, setLocationPermissionState] = useState<LocationPermissionState>("idle");
   const [locationError, setLocationError] = useState("");
   const [currentPosition, setCurrentPosition] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -119,7 +125,10 @@ function AppContent() {
 
   const handleScreenChange = (screen: ScreenType) => {
     setCurrentScreen(screen);
-    if (screen !== "manner") setMannerHelperSpot(null);
+    if (screen !== "manner") {
+      setMannerHelperSpot(null);
+      setPreferredHelpfulTab(null);
+    }
   };
 
   const reverseGeocode = useCallback(async (latitude: number, longitude: number) => {
@@ -276,7 +285,22 @@ function AppContent() {
   // マナーAIをスポット連携で開く
   const handleOpenLanguageHelper = (spotName: string) => {
     setMannerHelperSpot(spotName);
+    setPreferredHelpfulTab(null);
     setCurrentScreen("manner");
+  };
+
+  const handleOpenHelpfulTab = (tabId: HelpfulTabId) => {
+    setPreferredHelpfulTab(tabId);
+    setMannerHelperSpot(null);
+    setCurrentScreen("manner");
+  };
+
+  const handleOpenExperienceBooking = () => {
+    setPreferredHelpfulTab(null);
+    setMannerHelperSpot(null);
+    setJumpToSpotId(null);
+    setMapResetKey((prev) => prev + 1);
+    setCurrentScreen("map");
   };
 
   // マップタブへジャンプ（プランビューや閲覧履歴から）
@@ -359,6 +383,7 @@ function AppContent() {
               onToggleFavorite={handleToggleFavorite}
               recommendedSpotIds={recommendedSpotIds}
               onOpenLanguageHelper={handleOpenLanguageHelper}
+              resetToSearchKey={mapResetKey}
             />
           )}
 
@@ -369,6 +394,8 @@ function AppContent() {
               locationPermissionState={locationPermissionState}
               isUsingMockLocation={isUsingMockLocation}
               onOpenLocationSettings={handleOpenLocationSettings}
+              preferredTab={preferredHelpfulTab}
+              onPreferredTabApplied={() => setPreferredHelpfulTab(null)}
             />
           )}
 
@@ -382,6 +409,8 @@ function AppContent() {
               isUsingMockLocation={isUsingMockLocation}
               onRequestLocationPermission={handleRequestLocationPermission}
               onOpenLocationSettings={handleOpenLocationSettings}
+              onOpenHelpfulTab={handleOpenHelpfulTab}
+              onOpenExperienceBooking={handleOpenExperienceBooking}
             />
           )}
 

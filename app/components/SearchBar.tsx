@@ -177,7 +177,7 @@ export default function SearchBar({
             }}
             onKeyDown={handleKeyDown}
             disabled={isSearching}
-            style={{ color: activeQuery && !searchValue ? "#ec4899" : undefined }}
+            style={{ color: activeQuery && !searchValue ? "#e88fa3" : undefined }}
             className="flex-1 bg-transparent border-none outline-none text-base text-gray-800 placeholder-gray-400 disabled:opacity-50"
           />
           

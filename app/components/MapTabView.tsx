@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type Spot } from "../data/spots";
@@ -31,6 +31,7 @@ interface MapTabViewProps {
   onToggleFavorite: (spotId: number) => void;
   recommendedSpotIds: number[] | null;
   onOpenLanguageHelper?: (spotName: string) => void;
+  resetToSearchKey?: number;
 }
 
 type SearchPanelSpot = Spot & { placeId?: string; source?: "google" };
@@ -97,16 +98,25 @@ function getPrimaryPhoto(spot: SearchPanelSpot | Spot) {
   return spot.photos?.[0] || null;
 }
 
+function getFallbackEmojiByCategory(category: string) {
+  return GENRES.find((genre) => genre.label === category)?.emoji || "📍";
+}
+
 function SpotShelfCard({ spot, fallbackEmoji, onOpen }: SpotShelfCardProps) {
   const primaryPhoto = getPrimaryPhoto(spot);
 
   return (
     <button
       onClick={onOpen}
-      className="w-28 shrink-0 overflow-hidden rounded-3xl bg-white text-left shadow-sm"
-      style={{ border: "1px solid #f3f4f6" }}
+      className="shrink-0 overflow-hidden bg-white text-left"
+      style={{
+        width: "104px",
+        borderRadius: "24px",
+        border: "1px solid #ececec",
+        boxShadow: "0 4px 14px rgba(15,23,42,0.08)",
+      }}
     >
-      <div style={{ position: "relative", aspectRatio: "1 / 1", background: "linear-gradient(135deg, #fde68a, #f9a8d4)" }}>
+      <div style={{ position: "relative", aspectRatio: "1 / 1", background: "linear-gradient(135deg, #f6d7b8, #f3b6c3)" }}>
         {primaryPhoto ? (
           // Google Places photo URLs are resolved at runtime and are not preconfigured for next/image.
           // eslint-disable-next-line @next/next/no-img-element
@@ -121,8 +131,20 @@ function SpotShelfCard({ spot, fallbackEmoji, onOpen }: SpotShelfCardProps) {
           </div>
         )}
       </div>
-      <div className="px-3 py-2">
-        <p className="line-clamp-1 text-sm font-semibold text-gray-900">{spot.name}</p>
+      <div style={{ padding: "10px 8px 12px" }}>
+        <p
+          className="line-clamp-2"
+          style={{
+            fontSize: "12px",
+            lineHeight: "1.35",
+            fontWeight: 700,
+            color: "#374151",
+            textAlign: "center",
+            minHeight: "32px",
+          }}
+        >
+          {spot.name}
+        </p>
       </div>
     </button>
   );
@@ -134,7 +156,7 @@ function SpotGridCard({ spot, fallbackEmoji, onOpen, onShowMap }: SpotGridCardPr
   return (
     <div className="overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: "1px solid #f3f4f6" }}>
       <button onClick={onOpen} className="block w-full text-left">
-        <div style={{ position: "relative", aspectRatio: "1 / 1", background: "linear-gradient(135deg, #fde68a, #f9a8d4)" }}>
+        <div style={{ position: "relative", aspectRatio: "1 / 1", background: "linear-gradient(135deg, #f6d7b8, #f3b6c3)" }}>
           {primaryPhoto ? (
             // Google Places photo URLs are resolved at runtime and are not preconfigured for next/image.
             // eslint-disable-next-line @next/next/no-img-element
@@ -158,14 +180,14 @@ function SpotGridCard({ spot, fallbackEmoji, onOpen, onShowMap }: SpotGridCardPr
           <button
             onClick={onOpen}
             className="rounded-xl px-3 py-2 text-xs font-semibold"
-            style={{ color: "#ec4899", border: "1px solid #f9a8d4" }}
+            style={{ color: "#e88fa3", border: "1px solid #f3b6c3" }}
           >
             詳細を見る
           </button>
           <button
             onClick={onShowMap}
             className="rounded-xl px-3 py-2 text-xs font-semibold text-white"
-            style={{ backgroundColor: "#ec4899" }}
+            style={{ backgroundColor: "#e88fa3" }}
           >
             地図で見る
           </button>
@@ -183,6 +205,7 @@ export default function MapTabView({
   onToggleFavorite,
   recommendedSpotIds,
   onOpenLanguageHelper,
+  resetToSearchKey = 0,
 }: MapTabViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -337,11 +360,57 @@ export default function MapTabView({
     }
   }, [hasSearched, loadGenre]);
 
+  useEffect(() => {
+    if (!resetToSearchKey) return;
+
+    setActiveSubTab("search");
+    setSelectedSpot(null);
+    setLocalJumpId(null);
+    setMapSearchLocations(null);
+    setKeyword("");
+    setHasSearched(false);
+    setSearchResults([]);
+    setSearchResultLocations(null);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("genre");
+    const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    router.replace(nextUrl, { scroll: false });
+  }, [pathname, resetToSearchKey, router, searchParams]);
+
   const displayedSpots = hasSearched ? searchResults : [];
   const displayedLocations = hasSearched ? searchResultLocations : null;
   const selectedGenreConfig = selectedGenre
     ? GENRES.find(genre => genre.id === selectedGenre) || null
     : null;
+  const groupedSearchSections = useMemo(() => {
+    const grouped = new Map<string, SearchPanelSpot[]>();
+
+    displayedSpots.forEach((spot) => {
+      const key = spot.category || "その他";
+      const current = grouped.get(key) || [];
+      current.push(spot);
+      grouped.set(key, current);
+    });
+
+    const orderedSections = GENRES
+      .map((genre) => ({
+        label: genre.label,
+        emoji: genre.emoji,
+        spots: grouped.get(genre.label) || [],
+      }))
+      .filter((section) => section.spots.length > 0);
+
+    const otherSections = Array.from(grouped.entries())
+      .filter(([label]) => !GENRES.some((genre) => genre.label === label))
+      .map(([label, spots]) => ({
+        label,
+        emoji: "📍",
+        spots,
+      }));
+
+    return [...orderedSections, ...otherSections];
+  }, [displayedSpots]);
 
   const openGenrePage = (genreId: GenreId) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -390,39 +459,41 @@ export default function MapTabView({
       <div
         className="flex-shrink-0 z-10"
         style={{
-          background: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
-          boxShadow: "0 2px 10px rgba(236,72,153,0.18)",
+          background: "linear-gradient(135deg, #e88fa3 0%, #f3a7b8 100%)",
+          boxShadow: "0 2px 10px rgba(232,143,163,0.2)",
         }}
       >
         <div
           style={{
-            minHeight: "64px",
+            minHeight: "72px",
             color: "white",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            padding: "12px 20px 8px",
+            padding: "16px 20px 12px",
           }}
         >
-          <h1 style={{ fontSize: "20px", fontWeight: 800, textAlign: "center" }}>
+          <h1 style={{ fontSize: "18px", fontWeight: 800, textAlign: "center", letterSpacing: "0.01em" }}>
             宮城の伝統文化体験
           </h1>
         </div>
-        <div className="flex" style={{ backgroundColor: "rgba(255,255,255,0.14)" }}>
-          {(["map", "search"] as const).map((tab) => {
+        <div className="flex" style={{ backgroundColor: "rgba(255,255,255,0.12)", borderTop: "1px solid rgba(255,255,255,0.24)" }}>
+          {(["search", "map"] as const).map((tab) => {
             const isActive = activeSubTab === tab;
             return (
               <button
                 key={tab}
                 onClick={() => setActiveSubTab(tab)}
-                className="flex-1 py-2 text-sm font-medium border-b-2 transition-colors"
+                className="flex-1 text-sm font-medium border-b-2 transition-colors"
                 style={{
+                  padding: "12px 8px",
                   borderBottomColor: isActive ? "#ffffff" : "transparent",
                   color: "#ffffff",
-                  backgroundColor: isActive ? "rgba(255,255,255,0.12)" : "transparent",
+                  backgroundColor: isActive ? "rgba(255,255,255,0.08)" : "transparent",
+                  borderRight: tab === "search" ? "1px solid rgba(255,255,255,0.24)" : "none",
                 }}
               >
-                {tab === "map" ? "🗺️ マップ" : "🔍 体験を探す"}
+                {tab === "search" ? "🔎体験を探す" : "🗺️マップ"}
               </button>
             );
           })}
@@ -451,15 +522,18 @@ export default function MapTabView({
         {activeSubTab === "search" && (
           <div className="absolute inset-0 bg-gray-50 overflow-y-auto" style={{ paddingBottom: "80px" }}>
             <div
-              className="px-4 pt-4 pb-5"
+              className="px-4 pt-4 pb-4"
               style={{
                 backgroundColor: "white",
-                borderBottom: "1px solid #fce7f3",
+                borderBottom: "1px solid #f7dfe5",
               }}
             >
-              <div className="mb-4">
-                <div className="flex items-center gap-2 rounded-2xl px-4 py-3" style={{ backgroundColor: "rgba(255,255,255,0.9)" }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-pink-400 flex-shrink-0">
+              <div>
+                <div
+                  className="flex items-center gap-2 rounded-xl px-3 py-2"
+                  style={{ backgroundColor: "white", border: "1px solid #cfd4dc", boxShadow: "inset 0 1px 2px rgba(15,23,42,0.03)" }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500 flex-shrink-0">
                     <circle cx="11" cy="11" r="8" />
                     <path d="m21 21-4.35-4.35" />
                   </svg>
@@ -468,7 +542,7 @@ export default function MapTabView({
                     value={keyword}
                     onChange={e => setKeyword(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter") void handleSearch(); }}
-                    placeholder="スポット名で探す"
+                    placeholder="スポットで探す"
                     className="flex-1 bg-transparent text-sm outline-none text-gray-800"
                   />
                   {keyword && (
@@ -481,19 +555,13 @@ export default function MapTabView({
                   )}
                 </div>
               </div>
-
-              {!hasSearched && (
-                <p className="text-xs" style={{ color: "#9d174d" }}>
-                  ジャンルごとに、Google Maps から拾った写真付きスポットを5件ずつ表示しています。
-                </p>
-              )}
             </div>
 
-            <div className="px-4 pt-5">
+            <div className="px-4 pt-4">
               {hasSearched && (
                 <div className="mb-4 flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs font-semibold text-pink-500">名前検索</p>
+                    <p className="text-xs font-semibold" style={{ color: "#e88fa3" }}>名前検索</p>
                     <h2 className="mt-1 text-lg font-bold text-gray-900">
                       {`「${keyword}」の検索結果`}
                     </h2>
@@ -503,7 +571,8 @@ export default function MapTabView({
                   </div>
                   <button
                     onClick={handleClearAll}
-                    className="shrink-0 rounded-full border border-pink-200 px-3 py-1 text-xs font-semibold text-pink-500"
+                    className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold"
+                    style={{ border: "1px solid #f3d1da", color: "#e88fa3", backgroundColor: "#fff" }}
                   >
                     戻す
                   </button>
@@ -519,9 +588,7 @@ export default function MapTabView({
                     <span style={{ fontSize: "18px", lineHeight: 1 }}>←</span>
                     一覧へ戻る
                   </button>
-                  <p className="text-xs font-semibold text-pink-500">{selectedGenreConfig.label}</p>
-                  <h2 className="mt-1 text-xl font-bold text-gray-900">{selectedGenreConfig.heading}</h2>
-                  <p className="mt-1 text-sm text-gray-500">{selectedGenreConfig.description}</p>
+                  <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#ef7e8d" }}>{selectedGenreConfig.label}</h2>
                 </div>
               )}
 
@@ -541,15 +608,25 @@ export default function MapTabView({
               )}
 
               {hasSearched ? (
-                <div className="grid grid-cols-2 gap-4">
-                  {displayedSpots.map((spot) => (
-                    <SpotGridCard
-                      key={spot.id}
-                      spot={spot}
-                      fallbackEmoji="🔍"
-                      onOpen={() => openSpotDetail(spot)}
-                      onShowMap={() => handleSearchResultClick(spot, searchResultLocations)}
-                    />
+                <div className="space-y-8">
+                  {groupedSearchSections.map((section) => (
+                    <section key={section.label}>
+                      <div className="mb-3">
+                        <h2 style={{ fontSize: "17px", fontWeight: 800, color: "#ef7e8d", lineHeight: 1.2 }}>
+                          {section.label}
+                        </h2>
+                      </div>
+                      <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
+                        {section.spots.map((spot) => (
+                          <SpotShelfCard
+                            key={spot.id}
+                            spot={spot}
+                            fallbackEmoji={getFallbackEmojiByCategory(section.label)}
+                            onOpen={() => openSpotDetail(spot)}
+                          />
+                        ))}
+                      </div>
+                    </section>
                   ))}
                 </div>
               ) : selectedGenreConfig ? (
@@ -574,28 +651,28 @@ export default function MapTabView({
                       <section key={genre.id}>
                         <div className="mb-3 flex items-center justify-between gap-4">
                           <div>
-                            <p className="text-xs font-semibold text-pink-500">{genre.label}</p>
-                            <h2 className="mt-1 text-lg font-bold text-gray-900">{genre.heading}</h2>
+                            <h2 style={{ fontSize: "17px", fontWeight: 800, color: "#ef7e8d", lineHeight: 1.2 }}>{genre.label}</h2>
                           </div>
                           <button
                             onClick={() => openGenrePage(genre.id)}
-                            className="shrink-0 rounded-full border border-pink-200 px-3 py-1 text-xs font-semibold text-pink-500"
+                            className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold"
+                            style={{ border: "1px solid #f3d1da", color: "#ef95a5", backgroundColor: "#fff" }}
                           >
                             もっと見る &gt;
                           </button>
                         </div>
 
                         {isGenreLoading && (
-                          <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+                          <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
                             {Array.from({ length: 5 }).map((_, index) => (
                               <div
                                 key={index}
-                                className="w-28 shrink-0 overflow-hidden rounded-3xl bg-white shadow-sm animate-pulse"
-                                style={{ border: "1px solid #f3f4f6" }}
+                                className="shrink-0 overflow-hidden bg-white shadow-sm animate-pulse"
+                                style={{ width: "104px", borderRadius: "24px", border: "1px solid #ececec" }}
                               >
                                 <div style={{ aspectRatio: "1 / 1", backgroundColor: "#f3f4f6" }} />
-                                <div className="p-3">
-                                  <div className="h-3 w-20 rounded bg-gray-100" />
+                                <div style={{ padding: "10px 8px 12px" }}>
+                                  <div className="h-3 w-20 rounded bg-gray-100 mx-auto" />
                                 </div>
                               </div>
                             ))}
@@ -609,7 +686,7 @@ export default function MapTabView({
                         )}
 
                         {!isGenreLoading && spots.length > 0 && (
-                          <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+                          <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
                             {spots.map((spot) => (
                               <SpotShelfCard
                                 key={spot.id}

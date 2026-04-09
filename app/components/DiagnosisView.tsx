@@ -278,7 +278,7 @@ export default function DiagnosisView({ onComplete }: DiagnosisViewProps) {
               style={{
                 marginTop: "16px",
                 height: "4px",
-                backgroundColor: "#fce7f3",
+                backgroundColor: "#f7dfe5",
                 borderRadius: "2px",
                 overflow: "hidden",
               }}
@@ -287,12 +287,12 @@ export default function DiagnosisView({ onComplete }: DiagnosisViewProps) {
                 style={{
                   width: `${progress[step]}%`,
                   height: "100%",
-                  backgroundColor: "#ec4899",
+                  backgroundColor: "#e88fa3",
                   transition: "width 0.3s ease",
                 }}
               />
             </div>
-            <p style={{ fontSize: "12px", color: "#ec4899", marginTop: "6px" }}>
+            <p style={{ fontSize: "12px", color: "#e88fa3", marginTop: "6px" }}>
               {step === "interests" ? "Q1 / 3" : step === "duration" ? "Q2 / 3" : "Q3 / 3"}
             </p>
           </>
@@ -319,8 +319,8 @@ export default function DiagnosisView({ onComplete }: DiagnosisViewProps) {
                     style={{
                       padding: "16px 20px",
                       borderRadius: "16px",
-                      border: isSelected ? "2px solid #ec4899" : "2px solid #e5e7eb",
-                      backgroundColor: isSelected ? "#fdf2f8" : "white",
+                      border: isSelected ? "2px solid #e88fa3" : "2px solid #e5e7eb",
+                      backgroundColor: isSelected ? "#fdf3f5" : "white",
                       textAlign: "left",
                       cursor: "pointer",
                       display: "flex",
@@ -334,7 +334,7 @@ export default function DiagnosisView({ onComplete }: DiagnosisViewProps) {
                       {option.label}
                     </span>
                     {isSelected && (
-                      <span style={{ marginLeft: "auto", color: "#ec4899", fontSize: "18px", flexShrink: 0 }}>✓</span>
+                      <span style={{ marginLeft: "auto", color: "#e88fa3", fontSize: "18px", flexShrink: 0 }}>✓</span>
                     )}
                   </button>
                 );
@@ -359,8 +359,8 @@ export default function DiagnosisView({ onComplete }: DiagnosisViewProps) {
                     style={{
                       padding: "20px",
                       borderRadius: "16px",
-                      border: isSelected ? "2px solid #ec4899" : "2px solid #e5e7eb",
-                      backgroundColor: isSelected ? "#fdf2f8" : "white",
+                      border: isSelected ? "2px solid #e88fa3" : "2px solid #e5e7eb",
+                      backgroundColor: isSelected ? "#fdf3f5" : "white",
                       textAlign: "left",
                       cursor: "pointer",
                       display: "flex",
@@ -375,7 +375,7 @@ export default function DiagnosisView({ onComplete }: DiagnosisViewProps) {
                       </span>
                       <span style={{ fontSize: "13px", color: "#9ca3af" }}>{option.description}</span>
                     </div>
-                    {isSelected && <span style={{ color: "#ec4899", fontSize: "20px" }}>✓</span>}
+                    {isSelected && <span style={{ color: "#e88fa3", fontSize: "20px" }}>✓</span>}
                   </button>
                 );
               })}
@@ -399,8 +399,8 @@ export default function DiagnosisView({ onComplete }: DiagnosisViewProps) {
                     style={{
                       padding: "20px 16px",
                       borderRadius: "16px",
-                      border: isSelected ? "2px solid #ec4899" : "2px solid #e5e7eb",
-                      backgroundColor: isSelected ? "#fdf2f8" : "white",
+                      border: isSelected ? "2px solid #e88fa3" : "2px solid #e5e7eb",
+                      backgroundColor: isSelected ? "#fdf3f5" : "white",
                       textAlign: "center",
                       cursor: "pointer",
                       transition: "all 0.2s",
@@ -422,15 +422,15 @@ export default function DiagnosisView({ onComplete }: DiagnosisViewProps) {
             {/* タイプカード */}
             <div
               style={{
-                background: "linear-gradient(135deg, #fdf2f8, #fce7f3)",
+                background: "linear-gradient(135deg, #fdf3f5, #f7dfe5)",
                 borderRadius: "20px",
                 padding: "28px 24px",
                 textAlign: "center",
               }}
             >
               <span style={{ fontSize: "48px", display: "block", marginBottom: "12px" }}>{typeData.emoji}</span>
-              <p style={{ fontSize: "13px", color: "#ec4899", marginBottom: "6px" }}>あなたの旅行タイプは</p>
-              <h2 style={{ fontSize: "26px", fontWeight: "bold", color: "#be185d", marginBottom: "12px" }}>
+              <p style={{ fontSize: "13px", color: "#e88fa3", marginBottom: "6px" }}>あなたの旅行タイプは</p>
+              <h2 style={{ fontSize: "26px", fontWeight: "bold", color: "#b85f74", marginBottom: "12px" }}>
                 {typeData.label}
               </h2>
               <p style={{ fontSize: "14px", color: "#6b7280", lineHeight: "1.7" }}>
@@ -455,8 +455,8 @@ export default function DiagnosisView({ onComplete }: DiagnosisViewProps) {
                   <span
                     key={i}
                     style={{
-                      backgroundColor: "#fce7f3",
-                      color: "#be185d",
+                      backgroundColor: "#f7dfe5",
+                      color: "#b85f74",
                       padding: "6px 14px",
                       borderRadius: "20px",
                       fontSize: "13px",
@@ -496,13 +496,13 @@ export default function DiagnosisView({ onComplete }: DiagnosisViewProps) {
                       alignItems: "center",
                       gap: "10px",
                       padding: "10px 14px",
-                      backgroundColor: "#fdf2f8",
+                      backgroundColor: "#fdf3f5",
                       borderRadius: "10px",
                       fontSize: "14px",
                       color: "#374151",
                     }}
                   >
-                    <span style={{ color: "#ec4899", fontWeight: "600", fontSize: "13px" }}>
+                    <span style={{ color: "#e88fa3", fontWeight: "600", fontSize: "13px" }}>
                       {String(i + 1).padStart(2, "0")}
                     </span>
                     {spot}
@@ -535,7 +535,7 @@ export default function DiagnosisView({ onComplete }: DiagnosisViewProps) {
                       lineHeight: "1.6",
                     }}
                   >
-                    <span style={{ position: "absolute", left: 0, color: "#ec4899" }}>•</span>
+                    <span style={{ position: "absolute", left: 0, color: "#e88fa3" }}>•</span>
                     {tip}
                   </li>
                 ))}
@@ -566,7 +566,7 @@ export default function DiagnosisView({ onComplete }: DiagnosisViewProps) {
               padding: "16px",
               borderRadius: "12px",
               border: "none",
-              backgroundColor: canNext ? "#ec4899" : "#e5e7eb",
+              backgroundColor: canNext ? "#e88fa3" : "#e5e7eb",
               color: "white",
               fontSize: "16px",
               fontWeight: "600",
@@ -588,7 +588,7 @@ export default function DiagnosisView({ onComplete }: DiagnosisViewProps) {
                 padding: "16px",
                 borderRadius: "12px",
                 border: "none",
-                background: "linear-gradient(135deg, #ec4899, #be185d)",
+                background: "linear-gradient(135deg, #e88fa3, #b85f74)",
                 color: "white",
                 fontSize: "16px",
                 fontWeight: "600",

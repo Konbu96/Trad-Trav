@@ -177,10 +177,10 @@ export default function PlanView({
     <div className="absolute inset-0">
       <div className="absolute inset-0 bg-gray-50 overflow-y-auto" style={{ paddingBottom: "80px" }}>
         {/* ヘッダー */}
-        <div className="text-white px-6 pt-14 pb-8" style={{ background: "linear-gradient(135deg, #ec4899, #be185d)" }}>
-          <p className="text-xs mb-1 font-medium tracking-wide uppercase" style={{ color: "#fce7f3" }}>Plan Generator</p>
+        <div className="text-white px-6 pt-14 pb-8" style={{ background: "linear-gradient(135deg, #e88fa3, #b85f74)" }}>
+          <p className="text-xs mb-1 font-medium tracking-wide uppercase" style={{ color: "#f7dfe5" }}>Plan Generator</p>
           <h1 className="text-2xl font-bold mb-1">旅プランを作る</h1>
-          <p className="text-sm" style={{ color: "#fce7f3" }}>条件を選ぶと東北旅程を自動生成します</p>
+          <p className="text-sm" style={{ color: "#f7dfe5" }}>条件を選ぶと東北旅程を自動生成します</p>
         </div>
 
         <div className="px-4 py-5 space-y-6">
@@ -190,20 +190,20 @@ export default function PlanView({
             <button
               onClick={onStartDiagnosis}
               className="w-full flex items-center gap-3 p-4 rounded-2xl text-left"
-              style={{ background: "linear-gradient(135deg, #fdf2f8, #fce7f3)", border: "1.5px solid #f9a8d4" }}
+              style={{ background: "linear-gradient(135deg, #fdf3f5, #f7dfe5)", border: "1.5px solid #f3b6c3" }}
             >
               <span className="text-2xl">🧭</span>
               <div className="flex-1">
-                <p className="text-sm font-bold" style={{ color: "#be185d" }}>
+                <p className="text-sm font-bold" style={{ color: "#b85f74" }}>
                   {diagnosisResult ? "診断をやり直す" : "旅タイプ診断を受ける"}
                 </p>
-                <p className="text-xs mt-0.5" style={{ color: "#ec4899" }}>
+                <p className="text-xs mt-0.5" style={{ color: "#e88fa3" }}>
                   {diagnosisResult
                     ? `現在のタイプ：${diagnosisResult.travelStyle ?? "診断済み"} → 条件に自動反映されます`
                     : "3問の診断で条件が自動入力されます"}
                 </p>
               </div>
-              <span style={{ color: "#ec4899" }}>›</span>
+              <span style={{ color: "#e88fa3" }}>›</span>
             </button>
           )}
 
@@ -220,14 +220,14 @@ export default function PlanView({
                     onClick={() => toggleInterest(opt.id)}
                     className="flex items-center gap-2 p-3 rounded-xl text-sm font-medium text-left transition-colors"
                     style={{
-                      border: sel ? "2px solid #ec4899" : "2px solid #e5e7eb",
-                      backgroundColor: sel ? "#fdf2f8" : "white",
-                      color: sel ? "#be185d" : "#374151",
+                      border: sel ? "2px solid #e88fa3" : "2px solid #e5e7eb",
+                      backgroundColor: sel ? "#fdf3f5" : "white",
+                      color: sel ? "#b85f74" : "#374151",
                     }}
                   >
                     <span className="text-lg">{opt.emoji}</span>
                     <span className="flex-1 leading-tight text-xs">{opt.label}</span>
-                    {sel && <span style={{ color: "#ec4899" }}>✓</span>}
+                    {sel && <span style={{ color: "#e88fa3" }}>✓</span>}
                   </button>
                 );
               })}
@@ -246,11 +246,11 @@ export default function PlanView({
                     onClick={() => setDays(opt.id)}
                     className="p-3 rounded-xl text-left transition-colors"
                     style={{
-                      border: sel ? "2px solid #ec4899" : "2px solid #e5e7eb",
-                      backgroundColor: sel ? "#fdf2f8" : "white",
+                      border: sel ? "2px solid #e88fa3" : "2px solid #e5e7eb",
+                      backgroundColor: sel ? "#fdf3f5" : "white",
                     }}
                   >
-                    <div className="font-bold text-sm" style={{ color: sel ? "#be185d" : "#1f2937" }}>{opt.label}</div>
+                    <div className="font-bold text-sm" style={{ color: sel ? "#b85f74" : "#1f2937" }}>{opt.label}</div>
                     <div className="text-xs text-gray-500 mt-0.5">{opt.desc}</div>
                   </button>
                 );
@@ -270,9 +270,9 @@ export default function PlanView({
                     onClick={() => setCompanion(opt.id)}
                     className="flex items-center gap-2 p-3 rounded-xl text-sm font-medium transition-colors"
                     style={{
-                      border: sel ? "2px solid #ec4899" : "2px solid #e5e7eb",
-                      backgroundColor: sel ? "#fdf2f8" : "white",
-                      color: sel ? "#be185d" : "#374151",
+                      border: sel ? "2px solid #e88fa3" : "2px solid #e5e7eb",
+                      backgroundColor: sel ? "#fdf3f5" : "white",
+                      color: sel ? "#b85f74" : "#374151",
                     }}
                   >
                     <span className="text-lg">{opt.emoji}</span>
@@ -295,13 +295,13 @@ export default function PlanView({
                     onClick={() => setPace(opt.id)}
                     className="w-full flex items-center gap-4 p-4 rounded-xl text-left transition-colors"
                     style={{
-                      border: sel ? "2px solid #ec4899" : "2px solid #e5e7eb",
-                      backgroundColor: sel ? "#fdf2f8" : "white",
+                      border: sel ? "2px solid #e88fa3" : "2px solid #e5e7eb",
+                      backgroundColor: sel ? "#fdf3f5" : "white",
                     }}
                   >
                     <span className="text-2xl">{opt.emoji}</span>
                     <div>
-                      <div className="font-bold text-sm" style={{ color: sel ? "#be185d" : "#1f2937" }}>{opt.label}</div>
+                      <div className="font-bold text-sm" style={{ color: sel ? "#b85f74" : "#1f2937" }}>{opt.label}</div>
                       <div className="text-xs text-gray-500 mt-0.5">{opt.desc}</div>
                     </div>
                   </button>
@@ -322,12 +322,12 @@ export default function PlanView({
                     onClick={() => setSeason(opt.id)}
                     className="p-3 rounded-xl text-center transition-colors"
                     style={{
-                      border: sel ? "2px solid #ec4899" : "2px solid #e5e7eb",
-                      backgroundColor: sel ? "#fdf2f8" : "white",
+                      border: sel ? "2px solid #e88fa3" : "2px solid #e5e7eb",
+                      backgroundColor: sel ? "#fdf3f5" : "white",
                     }}
                   >
                     <div className="text-2xl">{opt.emoji}</div>
-                    <div className="text-xs font-medium mt-1" style={{ color: sel ? "#be185d" : "#374151" }}>
+                    <div className="text-xs font-medium mt-1" style={{ color: sel ? "#b85f74" : "#374151" }}>
                       {opt.label}
                     </div>
                   </button>
@@ -342,7 +342,7 @@ export default function PlanView({
             <p className="text-xs text-gray-500 mb-3">入力するとプランに実際の日付が表示されます</p>
             <div
               className="flex items-center gap-3 bg-white rounded-xl p-4"
-              style={{ border: tripStartDate ? "2px solid #ec4899" : "2px solid #e5e7eb" }}
+              style={{ border: tripStartDate ? "2px solid #e88fa3" : "2px solid #e5e7eb" }}
             >
               <span className="text-xl">📅</span>
               <input
@@ -369,9 +369,9 @@ export default function PlanView({
             disabled={!canGenerate}
             className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-95"
             style={{
-              backgroundColor: canGenerate ? "#ec4899" : "#e5e7eb",
+              backgroundColor: canGenerate ? "#e88fa3" : "#e5e7eb",
               color: canGenerate ? "white" : "#9ca3af",
-              boxShadow: canGenerate ? "0 4px 14px rgba(236,72,153,0.3)" : "none",
+              boxShadow: canGenerate ? "0 4px 14px rgba(232,143,163,0.3)" : "none",
             }}
           >
             {canGenerate ? "✨ プランを生成する" : "興味・日数・同行者を選んでください"}
@@ -402,7 +402,7 @@ export default function PlanView({
           }}
         >
           {/* ヘッダー */}
-          <div className="text-white px-6 pt-8 pb-8 rounded-t-3xl relative" style={{ background: "linear-gradient(135deg, #ec4899, #be185d)" }}>
+          <div className="text-white px-6 pt-8 pb-8 rounded-t-3xl relative" style={{ background: "linear-gradient(135deg, #e88fa3, #b85f74)" }}>
             {/* 閉じるボタン */}
             <button
               onClick={handleCloseResult}
@@ -413,7 +413,7 @@ export default function PlanView({
             </button>
             {/* ドラッグバー */}
             <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-white/40" />
-            <p className="text-xs mb-1 font-medium tracking-wide uppercase" style={{ color: "#fce7f3" }}>Your Travel Plan</p>
+            <p className="text-xs mb-1 font-medium tracking-wide uppercase" style={{ color: "#f7dfe5" }}>Your Travel Plan</p>
             <h1 className="text-2xl font-bold mb-2">東北旅プラン</h1>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs rounded-full px-3 py-1" style={{ backgroundColor: "rgba(255,255,255,0.2)" }}>{seasonEmoji} {dayLabel}</span>
@@ -431,7 +431,7 @@ export default function PlanView({
             {dayPlan.map(({ day, spots }) => (
               <div key={day}>
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="text-white text-sm font-bold px-4 py-1.5 rounded-full" style={{ backgroundColor: "#ec4899" }}>
+                  <div className="text-white text-sm font-bold px-4 py-1.5 rounded-full" style={{ backgroundColor: "#e88fa3" }}>
                     DAY {day}
                   </div>
                   {getDateForDay(day) && (
@@ -444,13 +444,13 @@ export default function PlanView({
                     <div key={spot.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                       <div className="p-4">
                         <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5" style={{ backgroundColor: "#fdf2f8" }}>
-                            <span className="font-bold text-sm" style={{ color: "#ec4899" }}>{idx + 1}</span>
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5" style={{ backgroundColor: "#fdf3f5" }}>
+                            <span className="font-bold text-sm" style={{ color: "#e88fa3" }}>{idx + 1}</span>
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1">
                               <h3 className="font-bold text-gray-900 text-sm">{spot.name}</h3>
-                              <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: "#fdf2f8", color: "#be185d" }}>{spot.category}</span>
+                              <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: "#fdf3f5", color: "#b85f74" }}>{spot.category}</span>
                             </div>
                             <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">{spot.description}</p>
                           </div>
@@ -459,14 +459,14 @@ export default function PlanView({
                           <button
                             onClick={() => handleSpotTap(spot)}
                             className="flex-1 text-xs rounded-xl py-2 font-medium"
-                            style={{ color: "#ec4899", border: "1px solid #f9a8d4" }}
+                            style={{ color: "#e88fa3", border: "1px solid #f3b6c3" }}
                           >
                             詳細
                           </button>
                           <button
                             onClick={() => onJumpToSpot(spot.id)}
                             className="flex-1 text-xs text-white rounded-xl py-2 font-medium flex items-center justify-center gap-1"
-                            style={{ backgroundColor: "#ec4899" }}
+                            style={{ backgroundColor: "#e88fa3" }}
                           >
                             🗺️ 地図
                           </button>

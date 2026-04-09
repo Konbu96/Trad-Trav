@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { DiagnosisResult } from "./DiagnosisView";
 import { useLanguage } from "../i18n/LanguageContext";
-import { DefaultAvatarIcon } from "./icons";
+import { ClockIcon, DefaultAvatarIcon, GearIcon, HeartIcon, PenIcon } from "./icons";
 import { recommendedSpots, getRecommendedSpotIds, INTEREST_CATEGORY_MAP } from "../data/spots";
 import type { CurrentAddress, LocationPermissionState } from "../page";
 
@@ -133,8 +133,8 @@ export default function MyPageView({
       {/* ヘッダー */}
       <div
         style={{
-          backgroundColor: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
-          background: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
+          backgroundColor: "linear-gradient(135deg, #e88fa3 0%, #f3a7b8 100%)",
+          background: "linear-gradient(135deg, #e88fa3 0%, #f3a7b8 100%)",
           minHeight: "92px",
           padding: "0 20px",
           color: "white",
@@ -155,7 +155,7 @@ export default function MyPageView({
             borderRadius: "22px",
             padding: "18px 16px",
             boxShadow: "0 2px 10px rgba(15,23,42,0.06)",
-            border: "1px solid #fce7f3",
+            border: "1px solid #f7dfe5",
             display: "flex",
             alignItems: "center",
             gap: "16px",
@@ -170,10 +170,11 @@ export default function MyPageView({
               flexShrink: 0,
             }}
           >
-            <DefaultAvatarIcon size={72} backgroundColor="#fdf2f8" silhouetteColor="#f472b6" />
+            <DefaultAvatarIcon size={72} backgroundColor="#fdf3f5" silhouetteColor="#f3a7b8" />
           </div>
 
           <div style={{ flex: 1 }}>
+            <p style={{ fontSize: "12px", fontWeight: 700, color: "#e88fa3", marginBottom: "4px" }}>Lv.3</p>
             {isEditingName ? (
               <input
                 type="text"
@@ -183,8 +184,8 @@ export default function MyPageView({
                 onKeyDown={(e) => e.key === "Enter" && setIsEditingName(false)}
                 autoFocus
                 style={{
-                  backgroundColor: "#fff1f2",
-                  border: "1px solid #fbcfe8",
+                  backgroundColor: "#fdf3f5",
+                  border: "1px solid #f3d1da",
                   borderRadius: "10px",
                   padding: "8px 12px",
                   color: "#111827",
@@ -215,9 +216,41 @@ export default function MyPageView({
               </button>
             )}
             <p style={{ fontSize: "13px", color: "#6b7280", marginTop: "4px" }}>
-              {t.mypage.editName}
+              ゲストトラベラーネーム
             </p>
           </div>
+        </div>
+
+        <div style={{ display: "flex", gap: "12px", marginTop: "14px" }}>
+          {[
+            { label: "閲覧履歴", icon: <ClockIcon size={18} color="white" /> },
+            {
+              label: "お気に入り",
+              icon: <HeartIcon size={18} color="white" />,
+            },
+            { label: "診断", icon: <PenIcon size={18} color="white" /> },
+            { label: "設定", icon: <GearIcon size={18} color="white" /> },
+          ].map((item) => (
+            <div key={item.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+              <div
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "999px",
+                  backgroundColor: "#f28ca3",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "white",
+                  fontSize: "20px",
+                  fontWeight: 700,
+                }}
+              >
+                {item.icon}
+              </div>
+              <p style={{ fontSize: "11px", color: "#374151", fontWeight: 600 }}>{item.label}</p>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -243,25 +276,25 @@ export default function MyPageView({
             <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "16px" }}>
               <div style={{
                 width: "56px", height: "56px", borderRadius: "50%",
-                backgroundColor: "#fdf2f8", display: "flex",
+                backgroundColor: "#fdf3f5", display: "flex",
                 alignItems: "center", justifyContent: "center", fontSize: "28px",
               }}>
                 {getTravelStyleEmoji(diagnosisResult.travelStyle)}
               </div>
               <div style={{ flex: 1 }}>
-                <p style={{ fontSize: "18px", fontWeight: "bold", color: "#be185d" }}>
+                <p style={{ fontSize: "18px", fontWeight: "bold", color: "#b85f74" }}>
                   {getLocalizedTravelStyle(diagnosisResult.travelStyle)}
                 </p>
                 <p style={{ fontSize: "13px", color: "#9ca3af" }}>
                   {diagnosisResult.recommendedPlan.title}
                 </p>
               </div>
-              <span style={{ fontSize: "20px", color: "#ec4899" }}>›</span>
+              <span style={{ fontSize: "20px", color: "#e88fa3" }}>›</span>
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
               {diagnosisResult.interests.map((interest) => (
                 <span key={interest} style={{
-                  backgroundColor: "#fce7f3", color: "#be185d",
+                  backgroundColor: "#f7dfe5", color: "#b85f74",
                   padding: "4px 10px", borderRadius: "12px", fontSize: "12px",
                 }}>
                   {t.diagnosis.interests[interest as keyof typeof t.diagnosis.interests] || interest}
@@ -296,13 +329,13 @@ export default function MyPageView({
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
               <div style={{
                 width: "52px", height: "52px", borderRadius: "50%",
-                backgroundColor: "#fdf2f8", display: "flex", alignItems: "center",
+                backgroundColor: "#fdf3f5", display: "flex", alignItems: "center",
                 justifyContent: "center", fontSize: "26px",
               }}>
                 {getTravelStyleEmoji(diagnosisResult.travelStyle)}
               </div>
               <div>
-                <p style={{ fontSize: "20px", fontWeight: "bold", color: "#be185d" }}>
+                <p style={{ fontSize: "20px", fontWeight: "bold", color: "#b85f74" }}>
                   {getLocalizedTravelStyle(diagnosisResult.travelStyle)}
                 </p>
                 <p style={{ fontSize: "13px", color: "#9ca3af" }}>{diagnosisResult.recommendedPlan.title}</p>
@@ -310,7 +343,7 @@ export default function MyPageView({
             </div>
 
             {/* 説明 */}
-            <div style={{ backgroundColor: "#fdf2f8", borderRadius: "12px", padding: "14px", marginBottom: "20px" }}>
+            <div style={{ backgroundColor: "#fdf3f5", borderRadius: "12px", padding: "14px", marginBottom: "20px" }}>
               <p style={{ fontSize: "14px", color: "#4b5563", lineHeight: "1.7" }}>
                 {diagnosisResult.recommendedPlan.description}
               </p>
@@ -325,7 +358,7 @@ export default function MyPageView({
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                   {recommendedCategories.map(cat => (
                     <span key={cat.label} style={{
-                      backgroundColor: "#fce7f3", color: "#be185d",
+                      backgroundColor: "#f7dfe5", color: "#b85f74",
                       padding: "6px 14px", borderRadius: "20px",
                       fontSize: "14px", fontWeight: "500",
                     }}>
@@ -357,7 +390,7 @@ export default function MyPageView({
                       <p style={{ fontSize: "15px", fontWeight: "500", color: "#1f2937" }}>{spot.name}</p>
                       <p style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>{spot.category}</p>
                     </div>
-                    <span style={{ color: "#ec4899", fontSize: "16px" }}>地図 ›</span>
+                    <span style={{ color: "#e88fa3", fontSize: "16px" }}>地図 ›</span>
                   </button>
                 ))}
               </div>
@@ -372,7 +405,7 @@ export default function MyPageView({
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   {diagnosisResult.recommendedPlan.tips.map((tip, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                      <span style={{ color: "#ec4899", fontSize: "14px", flexShrink: 0 }}>💡</span>
+                      <span style={{ color: "#e88fa3", fontSize: "14px", flexShrink: 0 }}>💡</span>
                       <p style={{ fontSize: "14px", color: "#4b5563", lineHeight: "1.6" }}>{tip}</p>
                     </div>
                   ))}
@@ -384,7 +417,7 @@ export default function MyPageView({
               onClick={() => setShowTravelTypeModal(false)}
               style={{
                 width: "100%", marginTop: "24px", padding: "14px",
-                borderRadius: "12px", backgroundColor: "#ec4899",
+                borderRadius: "12px", backgroundColor: "#e88fa3",
                 color: "white", border: "none", fontSize: "15px",
                 fontWeight: "600", cursor: "pointer",
               }}
@@ -443,7 +476,7 @@ export default function MyPageView({
             <div
               style={{
                 width: "48px", height: "48px", borderRadius: "14px",
-                backgroundColor: "#fdf2f8",
+                backgroundColor: "#fdf3f5",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: "24px",
               }}
@@ -463,7 +496,7 @@ export default function MyPageView({
               </p>
             </div>
           </div>
-          <span style={{ fontSize: "20px", color: "#ec4899" }}>›</span>
+          <span style={{ fontSize: "20px", color: "#e88fa3" }}>›</span>
         </button>
       </div>
 
@@ -507,7 +540,7 @@ export default function MyPageView({
                       {item.category} • {item.date}
                     </p>
                   </div>
-                  <span style={{ fontSize: "20px", color: onJumpToSpot ? "#ec4899" : "#d1d5db" }}>›</span>
+                  <span style={{ fontSize: "20px", color: onJumpToSpot ? "#e88fa3" : "#d1d5db" }}>›</span>
                 </button>
               ))}
               {viewHistory.length > 3 && (
@@ -520,7 +553,7 @@ export default function MyPageView({
                     border: "none",
                     cursor: "pointer",
                     fontSize: "14px",
-                    color: "#ec4899",
+                    color: "#e88fa3",
                     fontWeight: "500",
                   }}
                 >
@@ -551,7 +584,7 @@ export default function MyPageView({
             padding: "18px 16px",
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
             marginBottom: "12px",
-            border: "1px solid #fce7f3",
+            border: "1px solid #f7dfe5",
           }}
         >
           <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
@@ -559,7 +592,7 @@ export default function MyPageView({
               width: "42px",
               height: "42px",
               borderRadius: "14px",
-              backgroundColor: "#fdf2f8",
+              backgroundColor: "#fdf3f5",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -590,8 +623,8 @@ export default function MyPageView({
                     : locationPermissionState === "granted"
                     ? "#16a34a"
                     : locationPermissionState === "requesting"
-                      ? "#f9a8d4"
-                      : "#ec4899",
+                      ? "#f3b6c3"
+                      : "#e88fa3",
                 color: "white",
                 padding: "10px 14px",
                 fontSize: "13px",
@@ -635,7 +668,7 @@ export default function MyPageView({
               style={{
                 marginTop: "12px",
                 borderRadius: "14px",
-                backgroundColor: "#fff1f2",
+                backgroundColor: "#fdf3f5",
                 border: "1px solid #fecdd3",
                 padding: "12px 14px",
               }}
@@ -695,7 +728,7 @@ export default function MyPageView({
               padding: "16px",
               borderRadius: "12px",
               border: "1px solid #fecdd3",
-              backgroundColor: "#fff1f2",
+              backgroundColor: "#fdf3f5",
               color: "#e11d48",
               fontSize: "15px",
               fontWeight: "500",
@@ -718,7 +751,7 @@ export default function MyPageView({
                 padding: "16px",
                 borderRadius: "12px",
                 border: "none",
-                background: "linear-gradient(135deg, #ec4899, #f472b6)",
+                background: "linear-gradient(135deg, #e88fa3, #f3a7b8)",
                 color: "white",
                 fontSize: "15px",
                 fontWeight: "600",
@@ -766,8 +799,8 @@ export default function MyPageView({
                 width: "100%",
                 padding: "14px",
                 borderRadius: "12px",
-                border: language === "ja" ? "2px solid #ec4899" : "1px solid #e5e7eb",
-                backgroundColor: language === "ja" ? "#fdf2f8" : "white",
+                border: language === "ja" ? "2px solid #e88fa3" : "1px solid #e5e7eb",
+                backgroundColor: language === "ja" ? "#fdf3f5" : "white",
                 marginBottom: "12px",
                 cursor: "pointer",
                 display: "flex",
@@ -776,7 +809,7 @@ export default function MyPageView({
               }}
             >
               <span style={{ fontSize: "15px", color: "#374151" }}>🇯🇵 日本語</span>
-              {language === "ja" && <span style={{ color: "#ec4899" }}>✓</span>}
+              {language === "ja" && <span style={{ color: "#e88fa3" }}>✓</span>}
             </button>
             
             <button
@@ -785,8 +818,8 @@ export default function MyPageView({
                 width: "100%",
                 padding: "14px",
                 borderRadius: "12px",
-                border: language === "en" ? "2px solid #ec4899" : "1px solid #e5e7eb",
-                backgroundColor: language === "en" ? "#fdf2f8" : "white",
+                border: language === "en" ? "2px solid #e88fa3" : "1px solid #e5e7eb",
+                backgroundColor: language === "en" ? "#fdf3f5" : "white",
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
@@ -794,7 +827,7 @@ export default function MyPageView({
               }}
             >
               <span style={{ fontSize: "15px", color: "#374151" }}>🇺🇸 English</span>
-              {language === "en" && <span style={{ color: "#ec4899" }}>✓</span>}
+              {language === "en" && <span style={{ color: "#e88fa3" }}>✓</span>}
             </button>
           </div>
         </div>

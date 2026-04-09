@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getRecommendedMannerItemsByScenes, type MannerItem } from "../data/manners";
+import { getRecommendedHelpfulTopicsByScenes, type HelpfulTabId } from "../data/helpfulInfo";
 import { makeLocationKey } from "../lib/location";
 import type { CurrentAddress, LocationPermissionState } from "../page";
 import type { SearchLocation } from "./SearchBar";
@@ -14,6 +15,8 @@ interface NowInfoViewProps {
   isUsingMockLocation?: boolean;
   onRequestLocationPermission?: () => void;
   onOpenLocationSettings?: () => void;
+  onOpenHelpfulTab?: (tabId: HelpfulTabId) => void;
+  onOpenExperienceBooking?: () => void;
 }
 
 type NearbyContext = {
@@ -29,6 +32,37 @@ type NearbyResponse = {
   error?: string;
 };
 
+function QuickJumpButton({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: "100%",
+        borderRadius: "18px",
+        backgroundColor: "#fdf3f5",
+        border: "1px solid #f3d1da",
+        color: "#b85f74",
+        padding: "14px 16px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "12px",
+        fontSize: "14px",
+        fontWeight: 700,
+      }}
+    >
+      <span>{label}</span>
+      <span style={{ fontSize: "16px" }}>&gt;</span>
+    </button>
+  );
+}
+
 function NearbySpotCard({ location }: { location: SearchLocation }) {
   const photo = location.photos?.[0];
 
@@ -37,9 +71,9 @@ function NearbySpotCard({ location }: { location: SearchLocation }) {
       style={{
         backgroundColor: "white",
         borderRadius: "20px",
-        border: "1px solid #e5e7eb",
+        border: "1px solid #f7dfe5",
         overflow: "hidden",
-        boxShadow: "0 2px 12px rgba(15,23,42,0.05)",
+        boxShadow: "0 2px 12px rgba(236,72,153,0.08)",
       }}
     >
       <div style={{ display: "flex", gap: "12px", padding: "12px" }}>
@@ -50,7 +84,7 @@ function NearbySpotCard({ location }: { location: SearchLocation }) {
             borderRadius: "16px",
             overflow: "hidden",
             flexShrink: 0,
-            background: "linear-gradient(135deg, #fde68a, #f9a8d4)",
+            background: "linear-gradient(135deg, #f6d7b8, #f3b6c3)",
           }}
         >
           {photo ? (
@@ -101,10 +135,11 @@ function RecommendedMannerCard({ item }: { item: MannerItem }) {
         backgroundColor: "white",
         borderRadius: "20px",
         padding: "16px",
-        border: "1px solid #e5e7eb",
-        boxShadow: "0 2px 12px rgba(15,23,42,0.05)",
+        border: "1px solid #f7dfe5",
+        boxShadow: "0 2px 12px rgba(236,72,153,0.08)",
       }}
     >
+      <p style={{ fontSize: "11px", fontWeight: 700, color: "#e88fa3", marginBottom: "6px" }}>マナー</p>
       <p style={{ fontSize: "15px", fontWeight: "800", color: "#111827", lineHeight: "1.4" }}>
         {item.title}
       </p>
@@ -119,7 +154,7 @@ function RecommendedMannerCard({ item }: { item: MannerItem }) {
                 width: "10px",
                 height: "10px",
                 borderRadius: "999px",
-                backgroundColor: "#ec4899",
+                backgroundColor: "#e88fa3",
                 flexShrink: 0,
                 marginTop: "5px",
               }}
@@ -132,6 +167,57 @@ function RecommendedMannerCard({ item }: { item: MannerItem }) {
   );
 }
 
+function HelpfulTopicCard({
+  title,
+  subtitle,
+  description,
+  emoji,
+}: {
+  title: string;
+  subtitle: string;
+  description: string;
+  emoji: string;
+}) {
+  return (
+    <article
+      style={{
+        backgroundColor: "white",
+        borderRadius: "20px",
+        padding: "16px",
+        border: "1px solid #f7dfe5",
+        boxShadow: "0 2px 12px rgba(236,72,153,0.08)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div
+          style={{
+            width: "40px",
+            height: "40px",
+            borderRadius: "14px",
+            backgroundColor: "#fdf3f5",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "20px",
+            flexShrink: 0,
+          }}
+        >
+          {emoji}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <p style={{ fontSize: "11px", fontWeight: 700, color: "#e88fa3" }}>{subtitle}</p>
+          <p style={{ fontSize: "15px", fontWeight: 800, color: "#111827", marginTop: "4px", lineHeight: "1.4" }}>
+            {title}
+          </p>
+        </div>
+      </div>
+      <p style={{ fontSize: "13px", color: "#4b5563", lineHeight: "1.75", marginTop: "10px" }}>
+        {description}
+      </p>
+    </article>
+  );
+}
+
 export default function NowInfoView({
   locationPermissionState = "idle",
   locationError = "",
@@ -140,11 +226,16 @@ export default function NowInfoView({
   isUsingMockLocation = false,
   onRequestLocationPermission,
   onOpenLocationSettings,
+  onOpenHelpfulTab,
+  onOpenExperienceBooking,
 }: NowInfoViewProps) {
   const [nearbyLocations, setNearbyLocations] = useState<SearchLocation[]>([]);
   const [nearbyContext, setNearbyContext] = useState<NearbyContext | null>(null);
   const [nearbyError, setNearbyError] = useState("");
   const [isLoadingNearby, setIsLoadingNearby] = useState(false);
+  const mannerSectionRef = useRef<HTMLElement | null>(null);
+  const facilitySectionRef = useRef<HTMLElement | null>(null);
+  const guideSectionRef = useRef<HTMLElement | null>(null);
 
   const coordinateKey = useMemo(() => {
     if (!currentPosition) return "";
@@ -203,8 +294,23 @@ export default function NowInfoView({
     () => getRecommendedMannerItemsByScenes(nearbyContext?.scenes || [], 3),
     [nearbyContext]
   );
+  const recommendedGuideTopics = useMemo(
+    () => getRecommendedHelpfulTopicsByScenes(nearbyContext?.scenes || [], 3),
+    [nearbyContext]
+  );
 
   const hasLocation = Boolean(currentPosition);
+  const scrollToSection = (element: HTMLElement | null) => {
+    if (!element) return;
+    element.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const handleHelpfulJump = (tabId: HelpfulTabId, section: HTMLElement | null) => {
+    if (!hasLocation && onOpenHelpfulTab) {
+      onOpenHelpfulTab(tabId);
+      return;
+    }
+    scrollToSection(section);
+  };
 
   return (
     <div
@@ -218,7 +324,7 @@ export default function NowInfoView({
     >
       <div
         style={{
-          background: "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
+          background: "linear-gradient(135deg, #e88fa3 0%, #f3a7b8 100%)",
           minHeight: "92px",
           padding: "0 20px",
           color: "white",
@@ -235,39 +341,52 @@ export default function NowInfoView({
           style={{
             backgroundColor: "white",
             borderRadius: "22px",
-            padding: "18px 16px",
-            border: "1px solid #dbeafe",
-            boxShadow: "0 2px 10px rgba(37,99,235,0.08)",
+            padding: "16px 14px",
+            border: hasLocation ? "1px solid #f7dfe5" : "1px solid #d1d5db",
+            boxShadow: hasLocation ? "0 2px 10px rgba(236,72,153,0.08)" : "none",
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>
+          {hasLocation ? (
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>
+              <div>
+                <p style={{ fontSize: "16px", fontWeight: "800", color: "#b85f74" }}>現在地</p>
+                <p style={{ fontSize: "12px", color: "#6b7280", lineHeight: "1.7", marginTop: "4px" }}>
+                  {isUsingMockLocation
+                    ? "PC確認用の仮位置を使っています。"
+                    : "現在地に合わせて、いま役立つ情報を表示します。"}
+                </p>
+              </div>
+
+              {onRequestLocationPermission && (
+                <button
+                  onClick={onRequestLocationPermission}
+                  style={{
+                    borderRadius: "999px",
+                    border: "1px solid #f3b6c3",
+                    backgroundColor: "#fdf3f5",
+                    color: "#b85f74",
+                    padding: "8px 14px",
+                    fontSize: "12px",
+                    fontWeight: "700",
+                    flexShrink: 0,
+                  }}
+                >
+                  {isUsingMockLocation ? "位置を更新" : "現在地を更新"}
+                </button>
+              )}
+            </div>
+          ) : (
             <div>
-              <p style={{ fontSize: "16px", fontWeight: "800", color: "#1e3a8a" }}>現在地</p>
-              <p style={{ fontSize: "12px", color: "#64748b", lineHeight: "1.7", marginTop: "4px" }}>
-                {isUsingMockLocation
-                  ? "PC確認用の仮位置を使っています。"
-                  : "現在地に合わせて、いま役立つ情報を表示します。"}
+              <p style={{ fontSize: "14px", fontWeight: "800", color: "#111827" }}>
+                現在地の取得が許可されていません
+              </p>
+              <p style={{ fontSize: "11px", color: "#6b7280", lineHeight: "1.7", marginTop: "6px" }}>
+                位置情報を使うと、現在地に合わせて
+                <br />
+                今役立つスポット、体験施設を表示できます。
               </p>
             </div>
-
-            {onRequestLocationPermission && (
-              <button
-                onClick={onRequestLocationPermission}
-                style={{
-                  borderRadius: "999px",
-                  border: "1px solid #93c5fd",
-                  backgroundColor: "#eff6ff",
-                  color: "#1d4ed8",
-                  padding: "8px 14px",
-                  fontSize: "12px",
-                  fontWeight: "700",
-                  flexShrink: 0,
-                }}
-              >
-                {isUsingMockLocation ? "位置を更新" : "現在地を更新"}
-              </button>
-            )}
-          </div>
+          )}
 
           {hasLocation && currentAddress && (
             <div style={{ marginTop: "14px" }}>
@@ -283,28 +402,23 @@ export default function NowInfoView({
             </div>
           )}
 
-          {!hasLocation && (
-            <div style={{ marginTop: "14px", display: "flex", flexDirection: "column", gap: "10px" }}>
-              <p style={{ fontSize: "13px", color: "#334155", lineHeight: "1.8" }}>
-                位置情報を使うと、近くの施設に合わせたマナーと体験施設を表示できます。
-              </p>
-              {onOpenLocationSettings && (
-                <button
-                  onClick={onOpenLocationSettings}
-                  style={{
-                    alignSelf: "flex-start",
-                    borderRadius: "999px",
-                    border: "1px solid #bfdbfe",
-                    backgroundColor: "#f8fbff",
-                    color: "#2563eb",
-                    padding: "8px 14px",
-                    fontSize: "12px",
-                    fontWeight: "700",
-                  }}
-                >
-                  マイページで位置情報を設定
-                </button>
-              )}
+          {!hasLocation && onOpenLocationSettings && (
+            <div style={{ marginTop: "14px" }}>
+              <button
+                onClick={onOpenLocationSettings}
+                style={{
+                  alignSelf: "flex-start",
+                  borderRadius: "999px",
+                  border: "1px solid #f3b6c3",
+                  backgroundColor: "#fdf3f5",
+                  color: "#b85f74",
+                  padding: "8px 14px",
+                  fontSize: "12px",
+                  fontWeight: "700",
+                }}
+              >
+                マイページで位置情報を設定
+              </button>
             </div>
           )}
 
@@ -313,7 +427,7 @@ export default function NowInfoView({
               style={{
                 marginTop: "12px",
                 borderRadius: "14px",
-                backgroundColor: "#fff1f2",
+                backgroundColor: "#fdf3f5",
                 border: "1px solid #fecdd3",
                 padding: "12px 14px",
               }}
@@ -323,87 +437,127 @@ export default function NowInfoView({
           )}
         </section>
 
-        <section>
-          <div style={{ marginBottom: "10px" }}>
-            <p style={{ fontSize: "17px", fontWeight: "800", color: "#111827" }}>いま気を付けたいこと</p>
-            {nearbyContext && (
-              <>
-                <p style={{ fontSize: "12px", color: "#1d4ed8", fontWeight: "700", marginTop: "6px" }}>
-                  {nearbyContext.title}
-                </p>
-                <p style={{ fontSize: "13px", color: "#475569", lineHeight: "1.8", marginTop: "4px" }}>
-                  {nearbyContext.summary}
-                </p>
-              </>
-            )}
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            {recommendedItems.map((item) => (
-              <RecommendedMannerCard key={item.id} item={item} />
-            ))}
-          </div>
+        <section style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <QuickJumpButton label="マナーの情報を見に行く" onClick={() => handleHelpfulJump("manner", mannerSectionRef.current)} />
+          <QuickJumpButton
+            label="体験施設の情報を見に行く"
+            onClick={() => {
+              if (onOpenExperienceBooking) {
+                onOpenExperienceBooking();
+                return;
+              }
+              scrollToSection(facilitySectionRef.current);
+            }}
+          />
+          <QuickJumpButton label="ガイド情報を見に行く" onClick={() => handleHelpfulJump("travel", guideSectionRef.current)} />
         </section>
 
-        <section>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", marginBottom: "10px" }}>
-            <div>
-              <p style={{ fontSize: "17px", fontWeight: "800", color: "#111827" }}>近くの体験施設</p>
-              <p style={{ fontSize: "12px", color: "#64748b", lineHeight: "1.7", marginTop: "4px" }}>
-                現在地の近くで立ち寄りやすい施設を最大5件表示します。
-              </p>
-            </div>
-          </div>
+        {hasLocation && (
+          <>
+            <section ref={mannerSectionRef}>
+              <div style={{ marginBottom: "10px" }}>
+                <p style={{ fontSize: "17px", fontWeight: "800", color: "#111827" }}>マナーの情報</p>
+                {nearbyContext && (
+                  <>
+                    <p style={{ fontSize: "12px", color: "#e88fa3", fontWeight: "700", marginTop: "6px" }}>
+                      {nearbyContext.title}
+                    </p>
+                    <p style={{ fontSize: "13px", color: "#475569", lineHeight: "1.8", marginTop: "4px" }}>
+                      {nearbyContext.summary}
+                    </p>
+                  </>
+                )}
+              </div>
 
-          {isLoadingNearby && (
-            <div
-              style={{
-                backgroundColor: "white",
-                borderRadius: "20px",
-                border: "1px solid #e5e7eb",
-                padding: "18px 16px",
-              }}
-            >
-              <p style={{ fontSize: "13px", color: "#64748b" }}>近くの施設を読み込み中です...</p>
-            </div>
-          )}
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {recommendedItems.map((item) => (
+                  <RecommendedMannerCard key={item.id} item={item} />
+                ))}
+              </div>
+            </section>
 
-          {!isLoadingNearby && nearbyError && (
-            <div
-              style={{
-                backgroundColor: "#fff1f2",
-                borderRadius: "18px",
-                border: "1px solid #fecdd3",
-                padding: "14px",
-              }}
-            >
-              <p style={{ fontSize: "12px", color: "#991b1b", lineHeight: "1.7" }}>{nearbyError}</p>
-            </div>
-          )}
+            <section ref={facilitySectionRef}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", marginBottom: "10px" }}>
+                <div>
+                  <p style={{ fontSize: "17px", fontWeight: "800", color: "#111827" }}>体験施設の情報</p>
+                  <p style={{ fontSize: "12px", color: "#64748b", lineHeight: "1.7", marginTop: "4px" }}>
+                    現在地の近くで立ち寄りやすい施設を最大5件表示します。
+                  </p>
+                </div>
+              </div>
 
-          {!isLoadingNearby && !nearbyError && nearbyLocations.length === 0 && (
-            <div
-              style={{
-                backgroundColor: "white",
-                borderRadius: "20px",
-                border: "1px solid #e5e7eb",
-                padding: "18px 16px",
-              }}
-            >
-              <p style={{ fontSize: "13px", color: "#64748b", lineHeight: "1.8" }}>
-                近くの体験施設がまだ見つかっていません。位置情報を更新すると結果が変わる場合があります。
-              </p>
-            </div>
-          )}
+              {isLoadingNearby && (
+                <div
+                  style={{
+                    backgroundColor: "white",
+                    borderRadius: "20px",
+                    border: "1px solid #e5e7eb",
+                    padding: "18px 16px",
+                  }}
+                >
+                  <p style={{ fontSize: "13px", color: "#64748b" }}>近くの施設を読み込み中です...</p>
+                </div>
+              )}
 
-          {!isLoadingNearby && !nearbyError && nearbyLocations.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {nearbyLocations.map((location) => (
-                <NearbySpotCard key={`${location.placeId || location.name}-${location.lat}-${location.lng}`} location={location} />
-              ))}
-            </div>
-          )}
-        </section>
+              {!isLoadingNearby && nearbyError && (
+                <div
+                  style={{
+                backgroundColor: "#fdf3f5",
+                    borderRadius: "18px",
+                    border: "1px solid #fecdd3",
+                    padding: "14px",
+                  }}
+                >
+                  <p style={{ fontSize: "12px", color: "#991b1b", lineHeight: "1.7" }}>{nearbyError}</p>
+                </div>
+              )}
+
+              {!isLoadingNearby && !nearbyError && nearbyLocations.length === 0 && (
+                <div
+                  style={{
+                    backgroundColor: "white",
+                    borderRadius: "20px",
+                    border: "1px solid #e5e7eb",
+                    padding: "18px 16px",
+                  }}
+                >
+                  <p style={{ fontSize: "13px", color: "#64748b", lineHeight: "1.8" }}>
+                    近くの体験施設がまだ見つかっていません。位置情報を更新すると結果が変わる場合があります。
+                  </p>
+                </div>
+              )}
+
+              {!isLoadingNearby && !nearbyError && nearbyLocations.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {nearbyLocations.map((location) => (
+                    <NearbySpotCard key={`${location.placeId || location.name}-${location.lat}-${location.lng}`} location={location} />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section ref={guideSectionRef}>
+              <div style={{ marginBottom: "10px" }}>
+                <p style={{ fontSize: "17px", fontWeight: "800", color: "#111827" }}>ガイド情報</p>
+                <p style={{ fontSize: "12px", color: "#64748b", lineHeight: "1.7", marginTop: "4px" }}>
+                  いまの場所に合わせて、知っておくと役立つ豆知識や旅のヒントをまとめています。
+                </p>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {recommendedGuideTopics.map((topic) => (
+                  <HelpfulTopicCard
+                    key={topic.id}
+                    title={topic.title}
+                    subtitle={topic.subtitle}
+                    description={topic.description}
+                    emoji={topic.emoji}
+                  />
+                ))}
+              </div>
+            </section>
+          </>
+        )}
       </div>
     </div>
   );
