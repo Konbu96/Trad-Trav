@@ -223,15 +223,32 @@ export default function MyPageView({
 
         <div style={{ display: "flex", gap: "12px", marginTop: "14px" }}>
           {[
-            { label: "閲覧履歴", icon: <ClockIcon size={18} color="white" /> },
+            { label: "閲覧履歴", icon: <ClockIcon size={18} color="white" />, onClick: undefined },
             {
               label: "お気に入り",
               icon: <HeartIcon size={18} color="white" />,
+              onClick: undefined,
             },
-            { label: "診断", icon: <PenIcon size={18} color="white" /> },
-            { label: "設定", icon: <GearIcon size={18} color="white" /> },
+            { label: "診断", icon: <PenIcon size={18} color="white" />, onClick: onStartDiagnosis },
+            { label: "設定", icon: <GearIcon size={18} color="white" />, onClick: undefined },
           ].map((item) => (
-            <div key={item.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+            <button
+              key={item.label}
+              type="button"
+              onClick={item.onClick}
+              disabled={!item.onClick}
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "8px",
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: item.onClick ? "pointer" : "default",
+              }}
+            >
               <div
                 style={{
                   width: "44px",
@@ -249,7 +266,7 @@ export default function MyPageView({
                 {item.icon}
               </div>
               <p style={{ fontSize: "11px", color: "#374151", fontWeight: 600 }}>{item.label}</p>
-            </div>
+            </button>
           ))}
         </div>
       </div>
