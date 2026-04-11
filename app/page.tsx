@@ -77,6 +77,7 @@ function AppContent() {
   const [locationSettingsFocusKey, setLocationSettingsFocusKey] = useState(0);
   const locationWatchIdRef = useRef<number | null>(null);
   const lastReverseGeocodeKeyRef = useRef<string>("");
+  const hasAutoStartedLocationRef = useRef(false);
 
   // 診断結果からおすすめスポットIDを計算
   const recommendedSpotIds = diagnosisResult
@@ -171,7 +172,7 @@ function AppContent() {
     return /Macintosh|Windows|Linux/i.test(navigator.userAgent) && !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   }, []);
 
-  const handleRequestLocationPermission = useCallback(() => {
+  const startLocationTracking = useCallback(() => {
     if (isDesktopLikeDevice()) {
       applyAssumedSendaiLocation();
       return;
@@ -203,6 +204,8 @@ function AppContent() {
     setLocationPermissionState("requesting");
     setLocationError("");
     setIsUsingMockLocation(false);
+
+    // watchPosition でアプリ表示中は現在地を継続監視する
     locationWatchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const latitude = position.coords.latitude;
@@ -264,12 +267,19 @@ function AppContent() {
     );
   }, [applyAssumedSendaiLocation, isDesktopLikeDevice, reverseGeocode]);
 
-  useEffect(() => {
-    if (isDesktopLikeDevice()) {
-      applyAssumedSendaiLocation();
-    }
-  }, [applyAssumedSendaiLocation, isDesktopLikeDevice]);
+  const handleRequestLocationPermission = useCallback(() => {
+    startLocationTracking();
+  }, [startLocationTracking]);
 
+  useEffect(() => {
+    if (hasAutoStartedLocationRef.current) return;
+    hasAutoStartedLocationRef.current = true;
+
+    // アプリ起動時に自動で現在地取得を開始する
+    startLocationTracking();
+  }, [startLocationTracking]);
+
+  // 画面を離れたら watchPosition を必ず停止する
   useEffect(() => () => {
     if (locationWatchIdRef.current !== null && navigator.geolocation) {
       navigator.geolocation.clearWatch(locationWatchIdRef.current);

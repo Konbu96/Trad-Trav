@@ -638,7 +638,7 @@ export default function MyPageView({
                   isUsingMockLocation
                     ? "#f59e0b"
                     : locationPermissionState === "granted"
-                    ? "#16a34a"
+                    ? "#e88fa3"
                     : locationPermissionState === "requesting"
                       ? "#f3b6c3"
                       : "#e88fa3",
@@ -654,7 +654,7 @@ export default function MyPageView({
                 : isUsingMockLocation
                   ? "仙台市の仮位置を使用中"
                   : locationPermissionState === "granted"
-                ? "現在地を監視中"
+                ? "現在地を取得中"
                   : "現在地を共有する"}
             </button>
           )}

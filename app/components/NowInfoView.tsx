@@ -32,6 +32,37 @@ type NearbyResponse = {
   error?: string;
 };
 
+const NEARBY_MIN_REFETCH_INTERVAL_MS = 20_000;
+const WALKING_REFETCH_DISTANCE_METERS = 150;
+const CYCLING_REFETCH_DISTANCE_METERS = 500;
+const VEHICLE_REFETCH_DISTANCE_METERS = 800;
+
+function getDistanceMeters(
+  fromLatitude: number,
+  fromLongitude: number,
+  toLatitude: number,
+  toLongitude: number
+) {
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusMeters = 6371000;
+  const dLat = toRadians(toLatitude - fromLatitude);
+  const dLng = toRadians(toLongitude - fromLongitude);
+  const startLat = toRadians(fromLatitude);
+  const endLat = toRadians(toLatitude);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(startLat) * Math.cos(endLat);
+
+  return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function getRefetchDistanceBySpeed(speedMetersPerSecond: number) {
+  if (speedMetersPerSecond < 2) return WALKING_REFETCH_DISTANCE_METERS;
+  if (speedMetersPerSecond < 6) return CYCLING_REFETCH_DISTANCE_METERS;
+  return VEHICLE_REFETCH_DISTANCE_METERS;
+}
+
 function QuickJumpButton({
   label,
   onClick,
@@ -233,17 +264,84 @@ export default function NowInfoView({
   const [nearbyContext, setNearbyContext] = useState<NearbyContext | null>(null);
   const [nearbyError, setNearbyError] = useState("");
   const [isLoadingNearby, setIsLoadingNearby] = useState(false);
+  const [nearbyFetchPosition, setNearbyFetchPosition] = useState<{ latitude: number; longitude: number } | null>(null);
   const mannerSectionRef = useRef<HTMLElement | null>(null);
   const facilitySectionRef = useRef<HTMLElement | null>(null);
   const guideSectionRef = useRef<HTMLElement | null>(null);
+  const lastNearbyFetchPositionRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const lastNearbyFetchAtRef = useRef(0);
+  const lastObservedPositionRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const lastObservedAtRef = useRef(0);
 
   const coordinateKey = useMemo(() => {
     if (!currentPosition) return "";
     return makeLocationKey(currentPosition.latitude, currentPosition.longitude);
   }, [currentPosition]);
 
+  const nearbyFetchKey = useMemo(() => {
+    if (!nearbyFetchPosition) return "";
+    return makeLocationKey(nearbyFetchPosition.latitude, nearbyFetchPosition.longitude);
+  }, [nearbyFetchPosition]);
+
   useEffect(() => {
     if (!currentPosition || !coordinateKey) {
+      lastNearbyFetchPositionRef.current = null;
+      lastNearbyFetchAtRef.current = 0;
+      lastObservedPositionRef.current = null;
+      lastObservedAtRef.current = 0;
+      setNearbyFetchPosition(null);
+      return;
+    }
+
+    const now = Date.now();
+
+    if (!lastObservedPositionRef.current) {
+      lastObservedPositionRef.current = currentPosition;
+      lastObservedAtRef.current = now;
+    } else {
+      const elapsedSeconds = Math.max((now - lastObservedAtRef.current) / 1000, 1);
+      const movedDistanceSinceObservation = getDistanceMeters(
+        lastObservedPositionRef.current.latitude,
+        lastObservedPositionRef.current.longitude,
+        currentPosition.latitude,
+        currentPosition.longitude
+      );
+      const speedMetersPerSecond = movedDistanceSinceObservation / elapsedSeconds;
+      const movedDistanceSinceFetch = lastNearbyFetchPositionRef.current
+        ? getDistanceMeters(
+            lastNearbyFetchPositionRef.current.latitude,
+            lastNearbyFetchPositionRef.current.longitude,
+            currentPosition.latitude,
+            currentPosition.longitude
+          )
+        : Number.POSITIVE_INFINITY;
+      const refetchDistance = getRefetchDistanceBySpeed(speedMetersPerSecond);
+      const elapsedSinceLastFetch = now - lastNearbyFetchAtRef.current;
+
+      lastObservedPositionRef.current = currentPosition;
+      lastObservedAtRef.current = now;
+
+      if (
+        lastNearbyFetchPositionRef.current &&
+        elapsedSinceLastFetch >= NEARBY_MIN_REFETCH_INTERVAL_MS &&
+        movedDistanceSinceFetch >= refetchDistance
+      ) {
+        lastNearbyFetchPositionRef.current = currentPosition;
+        lastNearbyFetchAtRef.current = now;
+        setNearbyFetchPosition(currentPosition);
+      }
+    }
+
+    if (!lastNearbyFetchPositionRef.current) {
+      lastNearbyFetchPositionRef.current = currentPosition;
+      lastNearbyFetchAtRef.current = now;
+      setNearbyFetchPosition(currentPosition);
+      return;
+    }
+  }, [coordinateKey, currentPosition]);
+
+  useEffect(() => {
+    if (!nearbyFetchPosition || !nearbyFetchKey) {
       setNearbyLocations([]);
       setNearbyContext(null);
       setNearbyError("");
@@ -259,7 +357,7 @@ export default function NowInfoView({
 
       try {
         const res = await fetch(
-          `/api/google-places/nearby?lat=${encodeURIComponent(currentPosition.latitude)}&lng=${encodeURIComponent(currentPosition.longitude)}`
+          `/api/google-places/nearby?lat=${encodeURIComponent(nearbyFetchPosition.latitude)}&lng=${encodeURIComponent(nearbyFetchPosition.longitude)}`
         );
         const data: NearbyResponse = await res.json();
 
@@ -288,7 +386,7 @@ export default function NowInfoView({
     return () => {
       isActive = false;
     };
-  }, [coordinateKey, currentPosition]);
+  }, [nearbyFetchKey, nearbyFetchPosition]);
 
   const recommendedItems = useMemo(
     () => getRecommendedMannerItemsByScenes(nearbyContext?.scenes || [], 3),
@@ -374,6 +472,17 @@ export default function NowInfoView({
                   {isUsingMockLocation ? "位置を更新" : "現在地を更新"}
                 </button>
               )}
+            </div>
+          ) : locationPermissionState === "requesting" ? (
+            <div>
+              <p style={{ fontSize: "14px", fontWeight: "800", color: "#111827" }}>
+                現在地を取得中です...
+              </p>
+              <p style={{ fontSize: "11px", color: "#6b7280", lineHeight: "1.7", marginTop: "6px" }}>
+                geolocation API で現在地を確認しています。
+                <br />
+                取得できると緯度・経度を表示します。
+              </p>
             </div>
           ) : (
             <div>
