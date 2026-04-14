@@ -194,6 +194,18 @@ export function PhotoIcon({ size = defaultProps.size, color = defaultProps.color
   );
 }
 
+// 旅ガイド・案内（開いた本）
+export function TravelGuideIcon({ size = defaultProps.size, color = defaultProps.color }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+      <line x1="12" y1="7" x2="12" y2="13" />
+      <line x1="9" y1="10" x2="15" y2="10" />
+    </svg>
+  );
+}
+
 // デフォルトアバターアイコン（人物シルエット）
 export function DefaultAvatarIcon({ size = 72, backgroundColor = "#e5e7eb", silhouetteColor = "#9ca3af" }: { size?: number; backgroundColor?: string; silhouetteColor?: string }) {
   return (

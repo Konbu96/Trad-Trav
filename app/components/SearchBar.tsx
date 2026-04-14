@@ -13,6 +13,8 @@ export interface SearchLocation {
   summary?: string;
   officialSourceUrl?: string;
   genreLabel?: string;
+  /** 一覧などで見せる具体的な体験・行事ラベル（例: 陶芸体験、地域祭り） */
+  experienceCategory?: string;
   source?: "google";
   osm_id?: number;
   osm_type?: string;

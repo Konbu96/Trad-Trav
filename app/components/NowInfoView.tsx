@@ -17,6 +17,7 @@ interface NowInfoViewProps {
   onOpenLocationSettings?: () => void;
   onOpenHelpfulTab?: (tabId: HelpfulTabId) => void;
   onOpenExperienceBooking?: () => void;
+  onTutorialAction?: (actionId: string) => void;
 }
 
 type NearbyContext = {
@@ -259,6 +260,7 @@ export default function NowInfoView({
   onOpenLocationSettings,
   onOpenHelpfulTab,
   onOpenExperienceBooking,
+  onTutorialAction,
 }: NowInfoViewProps) {
   const [nearbyLocations, setNearbyLocations] = useState<SearchLocation[]>([]);
   const [nearbyContext, setNearbyContext] = useState<NearbyContext | null>(null);
@@ -457,7 +459,11 @@ export default function NowInfoView({
 
               {onRequestLocationPermission && (
                 <button
-                  onClick={onRequestLocationPermission}
+                  onClick={() => {
+                    onTutorialAction?.("now.location-update-button");
+                    onRequestLocationPermission();
+                  }}
+                  data-tutorial-id="now.location-update-button"
                   style={{
                     borderRadius: "999px",
                     border: "1px solid #f3b6c3",
@@ -514,7 +520,11 @@ export default function NowInfoView({
           {!hasLocation && onOpenLocationSettings && (
             <div style={{ marginTop: "14px" }}>
               <button
-                onClick={onOpenLocationSettings}
+                onClick={() => {
+                  onTutorialAction?.("now.location-settings-button");
+                  onOpenLocationSettings();
+                }}
+                data-tutorial-id="now.location-settings-button"
                 style={{
                   alignSelf: "flex-start",
                   borderRadius: "999px",
@@ -558,7 +568,15 @@ export default function NowInfoView({
               scrollToSection(facilitySectionRef.current);
             }}
           />
-          <QuickJumpButton label="ガイド情報を見に行く" onClick={() => handleHelpfulJump("travel", guideSectionRef.current)} />
+          <div data-tutorial-id="now.guide-jump-button">
+            <QuickJumpButton
+              label="ガイド情報を見に行く"
+              onClick={() => {
+                onTutorialAction?.("now.guide-jump-button");
+                handleHelpfulJump("travel", guideSectionRef.current);
+              }}
+            />
+          </div>
         </section>
 
         {hasLocation && (

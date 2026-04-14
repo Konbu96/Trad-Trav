@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BottomNavigation from "./components/BottomNavigation";
 import SplashScreen from "./components/SplashScreen";
 import DiagnosisView, { type DiagnosisResult } from "./components/DiagnosisView";
@@ -10,9 +9,42 @@ import AuthView from "./components/AuthView";
 import MapTabView from "./components/MapTabView";
 import MannerView from "./components/MannerView";
 import NowInfoView from "./components/NowInfoView";
+import TutorialOverlay from "./components/TutorialOverlay";
 import { LanguageProvider } from "./i18n/LanguageContext";
-import { saveDiagnosisResult, getDiagnosisResult, getViewHistory, addViewHistory, getFavorites, toggleFavorite, type ViewHistoryItem, auth } from "./lib/firebase";
+import {
+  saveDiagnosisResult,
+  getDiagnosisResult,
+  getViewHistory,
+  addViewHistory,
+  getFavorites,
+  toggleFavorite,
+  getTravelerDisplayName,
+  saveTravelerDisplayName,
+  getPlayerProgress,
+  mergeAndSavePlayerProgress,
+  recordPlayerEvent,
+  type ViewHistoryItem,
+  auth,
+} from "./lib/firebase";
 import { makeLocationKey } from "./lib/location";
+import {
+  DEFAULT_TUTORIAL_PROGRESS,
+  getTutorialSteps,
+  loadTutorialProgress,
+  resetTutorialProgress,
+  saveTutorialProgress,
+  type TutorialProgress,
+  type TutorialTabId,
+} from "./lib/tutorial";
+import {
+  applyPlayerEvent,
+  clearGuestPlayerProgress,
+  defaultPlayerProgress,
+  loadGuestPlayerProgress,
+  saveGuestPlayerProgress,
+  type PlayerEvent,
+  type PlayerProgress,
+} from "./lib/playerProgress";
 import { getRecommendedSpotIds } from "./data/spots";
 import type { HelpfulTabId } from "./data/helpfulInfo";
 import { signOut } from "firebase/auth";
@@ -54,9 +86,9 @@ const ASSUMED_SENDAI_ADDRESS: CurrentAddress = {
   formattedAddress: "宮城県仙台市青葉区",
 };
 
+const GUEST_DISPLAY_NAME_KEY = "trad-trav-guest-display-name";
+
 function AppContent() {
-  const router = useRouter();
-  const pathname = usePathname();
   const [showSplash, setShowSplash] = useState(true);
   const [showAuth, setShowAuth] = useState(false);
   const [showDiagnosis, setShowDiagnosis] = useState(false);
@@ -74,41 +106,129 @@ function AppContent() {
   const [currentPosition, setCurrentPosition] = useState<{ latitude: number; longitude: number } | null>(null);
   const [currentAddress, setCurrentAddress] = useState<CurrentAddress | null>(null);
   const [isUsingMockLocation, setIsUsingMockLocation] = useState(false);
-  const [locationSettingsFocusKey, setLocationSettingsFocusKey] = useState(0);
+  const [settingsOpenKey, setSettingsOpenKey] = useState(0);
+  const [tutorialProgress, setTutorialProgress] = useState<TutorialProgress | null>(null);
+  const [activeTutorialScreen, setActiveTutorialScreen] = useState<TutorialTabId | null>(null);
+  const [activeTutorialStepIndex, setActiveTutorialStepIndex] = useState(0);
+  const [guestDisplayName, setGuestDisplayName] = useState("");
+  const [playerProgress, setPlayerProgress] = useState<PlayerProgress>(() => defaultPlayerProgress());
   const locationWatchIdRef = useRef<number | null>(null);
   const lastReverseGeocodeKeyRef = useRef<string>("");
-  const hasAutoStartedLocationRef = useRef(false);
+  const hasLocation = Boolean(currentPosition);
 
   // 診断結果からおすすめスポットIDを計算
   const recommendedSpotIds = diagnosisResult
     ? getRecommendedSpotIds(diagnosisResult.interests)
     : null;
+  const activeTutorialSteps = useMemo(
+    () => (activeTutorialScreen ? getTutorialSteps(activeTutorialScreen, { hasNowLocation: hasLocation }) : []),
+    [activeTutorialScreen, hasLocation]
+  );
+  const activeTutorialStep = activeTutorialSteps[activeTutorialStepIndex] ?? null;
 
   const handleSplashFinish = () => {
     setShowSplash(false);
   };
+
+  useEffect(() => {
+    setTutorialProgress(loadTutorialProgress());
+  }, []);
+
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem(GUEST_DISPLAY_NAME_KEY);
+      if (v != null) setGuestDisplayName(v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const handleSaveDisplayName = useCallback(
+    async (name: string) => {
+      const trimmed = name.trim();
+      if (user?.id) {
+        await saveTravelerDisplayName(user.id, trimmed);
+        setUser((u) => (u ? { ...u, name: trimmed } : u));
+      } else {
+        try {
+          window.localStorage.setItem(GUEST_DISPLAY_NAME_KEY, trimmed);
+        } catch {
+          /* ignore */
+        }
+        setGuestDisplayName(trimmed);
+      }
+    },
+    [user?.id]
+  );
 
   const handleLogin = async (loggedInUser: User, isNewUser: boolean = false) => {
     setUser(loggedInUser);
     setShowAuth(false);
 
     if (isNewUser) {
+      try {
+        const guestProg = loadGuestPlayerProgress();
+        const merged = await mergeAndSavePlayerProgress(loggedInUser.id, defaultPlayerProgress(), guestProg);
+        clearGuestPlayerProgress();
+        setPlayerProgress(merged);
+      } catch (error) {
+        console.error("進捗の同期に失敗:", error);
+        setPlayerProgress(defaultPlayerProgress());
+      }
       setShowDiagnosis(true);
     } else {
       try {
-        const [savedResult, savedHistory, savedFavorites] = await Promise.all([
+        const guestProg = loadGuestPlayerProgress();
+        const [savedResult, savedHistory, savedFavorites, travelerName, serverProg] = await Promise.all([
           getDiagnosisResult(loggedInUser.id),
           getViewHistory(loggedInUser.id),
           getFavorites(loggedInUser.id),
+          getTravelerDisplayName(loggedInUser.id),
+          getPlayerProgress(loggedInUser.id),
         ]);
         if (savedResult) setDiagnosisResult(savedResult);
         if (savedHistory.length > 0) setViewHistory(savedHistory);
         if (savedFavorites.length > 0) setFavoriteSpotIds(savedFavorites);
+        setUser((prev) =>
+          prev && prev.id === loggedInUser.id
+            ? { ...prev, name: travelerName !== null ? travelerName : loggedInUser.name }
+            : prev
+        );
+        const merged = await mergeAndSavePlayerProgress(loggedInUser.id, serverProg, guestProg);
+        clearGuestPlayerProgress();
+        setPlayerProgress(merged);
       } catch (error) {
         console.error("ユーザーデータの取得に失敗:", error);
       }
     }
   };
+
+  const bumpPlayerProgress = useCallback(
+    async (event: PlayerEvent) => {
+      const uid = user?.id;
+      if (uid) {
+        try {
+          const next = await recordPlayerEvent(uid, event);
+          setPlayerProgress(next);
+        } catch (error) {
+          console.error("プレイヤー進捗の保存に失敗:", error);
+        }
+        return;
+      }
+      setPlayerProgress((prev) => {
+        const next = applyPlayerEvent(prev, event);
+        saveGuestPlayerProgress(next);
+        return next;
+      });
+    },
+    [user?.id]
+  );
+
+  useEffect(() => {
+    if (!user) {
+      setPlayerProgress(loadGuestPlayerProgress());
+    }
+  }, [user]);
 
   const handleDiagnosisComplete = async (result: DiagnosisResult) => {
     setDiagnosisResult(result);
@@ -122,6 +242,7 @@ function AppContent() {
         console.error("診断結果の保存に失敗:", error);
       }
     }
+    void bumpPlayerProgress({ type: "diagnosis_complete" });
   };
 
   const handleScreenChange = (screen: ScreenType) => {
@@ -131,6 +252,67 @@ function AppContent() {
       setPreferredHelpfulTab(null);
     }
   };
+
+  const completeTutorial = useCallback(
+    (screen: TutorialTabId) => {
+      setTutorialProgress((prev) => {
+        const next = { ...(prev ?? DEFAULT_TUTORIAL_PROGRESS), [screen]: true };
+        saveTutorialProgress(next);
+        return next;
+      });
+      setActiveTutorialScreen(null);
+      setActiveTutorialStepIndex(0);
+      void bumpPlayerProgress({ type: "tutorial_complete", screen });
+    },
+    [bumpPlayerProgress]
+  );
+
+  const handleSkipTutorial = useCallback(() => {
+    if (!activeTutorialScreen) return;
+    completeTutorial(activeTutorialScreen);
+  }, [activeTutorialScreen, completeTutorial]);
+
+  const handleTutorialAction = useCallback((actionId: string) => {
+    if (!activeTutorialScreen || !activeTutorialStep) return;
+    if (actionId !== activeTutorialStep.targetId) return;
+
+    const isLastStep = activeTutorialStepIndex >= activeTutorialSteps.length - 1;
+    if (isLastStep) {
+      completeTutorial(activeTutorialScreen);
+      return;
+    }
+
+    setActiveTutorialStepIndex((prev) => prev + 1);
+  }, [activeTutorialScreen, activeTutorialStep, activeTutorialStepIndex, activeTutorialSteps.length, completeTutorial]);
+
+  const handleReplayTutorials = useCallback(() => {
+    resetTutorialProgress();
+    setTutorialProgress(DEFAULT_TUTORIAL_PROGRESS);
+    setActiveTutorialScreen("mypage");
+    setActiveTutorialStepIndex(0);
+  }, []);
+
+  useEffect(() => {
+    if (!tutorialProgress || showSplash || showDiagnosis || showAuth) {
+      return;
+    }
+
+    if (activeTutorialScreen && activeTutorialScreen !== currentScreen) {
+      setActiveTutorialScreen(null);
+      setActiveTutorialStepIndex(0);
+      return;
+    }
+
+    if (activeTutorialScreen) {
+      return;
+    }
+
+    const nextScreen = currentScreen as TutorialTabId;
+    if (!tutorialProgress[nextScreen]) {
+      setActiveTutorialScreen(nextScreen);
+      setActiveTutorialStepIndex(0);
+    }
+  }, [activeTutorialScreen, currentScreen, showAuth, showDiagnosis, showSplash, tutorialProgress]);
 
   const reverseGeocode = useCallback(async (latitude: number, longitude: number) => {
     try {
@@ -271,14 +453,6 @@ function AppContent() {
     startLocationTracking();
   }, [startLocationTracking]);
 
-  useEffect(() => {
-    if (hasAutoStartedLocationRef.current) return;
-    hasAutoStartedLocationRef.current = true;
-
-    // アプリ起動時に自動で現在地取得を開始する
-    startLocationTracking();
-  }, [startLocationTracking]);
-
   // 画面を離れたら watchPosition を必ず停止する
   useEffect(() => () => {
     if (locationWatchIdRef.current !== null && navigator.geolocation) {
@@ -289,7 +463,7 @@ function AppContent() {
 
   const handleOpenLocationSettings = () => {
     setCurrentScreen("mypage");
-    setLocationSettingsFocusKey((prev) => prev + 1);
+    setSettingsOpenKey((prev) => prev + 1);
   };
 
   // マナーAIをスポット連携で開く
@@ -320,7 +494,8 @@ function AppContent() {
   };
 
   const handleToggleFavorite = async (spotId: number) => {
-    const updated = favoriteSpotIds.includes(spotId)
+    const wasFavorite = favoriteSpotIds.includes(spotId);
+    const updated = wasFavorite
       ? favoriteSpotIds.filter(id => id !== spotId)
       : [...favoriteSpotIds, spotId];
     setFavoriteSpotIds(updated);
@@ -330,7 +505,11 @@ function AppContent() {
       } catch (error) {
         console.error("お気に入りの更新に失敗:", error);
         setFavoriteSpotIds(favoriteSpotIds);
+        return;
       }
+    }
+    if (!wasFavorite) {
+      void bumpPlayerProgress({ type: "favorite_add" });
     }
   };
 
@@ -341,6 +520,7 @@ function AppContent() {
       setDiagnosisResult(null);
       setViewHistory([]);
       setFavoriteSpotIds([]);
+      setPlayerProgress(loadGuestPlayerProgress());
     } catch (error) {
       console.error("ログアウトに失敗:", error);
     }
@@ -366,6 +546,7 @@ function AppContent() {
         console.error("閲覧履歴の保存に失敗:", error);
       }
     }
+    void bumpPlayerProgress({ type: "spot_view" });
   };
 
   return (
@@ -377,7 +558,10 @@ function AppContent() {
 
       {/* 診断画面 */}
       {showDiagnosis && (
-        <DiagnosisView onComplete={handleDiagnosisComplete} />
+        <DiagnosisView
+          onComplete={handleDiagnosisComplete}
+          onCancel={() => setShowDiagnosis(false)}
+        />
       )}
 
       {/* メインコンテンツ */}
@@ -393,7 +577,9 @@ function AppContent() {
               onToggleFavorite={handleToggleFavorite}
               recommendedSpotIds={recommendedSpotIds}
               onOpenLanguageHelper={handleOpenLanguageHelper}
+              onOpenTravelGuide={() => handleOpenHelpfulTab("travel")}
               resetToSearchKey={mapResetKey}
+              onTutorialAction={handleTutorialAction}
             />
           )}
 
@@ -406,6 +592,7 @@ function AppContent() {
               onOpenLocationSettings={handleOpenLocationSettings}
               preferredTab={preferredHelpfulTab}
               onPreferredTabApplied={() => setPreferredHelpfulTab(null)}
+              onTutorialAction={handleTutorialAction}
             />
           )}
 
@@ -421,6 +608,7 @@ function AppContent() {
               onOpenLocationSettings={handleOpenLocationSettings}
               onOpenHelpfulTab={handleOpenHelpfulTab}
               onOpenExperienceBooking={handleOpenExperienceBooking}
+              onTutorialAction={handleTutorialAction}
             />
           )}
 
@@ -429,10 +617,12 @@ function AppContent() {
             <MyPageView
               diagnosisResult={diagnosisResult}
               user={user}
+              guestDisplayName={guestDisplayName}
+              onSaveDisplayName={handleSaveDisplayName}
               viewHistory={viewHistory}
               onLogout={handleLogout}
               onJumpToSpot={handleJumpToSpot}
-              onStartDiagnosis={() => { setShowDiagnosis(true); setCurrentScreen("map"); }}
+              onStartDiagnosis={() => setShowDiagnosis(true)}
               onLoginRequest={() => setShowAuth(true)}
               locationPermissionState={locationPermissionState}
               locationError={locationError}
@@ -440,12 +630,31 @@ function AppContent() {
               currentAddress={currentAddress}
               isUsingMockLocation={isUsingMockLocation}
               onRequestLocationPermission={handleRequestLocationPermission}
-              locationSettingsFocusKey={locationSettingsFocusKey}
+              settingsOpenKey={settingsOpenKey}
+              onTutorialAction={handleTutorialAction}
+              onReplayTutorials={handleReplayTutorials}
+              favoriteSpotIds={favoriteSpotIds}
+              onToggleFavorite={handleToggleFavorite}
+              playerProgress={playerProgress}
             />
           )}
 
           {/* ボトムナビゲーション */}
-          <BottomNavigation currentScreen={currentScreen} onScreenChange={handleScreenChange} />
+          <BottomNavigation
+            currentScreen={currentScreen}
+            onScreenChange={handleScreenChange}
+            onTutorialAction={handleTutorialAction}
+          />
+          {activeTutorialScreen === currentScreen && activeTutorialStep && (
+            <TutorialOverlay
+              targetId={activeTutorialStep.targetId}
+              title={activeTutorialStep.title}
+              description={activeTutorialStep.description}
+              stepIndex={activeTutorialStepIndex}
+              totalSteps={activeTutorialSteps.length}
+              onSkip={handleSkipTutorial}
+            />
+          )}
         </>
       )}
 

@@ -1,7 +1,15 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { getAuth, updateProfile } from "firebase/auth";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, runTransaction } from "firebase/firestore";
 import type { DiagnosisResult } from "../components/DiagnosisView";
+import {
+  applyPlayerEvent,
+  defaultPlayerProgress,
+  mergePlayerProgress,
+  normalizePlayerProgress,
+  type PlayerEvent,
+  type PlayerProgress,
+} from "./playerProgress";
 
 export interface ViewHistoryItem {
   id: number;
@@ -88,6 +96,83 @@ export async function toggleFavorite(userId: string, spotId: number): Promise<nu
     : [...current, spotId];
   await setDoc(docRef, { favorites: updated }, { merge: true });
   return updated;
+}
+
+/** Firestore に保存した旅行表示名。未設定のときは null（呼び出し側で Auth の名前を使う） */
+export async function getTravelerDisplayName(userId: string): Promise<string | null> {
+  const docSnap = await getDoc(doc(db, "users", userId));
+  if (!docSnap.exists()) return null;
+  const data = docSnap.data();
+  if (!Object.prototype.hasOwnProperty.call(data, "travelerName")) return null;
+  const n = data.travelerName;
+  return typeof n === "string" ? n : null;
+}
+
+function readPlayerProgressFromUserData(data: Record<string, unknown> | undefined): PlayerProgress {
+  if (!data) return defaultPlayerProgress();
+  const raw = data.playerProgress;
+  if (!raw || typeof raw !== "object") return defaultPlayerProgress();
+  return normalizePlayerProgress(raw);
+}
+
+export async function getPlayerProgress(userId: string): Promise<PlayerProgress> {
+  const docSnap = await getDoc(doc(db, "users", userId));
+  if (!docSnap.exists()) return defaultPlayerProgress();
+  return readPlayerProgressFromUserData(docSnap.data() as Record<string, unknown>);
+}
+
+export async function savePlayerProgress(userId: string, progress: PlayerProgress): Promise<void> {
+  const docRef = doc(db, "users", userId);
+  await setDoc(
+    docRef,
+    {
+      playerProgress: progress,
+      updatedAt: new Date().toISOString(),
+    },
+    { merge: true }
+  );
+}
+
+export async function recordPlayerEvent(userId: string, event: PlayerEvent): Promise<PlayerProgress> {
+  const docRef = doc(db, "users", userId);
+  return runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(docRef);
+    const prev = snap.exists()
+      ? readPlayerProgressFromUserData(snap.data() as Record<string, unknown>)
+      : defaultPlayerProgress();
+    const next = applyPlayerEvent(prev, event);
+    transaction.set(
+      docRef,
+      {
+        playerProgress: next,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+    return next;
+  });
+}
+
+export async function mergeAndSavePlayerProgress(
+  userId: string,
+  remote: PlayerProgress,
+  local: PlayerProgress
+): Promise<PlayerProgress> {
+  const merged = mergePlayerProgress(remote, local);
+  await savePlayerProgress(userId, merged);
+  return merged;
+}
+
+export async function saveTravelerDisplayName(userId: string, name: string): Promise<void> {
+  const docRef = doc(db, "users", userId);
+  await setDoc(
+    docRef,
+    { travelerName: name, updatedAt: new Date().toISOString() },
+    { merge: true }
+  );
+  if (auth.currentUser?.uid === userId) {
+    await updateProfile(auth.currentUser, { displayName: name });
+  }
 }
 
 export { app, auth, db };

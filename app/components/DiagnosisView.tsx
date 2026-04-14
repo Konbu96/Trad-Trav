@@ -1,9 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useLanguage } from "../i18n/LanguageContext";
+import { CloseIcon } from "./icons";
 
 interface DiagnosisViewProps {
   onComplete: (result: DiagnosisResult) => void;
+  /** 診断中止（バツ・質問中のみ表示）で前の画面へ */
+  onCancel?: () => void;
 }
 
 export interface DiagnosisResult {
@@ -200,7 +204,8 @@ function generatePlan(
   return { travelStyle: typeData.label, typeKey, plan };
 }
 
-export default function DiagnosisView({ onComplete }: DiagnosisViewProps) {
+export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewProps) {
+  const { t } = useLanguage();
   const [step, setStep] = useState<Step>("interests");
   const [interests, setInterests] = useState<string[]>([]);
   const [duration, setDuration] = useState<string>("");
@@ -252,6 +257,8 @@ export default function DiagnosisView({ onComplete }: DiagnosisViewProps) {
     (step === "duration" && !!duration) ||
     (step === "companion" && !!companion);
 
+  const showCancelButton = Boolean(onCancel && step !== "result");
+
   return (
     <div
       style={{
@@ -263,10 +270,41 @@ export default function DiagnosisView({ onComplete }: DiagnosisViewProps) {
         zIndex: 9999,
       }}
     >
+      {/* 診断途中のみ：バツで診断中止 */}
+      {showCancelButton && (
+        <button
+          type="button"
+          onClick={onCancel}
+          aria-label={t.diagnosis.cancelDiagnosis}
+          style={{
+            position: "absolute",
+            top: "max(12px, env(safe-area-inset-top, 0px))",
+            right: "max(16px, env(safe-area-inset-right, 0px))",
+            zIndex: 10,
+            padding: "8px",
+            borderRadius: "9999px",
+            border: "none",
+            background: "rgba(255,255,255,0.9)",
+            cursor: "pointer",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <CloseIcon size={24} color="#666" />
+        </button>
+      )}
+
       {/* ヘッダー */}
-      <div style={{ padding: "48px 24px 20px", textAlign: "center" }}>
+      <div
+        style={{
+          padding: showCancelButton ? "52px 24px 20px" : "48px 24px 20px",
+          textAlign: "center",
+        }}
+      >
         <h1 style={{ fontSize: "22px", fontWeight: "bold", color: "#1f2937", marginBottom: "4px" }}>
-          {step === "result" ? "診断結果" : "旅の好み診断"}
+          {step === "result" ? t.diagnosis.resultTitle : t.diagnosis.title}
         </h1>
         <p style={{ fontSize: "13px", color: "#6b7280" }}>
           {step === "result" ? "あなたにぴったりの旅スタイル" : "伝統文化の旅をご提案します"}

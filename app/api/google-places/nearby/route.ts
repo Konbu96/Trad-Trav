@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPhotoUri } from "../_lib/photo";
+import { placesPhotoProxyUrl } from "../_lib/photo";
 import { normalizePlacesText } from "../_lib/text";
 import { makeLocationKey } from "../../../lib/location";
 
@@ -311,7 +311,7 @@ export async function GET(req: NextRequest) {
       }
 
       const photoName = place.photos?.[0]?.name;
-      const photoUri = photoName ? await getPhotoUri(apiKey, photoName) : null;
+      const photos = photoName ? [placesPhotoProxyUrl(photoName)] : [];
       const placeName = place.displayName?.text || "近くのスポット";
       const category = place.primaryType || place.types?.[0] || "tourist_attraction";
       const searchable = buildSearchableText(place);
@@ -331,7 +331,7 @@ export async function GET(req: NextRequest) {
         name: placeName,
         placeId: place.id || "",
         formattedAddress: place.formattedAddress || "",
-        photos: photoUri ? [photoUri] : [],
+        photos,
         summary,
         category,
         type: category,

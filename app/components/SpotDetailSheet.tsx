@@ -17,6 +17,7 @@ import {
   StarIcon,
   PhotoIcon,
 } from "./icons";
+import { MAIN_TAB_BAR_BOTTOM_INSET } from "./BottomNavigation";
 
 interface SpotDetailSheetProps {
   spot: Spot | null;
@@ -25,6 +26,13 @@ interface SpotDetailSheetProps {
   onToggleFavorite?: (spotId: number) => void;
   isLoadingInfo?: boolean;
   onOpenLanguageHelper?: (spotName: string) => void;
+  /** マップタブへ切り替えて当該スポットを表示（検索タブから開いたときなど） */
+  onShowMap?: () => void;
+  /**
+   * true（既定）: メイン画面の下部タブの上端からシートを表示し、タブは常に操作可能にする。
+   * false: 画面下端まで（ボトムナビのない埋め込み画面向け）
+   */
+  reserveMainBottomNav?: boolean;
 }
 
 // 星評価を表示
@@ -228,7 +236,15 @@ function getDisplayText(type: SpotInfoType, value: string): string {
 }
 
 // 概要タブ（スポット紹介 + 基本情報）
-function OverviewTab({ spot, isLoadingInfo }: { spot: Spot; isLoadingInfo?: boolean }) {
+function OverviewTab({
+  spot,
+  isLoadingInfo,
+  onShowMap,
+}: {
+  spot: Spot;
+  isLoadingInfo?: boolean;
+  onShowMap?: () => void;
+}) {
   // 予約以外の情報をフィルタリング
   const infosWithoutReservation = spot.infos.filter(info => info.type !== "reservation");
   
@@ -251,6 +267,20 @@ function OverviewTab({ spot, isLoadingInfo }: { spot: Spot; isLoadingInfo?: bool
         <div style={{ marginTop: "16px" }}>
           <CategoryBadge category={spot.category} />
         </div>
+        {onShowMap && (
+          <button
+            type="button"
+            onClick={onShowMap}
+            className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-x-2 rounded-xl px-3 py-3 text-sm font-semibold text-white"
+            style={{ marginTop: "16px", backgroundColor: "#e88fa3" }}
+          >
+            <span className="flex min-w-0 justify-end" aria-hidden>
+              <LocationIcon size={20} color="#ffffff" />
+            </span>
+            <span className="whitespace-nowrap text-center">地図で見る</span>
+            <span className="min-w-0" aria-hidden />
+          </button>
+        )}
       </div>
 
       {/* 基本情報リスト（予約以外） */}
@@ -537,14 +567,24 @@ function PhotosTab({ spot }: { spot: Spot }) {
 const MAP_TUTORIAL_KEY = "trad-trav-map-tutorial-done"; // MapView と同じキー
 const TAB_TUTORIAL_KEY = "trad-trav-tab-tutorial-done";
 
-export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onToggleFavorite, isLoadingInfo = false, onOpenLanguageHelper }: SpotDetailSheetProps) {
+export default function SpotDetailSheet({
+  spot,
+  onClose,
+  isFavorite = false,
+  onToggleFavorite,
+  isLoadingInfo = false,
+  onOpenLanguageHelper,
+  onShowMap,
+  reserveMainBottomNav = true,
+}: SpotDetailSheetProps) {
   const [isVisible, setIsVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "photos" | "reservation">("overview");
-  const [dragY, setDragY] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
+  const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "photos" | "reservation">("photos");
   const [showTabTutorial, setShowTabTutorial] = useState(false);
-  const startY = useRef(0);
-  const sheetRef = useRef<HTMLDivElement>(null);
+
+  const sheetBottomInset = reserveMainBottomNav ? MAIN_TAB_BAR_BOTTOM_INSET : "0px";
+  const sheetHeightLimit = reserveMainBottomNav
+    ? "min(92vh, calc(100dvh - 84px - env(safe-area-inset-bottom, 0px)))"
+    : "92vh";
 
   // 初回シートオープン時のみチュートリアルを表示（spotが変化したときに判定）
   useEffect(() => {
@@ -573,8 +613,7 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
 
   useEffect(() => {
     if (spot) {
-      setActiveTab("overview"); // スポットが変わったらタブをリセット
-      setDragY(0);
+      setActiveTab("photos"); // スポットが変わったら写真タブから
       requestAnimationFrame(() => {
         setIsVisible(true);
       });
@@ -588,40 +627,7 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
     setTimeout(onClose, 300);
   };
 
-  // ドラッグ開始
-  const handleTouchStart = (e: React.TouchEvent) => {
-    startY.current = e.touches[0].clientY;
-    setIsDragging(true);
-  };
-
-  // ドラッグ中
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging) return;
-    const currentY = e.touches[0].clientY;
-    const diff = currentY - startY.current;
-    setDragY(diff);
-  };
-
-  // ドラッグ終了
-  const handleTouchEnd = () => {
-    setIsDragging(false);
-    
-    // 下に80px以上ドラッグ → 閉じる
-    if (dragY > 80) {
-      handleClose();
-    }
-    setDragY(0);
-  };
-
-  // シートの高さ（常に全面表示）
-  const sheetHeight = "92vh";
-  
-  // transformはシートを下に動かす場合のみ使用
-  const getTransform = () => {
-    if (!isVisible) return "translateY(100%)";
-    if (dragY > 0) return `translateY(${dragY}px)`;
-    return "translateY(0)";
-  };
+  const getTransform = () => (isVisible ? "translateY(0)" : "translateY(100%)");
 
   if (!spot) return null;
 
@@ -632,105 +638,93 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
 
   return (
     <>
-      {/* オーバーレイ */}
+      {/* オーバーレイ（下部タブの上まで。タブは暗くしない） */}
       <div
-        className={`fixed inset-0 bg-black z-40 transition-opacity duration-300 ${
-          isVisible ? "opacity-30" : "opacity-0"
+        className={`fixed left-0 right-0 top-0 z-50 bg-black transition-opacity duration-300 ${
+          isVisible ? "opacity-30" : "pointer-events-none opacity-0"
         }`}
+        style={{ bottom: sheetBottomInset }}
         onClick={handleClose}
       />
 
-      {/* シート */}
+      {/* シート（メイン下部タブの直上から表示） */}
       <div
-        ref={sheetRef}
         style={{
           position: "fixed",
-          bottom: 0,
+          bottom: sheetBottomInset,
           left: 0,
           right: 0,
-          zIndex: 50,
+          zIndex: 55,
           backgroundColor: "white",
           borderTopLeftRadius: "24px",
           borderTopRightRadius: "24px",
-          height: sheetHeight,
+          height: sheetHeightLimit,
+          maxHeight: sheetHeightLimit,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
           boxShadow: "0 -4px 20px rgba(0, 0, 0, 0.15)",
           transform: getTransform(),
-          transition: isDragging ? "none" : "transform 0.3s ease-out, height 0.3s ease-out",
+          transition: "transform 0.3s ease-out, height 0.3s ease-out",
         }}
       >
-        {/* ハンドル（ドラッグ可能エリア）とバツボタン */}
-        <div 
-          style={{ 
-            display: "flex", 
+        {/* 閉じる・お気に入り（ドラッグハンドルなし） */}
+        <div
+          style={{
+            flexShrink: 0,
+            display: "flex",
             alignItems: "center",
-            justifyContent: "center", 
-            paddingTop: "20px", 
-            paddingBottom: "12px",
-            position: "relative",
+            justifyContent: "flex-end",
+            gap: "4px",
+            paddingTop: "12px",
+            paddingRight: "16px",
+            paddingLeft: "16px",
           }}
         >
-          {/* ドラッグ可能エリア */}
-          <div
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              top: 0,
-              bottom: 0,
-              cursor: "grab",
-              touchAction: "none",
-            }}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          />
-          {/* ハンドルバー */}
-          <div style={{ width: "48px", height: "6px", backgroundColor: "#d1d5db", borderRadius: "9999px" }} />
-          {/* 右側ボタン群 */}
-          <div style={{ position: "absolute", right: "16px", display: "flex", alignItems: "center", gap: "4px", zIndex: 10 }}>
-            {/* ハートボタン */}
-            {onToggleFavorite && spot && (
-              <button
-                onClick={() => onToggleFavorite(spot.id)}
-                style={{
-                  padding: "8px",
-                  borderRadius: "9999px",
-                  background: "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "transform 0.15s",
-                }}
-              >
-                <svg width="26" height="26" viewBox="0 0 24 24" fill={isFavorite ? "#ef4444" : "none"} stroke={isFavorite ? "#ef4444" : "#9ca3af"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                </svg>
-              </button>
-            )}
-            {/* バツボタン */}
+          {onToggleFavorite && spot && (
             <button
-              onClick={handleClose}
-              style={{ 
-                padding: "8px", 
-                borderRadius: "9999px", 
-                background: "transparent", 
-                border: "none", 
+              type="button"
+              onClick={() => onToggleFavorite(spot.id)}
+              style={{
+                padding: "8px",
+                borderRadius: "9999px",
+                background: "transparent",
+                border: "none",
                 cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "transform 0.15s",
               }}
             >
-              <CloseIcon size={24} color="#666" />
+              <svg width="26" height="26" viewBox="0 0 24 24" fill={isFavorite ? "#ef4444" : "none"} stroke={isFavorite ? "#ef4444" : "#9ca3af"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
             </button>
-          </div>
+          )}
+          <button
+            type="button"
+            onClick={handleClose}
+            style={{
+              padding: "8px",
+              borderRadius: "9999px",
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            <CloseIcon size={24} color="#666" />
+          </button>
         </div>
 
-        {/* ヘッダー（固定） */}
+        {/* ヘッダー（固定・高さ可変） */}
         <div 
           style={{ 
+            flexShrink: 0,
             paddingLeft: "24px",
             paddingRight: "24px",
             paddingBottom: "16px",
+            paddingTop: "4px",
           }}
         >
           <div>
@@ -799,7 +793,7 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
                     👆 タブで情報を切り替え！
                   </p>
                   <p style={{ fontSize: "12px", color: "#6b7280", margin: 0, lineHeight: 1.5 }}>
-                    口コミ・写真・予約情報も確認できます
+                    写真・概要・口コミ・予約を切り替えられます
                   </p>
                 </div>
                 {/* 矢印 */}
@@ -816,6 +810,11 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
             )}
             <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb" }}>
               <TabButton
+                label="写真"
+                isActive={activeTab === "photos"}
+                onClick={() => handleTabChange("photos")}
+              />
+              <TabButton
                 label="概要"
                 isActive={activeTab === "overview"}
                 onClick={() => handleTabChange("overview")}
@@ -826,11 +825,6 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
                 onClick={() => handleTabChange("reviews")}
               />
               <TabButton
-                label="写真"
-                isActive={activeTab === "photos"}
-                onClick={() => handleTabChange("photos")}
-              />
-              <TabButton
                 label="予約"
                 isActive={activeTab === "reservation"}
                 onClick={() => handleTabChange("reservation")}
@@ -839,20 +833,22 @@ export default function SpotDetailSheet({ spot, onClose, isFavorite = false, onT
           </div>
         </div>
 
-        {/* タブコンテンツ（スクロール可能） */}
+        {/* タブコンテンツ（ヘッダー以外の残り領域をスクロール） */}
         <div 
-          className="overflow-y-auto" 
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain" 
           style={{ 
-            maxHeight: `calc(${sheetHeight} - 160px)`,
             paddingLeft: "24px",
             paddingRight: "24px",
             paddingTop: "16px",
-            paddingBottom: "100px",
+            paddingBottom: "max(48px, calc(32px + env(safe-area-inset-bottom, 0px)))",
+            WebkitOverflowScrolling: "touch",
           }}
         >
-          {activeTab === "overview" && <OverviewTab spot={spot} isLoadingInfo={isLoadingInfo} />}
-          {activeTab === "reviews" && <ReviewsTab spot={spot} />}
           {activeTab === "photos" && <PhotosTab spot={spot} />}
+          {activeTab === "overview" && (
+            <OverviewTab spot={spot} isLoadingInfo={isLoadingInfo} onShowMap={onShowMap} />
+          )}
+          {activeTab === "reviews" && <ReviewsTab spot={spot} />}
           {activeTab === "reservation" && <ReservationTab spot={spot} />}
         </div>
       </div>

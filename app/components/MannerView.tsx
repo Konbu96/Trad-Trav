@@ -24,6 +24,7 @@ interface MannerViewProps {
   onOpenLocationSettings?: () => void;
   preferredTab?: HelpfulTabId | null;
   onPreferredTabApplied?: () => void;
+  onTutorialAction?: (actionId: string) => void;
 }
 
 type HelperMessage = {
@@ -104,6 +105,7 @@ export default function MannerView({
   onOpenLocationSettings,
   preferredTab = null,
   onPreferredTabApplied,
+  onTutorialAction,
 }: MannerViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -354,7 +356,11 @@ export default function MannerView({
               return (
                 <button
                   key={tab.id}
-                  onClick={() => handleChangeTab(tab.id)}
+                  onClick={() => {
+                    onTutorialAction?.(`manner.tab.${tab.id}`);
+                    handleChangeTab(tab.id);
+                  }}
+                  data-tutorial-id={`manner.tab.${tab.id}`}
                   style={{
                     borderRadius: "16px",
                     padding: "11px 8px",
@@ -504,7 +510,11 @@ export default function MannerView({
       )}
 
       <button
-        onClick={() => setIsHelperOpen(true)}
+        onClick={() => {
+          onTutorialAction?.("manner.ai-button");
+          setIsHelperOpen(true);
+        }}
+        data-tutorial-id="manner.ai-button"
         style={{
           position: "absolute",
           right: "20px",

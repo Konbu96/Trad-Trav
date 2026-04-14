@@ -508,6 +508,7 @@ export default function PlanView({
           isFavorite={favoriteSpotIds.includes(selectedSpot.id)}
           onToggleFavorite={() => onToggleFavorite(selectedSpot.id)}
           onOpenLanguageHelper={onOpenLanguageHelper}
+          reserveMainBottomNav={false}
         />
       )}
     </div>

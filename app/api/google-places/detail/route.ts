@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPhotoUri } from "../_lib/photo";
+import { placesPhotoProxyUrl } from "../_lib/photo";
 
 type GooglePlaceReview = {
   rating?: number;
@@ -45,7 +45,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=ja&regionCode=JP`, {
+    const id = placeId.replace(/^places\//, "");
+    const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(id)}?languageCode=ja&regionCode=JP`, {
       headers: {
         "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask": [
@@ -85,8 +86,7 @@ export async function GET(req: NextRequest) {
       .filter((name): name is string => Boolean(name))
       .slice(0, 8);
 
-    const photos = (await Promise.all(photoNames.map(photoName => getPhotoUri(apiKey, photoName))))
-      .filter((uri): uri is string => Boolean(uri));
+    const photos = photoNames.map((photoName) => placesPhotoProxyUrl(photoName));
 
     return NextResponse.json({
       name: data.displayName?.text,

@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type Spot } from "../data/spots";
 import { TRADITIONAL_GENRES, type TraditionalGenreId } from "../data/traditionalGenres";
 import SpotDetailSheet from "./SpotDetailSheet";
 import type { SearchLocation } from "./SearchBar";
+import { LocationIcon, TravelGuideIcon } from "./icons";
 
 const MapView = dynamic(() => import("./MapView"), {
   ssr: false,
@@ -23,6 +24,9 @@ const MapView = dynamic(() => import("./MapView"), {
 const GENRES = TRADITIONAL_GENRES;
 type GenreId = TraditionalGenreId;
 
+/** トップ一覧のジャンル棚に並べる最大件数 */
+const GENRE_SHELF_PREVIEW_MAX = 5;
+
 interface MapTabViewProps {
   onSpotView: (spot: { id: number; name: string; category: string }) => void;
   jumpToSpotId: number | null;
@@ -31,7 +35,10 @@ interface MapTabViewProps {
   onToggleFavorite: (spotId: number) => void;
   recommendedSpotIds: number[] | null;
   onOpenLanguageHelper?: (spotName: string) => void;
+  /** お役立ちの「旅ガイド」タブへ */
+  onOpenTravelGuide?: () => void;
   resetToSearchKey?: number;
+  onTutorialAction?: (actionId: string) => void;
 }
 
 type SearchPanelSpot = Spot & { placeId?: string; source?: "google" };
@@ -40,6 +47,10 @@ type GoogleSearchResponse = {
   locations?: SearchLocation[];
   error?: string;
 };
+
+type CuratedGenreFetchResult =
+  | { ok: true; locations: SearchLocation[] }
+  | { ok: false; error: string };
 
 type GooglePlaceDetailResponse = {
   name?: string;
@@ -58,13 +69,16 @@ interface SpotShelfCardProps {
   spot: SearchPanelSpot | Spot;
   fallbackEmoji: string;
   onOpen: () => void;
+  onJumpToMap: () => void;
+  onOpenGuide: () => void;
 }
 
 interface SpotGridCardProps {
   spot: SearchPanelSpot | Spot;
   fallbackEmoji: string;
   onOpen: () => void;
-  onShowMap: () => void;
+  onJumpToMap: () => void;
+  onOpenGuide: () => void;
 }
 
 function getSearchCategory(category?: string, type?: string): string {
@@ -102,68 +116,113 @@ function getFallbackEmojiByCategory(category: string) {
   return GENRES.find((genre) => genre.label === category)?.emoji || "📍";
 }
 
-function SpotShelfCard({ spot, fallbackEmoji, onOpen }: SpotShelfCardProps) {
+const shelfActionBtnStyle: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "1px",
+  padding: "3px 2px",
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+};
+
+function SpotShelfCard({ spot, fallbackEmoji, onOpen, onJumpToMap, onOpenGuide }: SpotShelfCardProps) {
   const primaryPhoto = getPrimaryPhoto(spot);
+  const [photoFailed, setPhotoFailed] = useState(false);
+
+  useEffect(() => {
+    setPhotoFailed(false);
+  }, [primaryPhoto]);
+
+  const showImage = Boolean(primaryPhoto) && !photoFailed;
 
   return (
-    <button
-      onClick={onOpen}
-      className="shrink-0 overflow-hidden bg-white text-left"
+    <div
+      className="shrink-0 overflow-hidden bg-white"
       style={{
-        width: "104px",
+        width: "126px",
         borderRadius: "24px",
         border: "1px solid #ececec",
         boxShadow: "0 4px 14px rgba(15,23,42,0.08)",
       }}
     >
-      <div style={{ position: "relative", aspectRatio: "1 / 1", background: "linear-gradient(135deg, #f6d7b8, #f3b6c3)" }}>
-        {primaryPhoto ? (
-          // Google Places photo URLs are resolved at runtime and are not preconfigured for next/image.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={primaryPhoto}
-            alt={spot.name}
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-white" style={{ fontSize: "36px" }}>
-            {fallbackEmoji}
-          </div>
-        )}
-      </div>
-      <div style={{ padding: "10px 8px 12px" }}>
-        <p
-          className="line-clamp-2"
-          style={{
-            fontSize: "12px",
-            lineHeight: "1.35",
-            fontWeight: 700,
-            color: "#374151",
-            textAlign: "center",
-            minHeight: "32px",
-          }}
-        >
-          {spot.name}
-        </p>
-      </div>
-    </button>
-  );
-}
-
-function SpotGridCard({ spot, fallbackEmoji, onOpen, onShowMap }: SpotGridCardProps) {
-  const primaryPhoto = getPrimaryPhoto(spot);
-
-  return (
-    <div className="overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: "1px solid #f3f4f6" }}>
-      <button onClick={onOpen} className="block w-full text-left">
+      <button type="button" onClick={onOpen} className="block w-full text-left">
         <div style={{ position: "relative", aspectRatio: "1 / 1", background: "linear-gradient(135deg, #f6d7b8, #f3b6c3)" }}>
-          {primaryPhoto ? (
+          {showImage ? (
             // Google Places photo URLs are resolved at runtime and are not preconfigured for next/image.
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={primaryPhoto}
+              src={primaryPhoto!}
               alt={spot.name}
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              onError={() => setPhotoFailed(true)}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-white" style={{ fontSize: "36px" }}>
+              {fallbackEmoji}
+            </div>
+          )}
+        </div>
+      </button>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "stretch",
+          padding: "4px 4px 5px",
+        }}
+      >
+        <button type="button" onClick={onJumpToMap} aria-label="地図へ" style={shelfActionBtnStyle}>
+          <LocationIcon size={14} color="#e88fa3" />
+          <span style={{ fontSize: "9px", fontWeight: 700, color: "#374151", lineHeight: 1.1 }}>地図</span>
+        </button>
+        <div
+          style={{
+            width: "1px",
+            alignSelf: "stretch",
+            flexShrink: 0,
+            backgroundColor: "#e5e7eb",
+            margin: "2px 0",
+          }}
+          aria-hidden
+        />
+        <button type="button" onClick={onOpenGuide} aria-label="ガイドへ" style={shelfActionBtnStyle}>
+          <TravelGuideIcon size={14} color="#e88fa3" />
+          <span style={{ fontSize: "9px", fontWeight: 700, color: "#374151", lineHeight: 1.1 }}>ガイド</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SpotGridCard({ spot, fallbackEmoji, onOpen, onJumpToMap, onOpenGuide }: SpotGridCardProps) {
+  const primaryPhoto = getPrimaryPhoto(spot);
+  const [photoFailed, setPhotoFailed] = useState(false);
+
+  useEffect(() => {
+    setPhotoFailed(false);
+  }, [primaryPhoto]);
+
+  const showImage = Boolean(primaryPhoto) && !photoFailed;
+
+  const jumpBtnClass =
+    "flex flex-1 flex-col items-center justify-center gap-0.5 border-0 bg-transparent py-1 text-xs font-bold leading-tight";
+
+  return (
+    <div className="overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: "1px solid #f3f4f6" }}>
+      <button type="button" onClick={onOpen} className="block w-full text-left">
+        <div style={{ position: "relative", aspectRatio: "1 / 1", background: "linear-gradient(135deg, #f6d7b8, #f3b6c3)" }}>
+          {showImage ? (
+            // Google Places photo URLs are resolved at runtime and are not preconfigured for next/image.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={primaryPhoto!}
+              alt={spot.name}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              onError={() => setPhotoFailed(true)}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-white" style={{ fontSize: "40px" }}>
@@ -174,22 +233,26 @@ function SpotGridCard({ spot, fallbackEmoji, onOpen, onShowMap }: SpotGridCardPr
       </button>
 
       <div className="p-3">
-        <p className="line-clamp-2 text-sm font-bold leading-snug text-gray-900">{spot.name}</p>
+        <div className="flex items-stretch">
+          <button type="button" onClick={onJumpToMap} className={jumpBtnClass} style={{ color: "#e88fa3" }}>
+            <LocationIcon size={18} color="#e88fa3" />
+            地図へ
+          </button>
+          <div className="my-0.5 w-px shrink-0 self-stretch bg-gray-200" aria-hidden />
+          <button type="button" onClick={onOpenGuide} className={jumpBtnClass} style={{ color: "#e88fa3" }}>
+            <TravelGuideIcon size={18} color="#e88fa3" />
+            ガイドへ
+          </button>
+        </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-2">
+        <div className="mt-2">
           <button
+            type="button"
             onClick={onOpen}
-            className="rounded-xl px-3 py-2 text-xs font-semibold"
+            className="w-full rounded-xl px-3 py-2 text-xs font-semibold"
             style={{ color: "#e88fa3", border: "1px solid #f3b6c3" }}
           >
             詳細を見る
-          </button>
-          <button
-            onClick={onShowMap}
-            className="rounded-xl px-3 py-2 text-xs font-semibold text-white"
-            style={{ backgroundColor: "#e88fa3" }}
-          >
-            地図で見る
           </button>
         </div>
       </div>
@@ -205,7 +268,9 @@ export default function MapTabView({
   onToggleFavorite,
   recommendedSpotIds,
   onOpenLanguageHelper,
+  onOpenTravelGuide,
   resetToSearchKey = 0,
+  onTutorialAction,
 }: MapTabViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -220,6 +285,7 @@ export default function MapTabView({
   const [genreResults, setGenreResults] = useState<Partial<Record<GenreId, SearchPanelSpot[]>>>({});
   const [genreLocations, setGenreLocations] = useState<Partial<Record<GenreId, SearchLocation[]>>>({});
   const [genreLoading, setGenreLoading] = useState<Partial<Record<GenreId, boolean>>>({});
+  const [genreErrors, setGenreErrors] = useState<Partial<Record<GenreId, string>>>({});
   const [isSearching, setIsSearching] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
@@ -242,9 +308,16 @@ export default function MapTabView({
     const res = await fetch(`/api/google-places/curated?genre=${encodeURIComponent(genreId)}`);
     const data: GoogleSearchResponse = await res.json();
     if (!res.ok) {
-      throw new Error(data.error || "curated search failed");
+      return {
+        ok: false as const,
+        error: data.error || "curated search failed",
+      };
     }
-    return data.locations || [];
+
+    return {
+      ok: true as const,
+      locations: data.locations || [],
+    };
   }, []);
 
   const enrichSpotDetail = useCallback(async (spot: SearchPanelSpot | Spot) => {
@@ -299,21 +372,91 @@ export default function MapTabView({
 
   const loadGenre = useCallback(async (genreId: GenreId) => {
     const genre = GENRES.find(item => item.id === genreId);
-    if (!genre || genreResults[genreId] || genreLoading[genreId]) return;
+    const hasLoadedGenre = Object.prototype.hasOwnProperty.call(genreResults, genreId);
+    if (!genre || (hasLoadedGenre && !genreErrors[genreId]) || genreLoading[genreId]) return;
 
     setGenreLoading(prev => ({ ...prev, [genreId]: true }));
+    setGenreErrors(prev => {
+      const next = { ...prev };
+      delete next[genreId];
+      return next;
+    });
     try {
-      const locations = await fetchCuratedGenreLocations(genreId);
+      const result = await fetchCuratedGenreLocations(genreId);
+      if (!result.ok) {
+        setGenreLocations(prev => ({ ...prev, [genreId]: [] }));
+        setGenreResults(prev => {
+          const next = { ...prev };
+          delete next[genreId];
+          return next;
+        });
+        setGenreErrors(prev => ({
+          ...prev,
+          [genreId]: "このジャンルの候補を取得できませんでした。時間をおいて再度お試しください。",
+        }));
+        return;
+      }
+
+      const locations = result.locations;
       setGenreLocations(prev => ({ ...prev, [genreId]: locations }));
       setGenreResults(prev => ({ ...prev, [genreId]: locations.map(searchLocationToPanelSpot) }));
     } catch (error) {
-      console.error("genre google search error:", error);
+      console.warn("genre google search error:", error);
       setGenreLocations(prev => ({ ...prev, [genreId]: [] }));
-      setGenreResults(prev => ({ ...prev, [genreId]: [] }));
+      setGenreResults(prev => {
+        const next = { ...prev };
+        delete next[genreId];
+        return next;
+      });
+      setGenreErrors(prev => ({
+        ...prev,
+        [genreId]: "このジャンルの候補を取得できませんでした。時間をおいて再度お試しください。",
+      }));
     } finally {
       setGenreLoading(prev => ({ ...prev, [genreId]: false }));
     }
-  }, [fetchCuratedGenreLocations, genreLoading, genreResults]);
+  }, [fetchCuratedGenreLocations, genreErrors, genreLoading, genreResults]);
+
+  /** 「もっと見る」・URL直叩き用。キュレーション全件＋検索で最大30件 */
+  const loadGenreExpanded = useCallback(async (genreId: GenreId) => {
+    const genre = GENRES.find(item => item.id === genreId);
+    if (!genre) return;
+
+    setGenreLoading(prev => ({ ...prev, [genreId]: true }));
+    setGenreErrors(prev => {
+      const next = { ...prev };
+      delete next[genreId];
+      return next;
+    });
+    try {
+      const res = await fetch(`/api/google-places/curated?genre=${encodeURIComponent(genreId)}&expanded=1`);
+      const data: GoogleSearchResponse = await res.json();
+      if (!res.ok) {
+        setGenreLocations(prev => ({ ...prev, [genreId]: [] }));
+        setGenreResults(prev => {
+          const next = { ...prev };
+          delete next[genreId];
+          return next;
+        });
+        setGenreErrors(prev => ({
+          ...prev,
+          [genreId]: "このジャンルの候補を取得できませんでした。時間をおいて再度お試しください。",
+        }));
+        return;
+      }
+      const locations = data.locations || [];
+      setGenreLocations(prev => ({ ...prev, [genreId]: locations }));
+      setGenreResults(prev => ({ ...prev, [genreId]: locations.map(searchLocationToPanelSpot) }));
+    } catch (error) {
+      console.warn("genre expanded load error:", error);
+      setGenreErrors(prev => ({
+        ...prev,
+        [genreId]: "このジャンルの候補を取得できませんでした。時間をおいて再度お試しください。",
+      }));
+    } finally {
+      setGenreLoading(prev => ({ ...prev, [genreId]: false }));
+    }
+  }, []);
 
   const handleSearch = async () => {
     setHasSearched(true);
@@ -354,11 +497,20 @@ export default function MapTabView({
 
   useEffect(() => {
     if (!hasSearched) {
+      const urlGenre = searchParams.get("genre");
+      const skipPreview =
+        urlGenre && GENRES.some((g) => g.id === urlGenre) ? (urlGenre as GenreId) : null;
       GENRES.forEach((genre) => {
+        if (skipPreview && genre.id === skipPreview) return;
         void loadGenre(genre.id);
       });
     }
-  }, [hasSearched, loadGenre]);
+  }, [hasSearched, loadGenre, searchParams]);
+
+  useEffect(() => {
+    if (hasSearched || !selectedGenre) return;
+    void loadGenreExpanded(selectedGenre);
+  }, [hasSearched, selectedGenre, loadGenreExpanded]);
 
   useEffect(() => {
     if (!resetToSearchKey) return;
@@ -371,6 +523,7 @@ export default function MapTabView({
     setHasSearched(false);
     setSearchResults([]);
     setSearchResultLocations(null);
+    setGenreErrors({});
 
     const params = new URLSearchParams(searchParams.toString());
     params.delete("genre");
@@ -412,6 +565,62 @@ export default function MapTabView({
     return [...orderedSections, ...otherSections];
   }, [displayedSpots]);
 
+  const renderGenreState = (
+    genreId: GenreId,
+    spots: SearchPanelSpot[],
+    isGenreLoading?: boolean,
+    expandedRetry?: boolean
+  ) => {
+    const genreError = genreErrors[genreId];
+
+    if (isGenreLoading) {
+      return (
+        <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div
+              key={index}
+              className="shrink-0 overflow-hidden bg-white shadow-sm animate-pulse"
+              style={{ width: "126px", borderRadius: "24px", border: "1px solid #ececec" }}
+            >
+              <div style={{ aspectRatio: "1 / 1", backgroundColor: "#f3f4f6" }} />
+              <div style={{ padding: "4px 4px 6px" }}>
+                <div className="mx-auto h-2 w-16 rounded bg-gray-100" />
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (genreError) {
+      return (
+        <div
+          className="rounded-3xl bg-white px-4 py-5 shadow-sm"
+          style={{ border: "1px solid #fecdd3" }}
+        >
+          <p style={{ fontSize: "13px", color: "#991b1b", lineHeight: "1.8" }}>{genreError}</p>
+          <button
+            onClick={() => void (expandedRetry ? loadGenreExpanded(genreId) : loadGenre(genreId))}
+            className="mt-3 rounded-full px-3 py-1 text-xs font-semibold"
+            style={{ border: "1px solid #f3d1da", color: "#e88fa3", backgroundColor: "#fff" }}
+          >
+            もう一度読み込む
+          </button>
+        </div>
+      );
+    }
+
+    if (spots.length === 0) {
+      return (
+        <div className="rounded-3xl bg-white px-4 py-6 text-sm text-gray-500 shadow-sm" style={{ border: "1px solid #f3f4f6" }}>
+          いまはこのジャンルの候補が見つかっていません。
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   const openGenrePage = (genreId: GenreId) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("genre", genreId);
@@ -443,6 +652,7 @@ export default function MapTabView({
     setMapSearchLocations(null);
     setLocalJumpId(spot.id);
     setActiveSubTab("map");
+    setSelectedSpot(null);
     onSpotView({ id: spot.id, name: spot.name, category: spot.category });
   };
 
@@ -483,7 +693,11 @@ export default function MapTabView({
             return (
               <button
                 key={tab}
-                onClick={() => setActiveSubTab(tab)}
+                onClick={() => {
+                  onTutorialAction?.(`map.subtab.${tab}`);
+                  setActiveSubTab(tab);
+                }}
+                data-tutorial-id={`map.subtab.${tab}`}
                 className="flex-1 text-sm font-medium border-b-2 transition-colors"
                 style={{
                   padding: "12px 8px",
@@ -522,7 +736,7 @@ export default function MapTabView({
         {activeSubTab === "search" && (
           <div className="absolute inset-0 bg-gray-50 overflow-y-auto" style={{ paddingBottom: "80px" }}>
             <div
-              className="px-4 pt-4 pb-4"
+              className="px-2 pt-4 pb-4"
               style={{
                 backgroundColor: "white",
                 borderBottom: "1px solid #f7dfe5",
@@ -541,8 +755,10 @@ export default function MapTabView({
                     type="text"
                     value={keyword}
                     onChange={e => setKeyword(e.target.value)}
+                    onFocus={() => onTutorialAction?.("map.search-input")}
                     onKeyDown={e => { if (e.key === "Enter") void handleSearch(); }}
                     placeholder="スポットで探す"
+                    data-tutorial-id="map.search-input"
                     className="flex-1 bg-transparent text-sm outline-none text-gray-800"
                   />
                   {keyword && (
@@ -557,7 +773,7 @@ export default function MapTabView({
               </div>
             </div>
 
-            <div className="px-4 pt-4">
+            <div className="px-1 pt-4">
               {hasSearched && (
                 <div className="mb-4 flex items-start justify-between gap-4">
                   <div>
@@ -588,7 +804,9 @@ export default function MapTabView({
                     <span style={{ fontSize: "18px", lineHeight: 1 }}>←</span>
                     一覧へ戻る
                   </button>
-                  <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#ef7e8d" }}>{selectedGenreConfig.label}</h2>
+                  <h2 className="pl-3" style={{ fontSize: "18px", fontWeight: 800, color: "#ef7e8d" }}>
+                    {selectedGenreConfig.label}
+                  </h2>
                 </div>
               )}
 
@@ -611,18 +829,20 @@ export default function MapTabView({
                 <div className="space-y-8">
                   {groupedSearchSections.map((section) => (
                     <section key={section.label}>
-                      <div className="mb-3">
+                      <div className="mb-3 pl-3">
                         <h2 style={{ fontSize: "17px", fontWeight: 800, color: "#ef7e8d", lineHeight: 1.2 }}>
                           {section.label}
                         </h2>
                       </div>
-                      <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
+                      <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
                         {section.spots.map((spot) => (
                           <SpotShelfCard
                             key={spot.id}
                             spot={spot}
                             fallbackEmoji={getFallbackEmojiByCategory(section.label)}
                             onOpen={() => openSpotDetail(spot)}
+                            onJumpToMap={() => handleSearchResultClick(spot, displayedLocations)}
+                            onOpenGuide={() => onOpenTravelGuide?.()}
                           />
                         ))}
                       </div>
@@ -630,27 +850,41 @@ export default function MapTabView({
                   ))}
                 </div>
               ) : selectedGenreConfig ? (
-                <div className="grid grid-cols-2 gap-4">
-                  {(genreResults[selectedGenreConfig.id] || []).map((spot) => (
-                    <SpotGridCard
-                      key={spot.id}
-                      spot={spot}
-                      fallbackEmoji={selectedGenreConfig.emoji}
-                      onOpen={() => openSpotDetail(spot)}
-                      onShowMap={() => handleSearchResultClick(spot, genreLocations[selectedGenreConfig.id] || null)}
-                    />
-                  ))}
-                </div>
+                <>
+                  {renderGenreState(
+                    selectedGenreConfig.id,
+                    genreResults[selectedGenreConfig.id] || [],
+                    genreLoading[selectedGenreConfig.id],
+                    true
+                  )}
+                  {!genreLoading[selectedGenreConfig.id] && !genreErrors[selectedGenreConfig.id] && (
+                    <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+                      {(genreResults[selectedGenreConfig.id] || []).map((spot) => (
+                        <SpotGridCard
+                          key={spot.id}
+                          spot={spot}
+                          fallbackEmoji={selectedGenreConfig.emoji}
+                          onOpen={() => openSpotDetail(spot)}
+                          onJumpToMap={() =>
+                            handleSearchResultClick(spot, genreLocations[selectedGenreConfig.id] || null)
+                          }
+                          onOpenGuide={() => onOpenTravelGuide?.()}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="space-y-8">
                   {GENRES.map((genre) => {
-                    const spots = genreResults[genre.id] || [];
+                    const allSpots = genreResults[genre.id] || [];
+                    const shelfSpots = allSpots.slice(0, GENRE_SHELF_PREVIEW_MAX);
                     const isGenreLoading = genreLoading[genre.id];
 
                     return (
                       <section key={genre.id}>
                         <div className="mb-3 flex items-center justify-between gap-4">
-                          <div>
+                          <div className="pl-3 min-w-0">
                             <h2 style={{ fontSize: "17px", fontWeight: 800, color: "#ef7e8d", lineHeight: 1.2 }}>{genre.label}</h2>
                           </div>
                           <button
@@ -662,37 +896,18 @@ export default function MapTabView({
                           </button>
                         </div>
 
-                        {isGenreLoading && (
-                          <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
-                            {Array.from({ length: 5 }).map((_, index) => (
-                              <div
-                                key={index}
-                                className="shrink-0 overflow-hidden bg-white shadow-sm animate-pulse"
-                                style={{ width: "104px", borderRadius: "24px", border: "1px solid #ececec" }}
-                              >
-                                <div style={{ aspectRatio: "1 / 1", backgroundColor: "#f3f4f6" }} />
-                                <div style={{ padding: "10px 8px 12px" }}>
-                                  <div className="h-3 w-20 rounded bg-gray-100 mx-auto" />
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        {renderGenreState(genre.id, allSpots, isGenreLoading)}
 
-                        {!isGenreLoading && spots.length === 0 && (
-                          <div className="rounded-3xl bg-white px-4 py-6 text-sm text-gray-500 shadow-sm" style={{ border: "1px solid #f3f4f6" }}>
-                            いまはこのジャンルの候補が見つかっていません。
-                          </div>
-                        )}
-
-                        {!isGenreLoading && spots.length > 0 && (
-                          <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
-                            {spots.map((spot) => (
+                        {!isGenreLoading && !genreErrors[genre.id] && allSpots.length > 0 && (
+                          <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
+                            {shelfSpots.map((spot) => (
                               <SpotShelfCard
                                 key={spot.id}
                                 spot={spot}
                                 fallbackEmoji={genre.emoji}
                                 onOpen={() => openSpotDetail(spot)}
+                                onJumpToMap={() => handleSearchResultClick(spot, genreLocations[genre.id] || null)}
+                                onOpenGuide={() => onOpenTravelGuide?.()}
                               />
                             ))}
                           </div>
@@ -716,6 +931,25 @@ export default function MapTabView({
           isFavorite={favoriteSpotIds.includes(selectedSpot.id)}
           onToggleFavorite={() => onToggleFavorite(selectedSpot.id)}
           onOpenLanguageHelper={onOpenLanguageHelper}
+          onShowMap={() => {
+            const spot = selectedSpot;
+            if (!spot) return;
+            let locs: SearchLocation[] | null = null;
+            if (hasSearched) {
+              locs = searchResultLocations;
+            } else if (selectedGenreConfig) {
+              locs = genreLocations[selectedGenreConfig.id] || null;
+            } else {
+              for (const g of GENRES) {
+                const spots = genreResults[g.id] || [];
+                if (spots.some((s) => s.id === spot.id)) {
+                  locs = genreLocations[g.id] || null;
+                  break;
+                }
+              }
+            }
+            handleSearchResultClick(spot, locs);
+          }}
         />
       )}
     </div>

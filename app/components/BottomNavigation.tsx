@@ -3,6 +3,9 @@
 import type { ScreenType } from "../page";
 import { useLanguage } from "../i18n/LanguageContext";
 
+/** メイン下部タブの高さ＋ホームインジケータ分。詳細シート等をタブの上に収めるときに使う */
+export const MAIN_TAB_BAR_BOTTOM_INSET = "calc(84px + env(safe-area-inset-bottom, 0px))";
+
 interface NavItem {
   id: ScreenType;
   labelKey: "map" | "now" | "manner" | "mypage";
@@ -65,9 +68,10 @@ const navItems: NavItem[] = [
 interface BottomNavigationProps {
   currentScreen: ScreenType;
   onScreenChange: (screen: ScreenType) => void;
+  onTutorialAction?: (actionId: string) => void;
 }
 
-export default function BottomNavigation({ currentScreen, onScreenChange }: BottomNavigationProps) {
+export default function BottomNavigation({ currentScreen, onScreenChange, onTutorialAction }: BottomNavigationProps) {
   const { t } = useLanguage();
 
   return (
@@ -82,7 +86,11 @@ export default function BottomNavigation({ currentScreen, onScreenChange }: Bott
             return (
               <li key={item.id} className="flex-1">
                 <button
-                  onClick={() => onScreenChange(item.id)}
+                  onClick={() => {
+                    onTutorialAction?.(`nav.${item.id}`);
+                    onScreenChange(item.id);
+                  }}
+                  data-tutorial-id={`nav.${item.id}`}
                   className={`w-full flex flex-col items-center gap-1 py-2 transition-colors ${
                     isActive ? "text-pink-500" : "text-gray-500"
                   }`}

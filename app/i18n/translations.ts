@@ -32,8 +32,9 @@ export const translations = {
 
     // 診断
     diagnosis: {
-      title: "旅の好み診断",
+      title: "診断",
       subtitle: "あなたにぴったりの旅をご提案",
+      cancelDiagnosis: "診断を中止",
       resultTitle: "診断結果",
       resultSubtitle: "あなたにぴったりのプラン",
       
@@ -107,10 +108,16 @@ export const translations = {
       title: "マイページ",
       editName: "タップして名前を編集",
       guest: "ゲスト",
-      
+      guestTravelerNameLabel: "ゲストトラベラーネーム",
+      accountDisplayNameLabel: "表示名",
+      saveDisplayNameFailed: "名前の保存に失敗しました。もう一度お試しください。",
+
       travelType: "あなたの旅行タイプ",
       viewHistory: "閲覧履歴",
       noHistory: "まだ履歴がありません",
+      favorites: "お気に入り",
+      noFavorites: "まだお気に入りがありません",
+      removeFavorite: "解除",
       
       settings: "設定",
       notifications: "通知",
@@ -125,6 +132,13 @@ export const translations = {
       terms: "利用規約",
       privacy: "プライバシーポリシー",
       logout: "ログアウト",
+
+      playerProgressLevel: "Lv.{level}",
+      playerProgressBadges: "バッジ",
+      playerProgressGuestHint: "ログインすると進捗がクラウドに保存されます（ゲストはこの端末のみ）。",
+      playerXpToNext: "次のレベルまであと {n} 経験値",
+      playerXpCurrent: "現在 {xp} 経験値",
+      playerLevelSummaryAria: "現在のレベルと経験値のリング表示",
     },
 
     // 言語ヘルパー
@@ -206,8 +220,9 @@ export const translations = {
 
     // Diagnosis
     diagnosis: {
-      title: "Travel Preference Quiz",
+      title: "Diagnosis",
       subtitle: "Find your perfect trip",
+      cancelDiagnosis: "Cancel diagnosis",
       resultTitle: "Your Result",
       resultSubtitle: "Your perfect plan",
       
@@ -281,10 +296,16 @@ export const translations = {
       title: "My Page",
       editName: "Tap to edit name",
       guest: "Guest",
-      
+      guestTravelerNameLabel: "Guest traveler name",
+      accountDisplayNameLabel: "Display name",
+      saveDisplayNameFailed: "Could not save your name. Please try again.",
+
       travelType: "Your Travel Type",
       viewHistory: "View History",
       noHistory: "No history yet",
+      favorites: "Favorites",
+      noFavorites: "No favorites yet",
+      removeFavorite: "Remove",
       
       settings: "Settings",
       notifications: "Notifications",
@@ -299,6 +320,13 @@ export const translations = {
       terms: "Terms of Service",
       privacy: "Privacy Policy",
       logout: "Log Out",
+
+      playerProgressLevel: "Lv.{level}",
+      playerProgressBadges: "Badges",
+      playerProgressGuestHint: "Sign in to save progress to the cloud. Guest progress stays on this device only.",
+      playerXpToNext: "{n} more XP until the next level",
+      playerXpCurrent: "Current: {xp} XP",
+      playerLevelSummaryAria: "Level ring showing your experience progress",
     },
 
     // Language Helper

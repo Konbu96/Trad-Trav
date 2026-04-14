@@ -37,6 +37,8 @@ export type CuratedTraditionalPlace = {
   summary: string;
   experienceTitle?: string;
   officialSourceUrl?: string;
+  /** Google が photos を返さない場合の任意画像（HTTPS）。体験予約棚のフォールバック用。 */
+  imageUrl?: string;
 };
 
 export const CURATED_TRADITIONAL_PLACES: Record<TraditionalGenreId, CuratedTraditionalPlace[]> = {
@@ -112,6 +114,7 @@ export const CURATED_TRADITIONAL_PLACES: Record<TraditionalGenreId, CuratedTradi
       placeId: "ChIJU7rK9yQoil8Rr6RHaZ40NzI",
       fallbackName: "仙臺箪笥歴史工芸館",
       summary: "仙台箪笥の歴史や製作工程を知ることができる伝統工芸の拠点です。",
+      experienceTitle: "仙台箪笥・工芸見学",
       officialSourceUrl: "https://www.pref.miyagi.jp/soshiki/shinsan/18tansu.html",
     },
     {
@@ -134,24 +137,28 @@ export const CURATED_TRADITIONAL_PLACES: Record<TraditionalGenreId, CuratedTradi
       placeId: "ChIJZ1RGBOyFiV8RlXhl315vLDM",
       fallbackName: "東北歴史博物館",
       summary: "宮城を含む東北の歴史文化を総合的に学べる県立の博物館です。",
+      experienceTitle: "東北の歴史・常設展示",
       officialSourceUrl: "https://www.pref.miyagi.jp/soshiki/rekishi/index.html",
     },
     {
       placeId: "ChIJ_WJmEjUXil8RN--MWZzrEa8",
       fallbackName: "亘理町立郷土資料館",
       summary: "亘理の歴史・民俗・考古資料を通して地域文化を知ることができます。",
+      experienceTitle: "亘理の郷土・民俗資料",
       officialSourceUrl: "https://www.town.watari.miyagi.jp/museum/facility/",
     },
     {
       placeId: "ChIJT64B55Vsil8RwW17dvofmqo",
       fallbackName: "角田市郷土資料館（旧氏家邸）",
       summary: "角田の暮らしや歴史を学べる郷土資料館です。",
+      experienceTitle: "武家屋敷・郷土資料",
       officialSourceUrl: "https://www.city.kakuda.lg.jp/soshiki/24/",
     },
     {
       placeId: "ChIJjYom4dwNiV8RrmV-9EoFur8",
       fallbackName: "美里町郷土資料館",
       summary: "地域資料を通して宮城の郷土文化を学べる公的施設です。",
+      experienceTitle: "美里の郷土資料・展示",
     },
   ],
 };

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPhotoUri } from "../_lib/photo";
+import { placesPhotoProxyUrl } from "../_lib/photo";
 import { normalizePlacesText } from "../_lib/text";
 
 const MIYAGI_BOUNDS = {
@@ -257,7 +257,7 @@ export async function GET(req: NextRequest) {
         }
 
         const photoName = place.photos?.[0]?.name;
-        const photoUri = photoName ? await getPhotoUri(apiKey, photoName) : null;
+        const photos = photoName ? [placesPhotoProxyUrl(photoName)] : [];
 
         return {
           lat,
@@ -267,7 +267,7 @@ export async function GET(req: NextRequest) {
           formattedAddress: place.formattedAddress,
           category: place.primaryType,
           type: place.types?.[0] || place.primaryType,
-          photos: photoUri ? [photoUri] : [],
+          photos,
           source: "google" as const,
         };
       } catch (error) {
