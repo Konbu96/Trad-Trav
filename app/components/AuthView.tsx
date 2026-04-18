@@ -21,7 +21,8 @@ interface AuthViewProps {
 type AuthMode = "login" | "signup" | "forgot";
 
 export default function AuthView({ onLogin, onSkip }: AuthViewProps) {
-  const { language } = useLanguage();
+  const { t } = useLanguage();
+  const a = t.auth;
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,96 +31,29 @@ export default function AuthView({ onLogin, onSkip }: AuthViewProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const t = {
-    ja: {
-      login: "ログイン",
-      signup: "新規登録",
-      forgot: "パスワードを忘れた",
-      email: "メールアドレス",
-      password: "パスワード",
-      name: "アカウント名",
-      loginButton: "ログイン",
-      signupButton: "登録する",
-      resetButton: "リセットメールを送信",
-      noAccount: "アカウントをお持ちでない方",
-      hasAccount: "すでにアカウントをお持ちの方",
-      backToLogin: "ログインに戻る",
-      skip: "スキップしてはじめる",
-      or: "または",
-      continueWithGoogle: "Googleで続ける",
-      continueWithApple: "Appleで続ける",
-      continueWithLine: "LINEで続ける",
-      forgotPassword: "パスワードをお忘れですか？",
-      resetDescription: "登録したメールアドレスを入力してください。パスワードリセット用のリンクをお送りします。",
-      welcome: "おかえりなさい！",
-      welcomeNew: "はじめまして！",
-      welcomeReset: "パスワードリセット",
-    },
-    en: {
-      login: "Log In",
-      signup: "Sign Up",
-      forgot: "Forgot Password",
-      email: "Email",
-      password: "Password",
-      name: "Username",
-      loginButton: "Log In",
-      signupButton: "Sign Up",
-      resetButton: "Send Reset Email",
-      noAccount: "Don't have an account?",
-      hasAccount: "Already have an account?",
-      backToLogin: "Back to Login",
-      skip: "Skip and Start",
-      or: "or",
-      continueWithGoogle: "Continue with Google",
-      continueWithApple: "Continue with Apple",
-      continueWithLine: "Continue with LINE",
-      forgotPassword: "Forgot your password?",
-      resetDescription: "Enter your email address and we'll send you a link to reset your password.",
-      welcome: "Welcome back!",
-      welcomeNew: "Create Account",
-      welcomeReset: "Reset Password",
-    },
-  };
-
-  const text = t[language];
+  const text = a;
 
   const getErrorMessage = (code: string) => {
-    const messages: Record<string, { ja: string; en: string }> = {
-      "auth/email-already-in-use": {
-        ja: "このメールアドレスは既に使用されています",
-        en: "This email is already in use",
-      },
-      "auth/invalid-email": {
-        ja: "メールアドレスの形式が正しくありません",
-        en: "Invalid email format",
-      },
-      "auth/weak-password": {
-        ja: "パスワードは6文字以上にしてください",
-        en: "Password should be at least 6 characters",
-      },
-      "auth/user-not-found": {
-        ja: "アカウントが見つかりません",
-        en: "Account not found",
-      },
-      "auth/wrong-password": {
-        ja: "パスワードが正しくありません",
-        en: "Incorrect password",
-      },
-      "auth/invalid-credential": {
-        ja: "メールアドレスまたはパスワードが正しくありません",
-        en: "Invalid email or password",
-      },
-      "auth/too-many-requests": {
-        ja: "試行回数が多すぎます。しばらく待ってから再試行してください",
-        en: "Too many attempts. Please try again later",
-      },
-      "auth/popup-closed-by-user": {
-        ja: "ログインがキャンセルされました",
-        en: "Login was cancelled",
-      },
-    };
-    const msg = messages[code];
-    return msg ? msg[language] : language === "ja" ? "エラーが発生しました" : "An error occurred";
+    switch (code) {
+      case "auth/email-already-in-use":
+        return a.errEmailInUse;
+      case "auth/invalid-email":
+        return a.errInvalidEmail;
+      case "auth/weak-password":
+        return a.errWeakPassword;
+      case "auth/user-not-found":
+        return a.errUserNotFound;
+      case "auth/wrong-password":
+        return a.errWrongPassword;
+      case "auth/invalid-credential":
+        return a.errInvalidCredential;
+      case "auth/too-many-requests":
+        return a.errTooManyRequests;
+      case "auth/popup-closed-by-user":
+        return a.errPopupClosed;
+      default:
+        return a.genericError;
+    }
   };
 
   const handleSubmit = async () => {
@@ -134,7 +68,7 @@ export default function AuthView({ onLogin, onSkip }: AuthViewProps) {
         const user = userCredential.user;
         onLogin({ 
           id: user.uid,
-          name: user.displayName || "ユーザー", 
+          name: user.displayName || a.defaultUserName, 
           email: user.email || email 
         }, false);
       } else if (mode === "signup") {
@@ -143,7 +77,7 @@ export default function AuthView({ onLogin, onSkip }: AuthViewProps) {
         onLogin({ id: userCredential.user.uid, name, email }, true);
       } else if (mode === "forgot") {
         await sendPasswordResetEmail(auth, email);
-        alert(language === "ja" ? "リセットメールを送信しました" : "Reset email sent");
+        alert(a.resetEmailSent);
         setMode("login");
       }
     } catch (err: unknown) {
@@ -156,7 +90,7 @@ export default function AuthView({ onLogin, onSkip }: AuthViewProps) {
 
   const handleSocialLogin = async (provider: string) => {
     if (provider !== "Google") {
-      alert(language === "ja" ? "この機能は準備中です" : "This feature is coming soon");
+      alert(a.comingSoon);
       return;
     }
     

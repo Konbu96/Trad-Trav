@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const ALLOWED_LANG = new Set(["ja", "en", "zh", "ko"]);
+
+/** Geocoding API の `language`（中国語は zh-CN） */
+function geocodeLanguage(appLang: string): string {
+  if (appLang === "zh") return "zh-CN";
+  if (appLang === "ko") return "ko";
+  if (appLang === "en") return "en";
+  return "ja";
+}
+
 type GoogleGeocodeAddressComponent = {
   long_name?: string;
   types?: string[];
@@ -33,6 +43,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "valid lat and lng are required" }, { status: 400 });
   }
 
+  const rawLang = req.nextUrl.searchParams.get("lang")?.trim().toLowerCase() || "ja";
+  const appLang = ALLOWED_LANG.has(rawLang) ? rawLang : "ja";
+  const language = geocodeLanguage(appLang);
+
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "GOOGLE_MAPS_API_KEY is not configured" }, { status: 500 });
@@ -40,7 +54,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const res = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${encodeURIComponent(lat)},${encodeURIComponent(lng)}&language=ja&region=jp&key=${encodeURIComponent(apiKey)}`,
+      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${encodeURIComponent(lat)},${encodeURIComponent(lng)}&language=${encodeURIComponent(language)}&region=jp&key=${encodeURIComponent(apiKey)}`,
       {
         cache: "no-store",
       }

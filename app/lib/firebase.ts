@@ -7,6 +7,7 @@ import {
   defaultPlayerProgress,
   mergePlayerProgress,
   normalizePlayerProgress,
+  recomputePlayerXp,
   type PlayerEvent,
   type PlayerProgress,
 } from "./playerProgress";
@@ -126,7 +127,7 @@ export async function savePlayerProgress(userId: string, progress: PlayerProgres
   await setDoc(
     docRef,
     {
-      playerProgress: progress,
+      playerProgress: recomputePlayerXp(progress),
       updatedAt: new Date().toISOString(),
     },
     { merge: true }

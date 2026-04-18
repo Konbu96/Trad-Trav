@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { TraditionalGenreId } from "../../../data/traditionalGenres";
+import { maybeTranslateJapanesePlaceName } from "../../../lib/mymemoryJaToEn";
+import { placesDetailLanguageCode } from "../../../lib/placesApiLanguage";
+import { makeLocationKey } from "../../../lib/location";
+import type { NearbyContextKind } from "../../../lib/nearbyContextCopy";
 import { placesPhotoProxyUrl } from "../_lib/photo";
 import { normalizePlacesText } from "../_lib/text";
-import { makeLocationKey } from "../../../lib/location";
 
 type GooglePlacePhoto = {
   name?: string;
@@ -44,8 +48,7 @@ const EXCLUDED_PRIMARY_TYPES = new Set([
 ]);
 
 type NearbyContext = {
-  title: string;
-  summary: string;
+  kind: NearbyContextKind;
   scenes: string[];
   placeName?: string;
 };
@@ -61,13 +64,18 @@ type NearbyRouteResponse = {
     summary: string;
     category: string;
     type: string;
+    traditionalGenre: TraditionalGenreId;
     source: "google";
   }>;
   context: NearbyContext;
 };
 
 const NEARBY_CACHE_TTL_MS = 3 * 60 * 1000;
+/** レスポンス形が変わったときに旧キャッシュを捨てる */
+const NEARBY_CACHE_VERSION = "v4-nearby-lang";
 const nearbyCache = new Map<string, { expiresAt: number; response: NearbyRouteResponse }>();
+
+const ALLOWED_LANG = new Set(["ja", "en", "zh", "ko"]);
 
 function buildSearchableText(place: GooglePlace) {
   return `${place.displayName?.text || ""} ${place.formattedAddress || ""} ${place.primaryType || ""} ${(place.types || []).join(" ")}`;
@@ -93,7 +101,12 @@ function getDistanceMeters(
   return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-async function searchNearbyContext(apiKey: string, latitude: number, longitude: number) {
+async function searchNearbyContext(
+  apiKey: string,
+  latitude: number,
+  longitude: number,
+  placesLanguageCode: string
+) {
   const res = await fetch("https://places.googleapis.com/v1/places:searchNearby", {
     method: "POST",
     headers: {
@@ -113,7 +126,7 @@ async function searchNearbyContext(apiKey: string, latitude: number, longitude: 
       ],
       maxResultCount: 5,
       rankPreference: "DISTANCE",
-      languageCode: "ja",
+      languageCode: placesLanguageCode,
       regionCode: "JP",
       locationRestriction: {
         circle: {
@@ -136,7 +149,13 @@ async function searchNearbyContext(apiKey: string, latitude: number, longitude: 
   return data.places || [];
 }
 
-async function searchExperiencePlaces(apiKey: string, latitude: number, longitude: number, textQuery: string) {
+async function searchExperiencePlaces(
+  apiKey: string,
+  latitude: number,
+  longitude: number,
+  textQuery: string,
+  placesLanguageCode: string
+) {
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
@@ -146,7 +165,7 @@ async function searchExperiencePlaces(apiKey: string, latitude: number, longitud
     },
     body: JSON.stringify({
       textQuery: `${textQuery} 宮城`,
-      languageCode: "ja",
+      languageCode: placesLanguageCode,
       regionCode: "JP",
       maxResultCount: 6,
       locationBias: {
@@ -209,11 +228,42 @@ function getExperienceScore(place: GooglePlace, latitude: number, longitude: num
   return score;
 }
 
+/** 体験予約タブと揃えた4分類（名称・型・住所テキストから推定） */
+function classifyTraditionalGenre(place: GooglePlace): TraditionalGenreId {
+  const searchable = buildSearchableText(place);
+  const pt = place.primaryType || "";
+  const types = (place.types || []).join(" ");
+
+  if (
+    /祭り|まつり|行事|七夕|フェス|祭礼|まつり協賛|まつり事務局|青葉まつり|よさこい|YOSAKOI/.test(searchable)
+  ) {
+    return "festival";
+  }
+  if (
+    /神楽|能楽|狂言|民俗芸能|伝統芸能|演舞|すずめ踊り|舞臺|舞台|芸能/.test(searchable) ||
+    /performing_arts/.test(`${pt} ${types}`)
+  ) {
+    return "performing";
+  }
+  if (
+    /工芸|工房|こけし|箪笥|漆|陶芸|ワークショップ|体験|制作|絵付け|手しごと|手仕事|クラフト/.test(searchable) ||
+    (pt === "store" && /体験|工房|制作/.test(searchable))
+  ) {
+    return "craft";
+  }
+  if (
+    /博物館|資料館|美術館|郷土|歴史|ミュージアム|展示館|文化財/.test(searchable) ||
+    /museum|art_gallery|historical_landmark|library|cultural_center/.test(`${pt} ${types}`)
+  ) {
+    return "history";
+  }
+  return "history";
+}
+
 function inferNearbyContext(place: GooglePlace | null): NearbyContext {
   if (!place) {
     return {
-      title: "近くの施設に合わせて気を付けたいこと",
-      summary: "いまいる場所に合わせて、基本のマナーと近くの体験施設をまとめています。",
+      kind: "no_place",
       scenes: ["facility", "walking"],
     };
   }
@@ -223,8 +273,7 @@ function inferNearbyContext(place: GooglePlace | null): NearbyContext {
 
   if (/train_station|transit_station|bus_station/.test(searchable) || /駅|バス/.test(searchable)) {
     return {
-      title: "移動中に気を付けたいこと",
-      summary: `${placeName}の近くでは、通話や荷物の持ち方に気を配ると安心です。`,
+      kind: "transit",
       scenes: ["train", "bus", "walking"],
       placeName,
     };
@@ -232,8 +281,7 @@ function inferNearbyContext(place: GooglePlace | null): NearbyContext {
 
   if (/museum|art_gallery|library/.test(searchable) || /資料館|博物館|美術館|展示/.test(searchable)) {
     return {
-      title: "施設内で気を付けたいこと",
-      summary: `${placeName}のような展示施設では、静かに見学し、迷ったらスタッフに確認すると安心です。`,
+      kind: "museum",
       scenes: ["museum", "facility"],
       placeName,
     };
@@ -241,8 +289,7 @@ function inferNearbyContext(place: GooglePlace | null): NearbyContext {
 
   if (/体験|工房|制作|ワークショップ|store/.test(searchable) || /工房|体験|クラフト/.test(searchable)) {
     return {
-      title: "体験前に気を付けたいこと",
-      summary: `${placeName}の近くでは、最初の説明をよく聞き、遅れそうなときは早めに連絡すると安心です。`,
+      kind: "workshop",
       scenes: ["workshop", "craft", "reservation"],
       placeName,
     };
@@ -250,16 +297,14 @@ function inferNearbyContext(place: GooglePlace | null): NearbyContext {
 
   if (/祭り|行事|event/.test(searchable)) {
     return {
-      title: "地域イベントで気を付けたいこと",
-      summary: `${placeName}の近くでは、地域の流れを優先し、ゴミの扱いにも気を配ると安心です。`,
+      kind: "festival",
       scenes: ["festival", "community"],
       placeName,
     };
   }
 
   return {
-    title: "近くの施設に合わせて気を付けたいこと",
-    summary: `${placeName}の近くでは、周囲への配慮を意識しながら落ち着いて行動すると安心です。`,
+    kind: "area",
     scenes: ["facility", "walking"],
     placeName,
   };
@@ -273,12 +318,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "valid lat and lng are required" }, { status: 400 });
   }
 
+  const rawLang = req.nextUrl.searchParams.get("lang")?.trim().toLowerCase() || "ja";
+  const appLang = ALLOWED_LANG.has(rawLang) ? rawLang : "ja";
+  const placesLanguageCode = placesDetailLanguageCode(appLang);
+
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "GOOGLE_MAPS_API_KEY is not configured" }, { status: 500 });
   }
 
-  const cacheKey = makeLocationKey(lat, lng);
+  const cacheKey = `${makeLocationKey(lat, lng)}:${appLang}:${NEARBY_CACHE_VERSION}`;
   const cached = nearbyCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return NextResponse.json(cached.response);
@@ -286,8 +335,10 @@ export async function GET(req: NextRequest) {
 
   try {
     const [contextPlaces, ...experienceResultSets] = await Promise.all([
-      searchNearbyContext(apiKey, lat, lng),
-      ...EXPERIENCE_TEXT_QUERIES.map((textQuery) => searchExperiencePlaces(apiKey, lat, lng, textQuery)),
+      searchNearbyContext(apiKey, lat, lng, placesLanguageCode),
+      ...EXPERIENCE_TEXT_QUERIES.map((textQuery) =>
+        searchExperiencePlaces(apiKey, lat, lng, textQuery, placesLanguageCode)
+      ),
     ]);
 
     const mergedPlaces = Array.from(
@@ -312,9 +363,11 @@ export async function GET(req: NextRequest) {
 
       const photoName = place.photos?.[0]?.name;
       const photos = photoName ? [placesPhotoProxyUrl(photoName)] : [];
-      const placeName = place.displayName?.text || "近くのスポット";
+      const rawName = place.displayName?.text || "近くのスポット";
+      const placeName = (await maybeTranslateJapanesePlaceName(rawName, appLang)) || rawName;
       const category = place.primaryType || place.types?.[0] || "tourist_attraction";
       const searchable = buildSearchableText(place);
+      const traditionalGenre = classifyTraditionalGenre(place);
 
       let summary = "現在地から近く、立ち寄りやすいスポットです。";
       if (/資料館|博物館|museum|art_gallery/.test(searchable)) {
@@ -335,12 +388,21 @@ export async function GET(req: NextRequest) {
         summary,
         category,
         type: category,
+        traditionalGenre,
         source: "google" as const,
       };
     }))).filter((location): location is NearbyRouteResponse["locations"][number] => location !== null);
 
     const contextBasePlace = contextPlaces[0] || mergedPlaces[0] || null;
-    const context = inferNearbyContext(contextBasePlace);
+    const contextRaw = inferNearbyContext(contextBasePlace);
+    const context =
+      contextRaw.placeName != null && contextRaw.placeName !== ""
+        ? {
+            ...contextRaw,
+            placeName:
+              (await maybeTranslateJapanesePlaceName(contextRaw.placeName, appLang)) ?? contextRaw.placeName,
+          }
+        : contextRaw;
 
     const response: NearbyRouteResponse = { locations, context };
     nearbyCache.set(cacheKey, {

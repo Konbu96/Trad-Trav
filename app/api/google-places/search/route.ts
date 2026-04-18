@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { maybeTranslateJapanesePlaceName } from "../../../lib/mymemoryJaToEn";
+import { placesDetailLanguageCode } from "../../../lib/placesApiLanguage";
 import { placesPhotoProxyUrl } from "../_lib/photo";
 import { normalizePlacesText } from "../_lib/text";
+
+const ALLOWED_LANG = new Set(["ja", "en", "zh", "ko"]);
 
 const MIYAGI_BOUNDS = {
   minLat: 37.75,
@@ -176,7 +180,7 @@ function getExperienceScore(place: GoogleTextSearchPlace, query: string) {
   return score;
 }
 
-async function searchPlaces(apiKey: string, textQuery: string) {
+async function searchPlaces(apiKey: string, textQuery: string, placesLanguageCode: string) {
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
@@ -186,7 +190,7 @@ async function searchPlaces(apiKey: string, textQuery: string) {
     },
     body: JSON.stringify({
       textQuery,
-      languageCode: "ja",
+      languageCode: placesLanguageCode,
       regionCode: "JP",
       maxResultCount: 8,
       locationRestriction: {
@@ -223,9 +227,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "GOOGLE_MAPS_API_KEY is not configured" }, { status: 500 });
   }
 
+  const rawLang = req.nextUrl.searchParams.get("lang")?.trim().toLowerCase() || "ja";
+  const appLang = ALLOWED_LANG.has(rawLang) ? rawLang : "ja";
+  const placesLanguageCode = placesDetailLanguageCode(appLang);
+
   try {
     const searchQueries = buildSearchQueries(query);
-    const resultSets = await Promise.all(searchQueries.map(textQuery => searchPlaces(apiKey, textQuery)));
+    const resultSets = await Promise.all(
+      searchQueries.map((textQuery) => searchPlaces(apiKey, textQuery, placesLanguageCode))
+    );
 
     const uniquePlaces = new Map<string, GoogleTextSearchPlace>();
     for (const places of resultSets) {
@@ -258,11 +268,13 @@ export async function GET(req: NextRequest) {
 
         const photoName = place.photos?.[0]?.name;
         const photos = photoName ? [placesPhotoProxyUrl(photoName)] : [];
+        const displayName = place.displayName.text;
+        const name = (await maybeTranslateJapanesePlaceName(displayName, appLang)) || displayName;
 
         return {
           lat,
           lng,
-          name: place.displayName.text,
+          name,
           placeId: place.id,
           formattedAddress: place.formattedAddress,
           category: place.primaryType,

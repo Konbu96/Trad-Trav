@@ -18,6 +18,7 @@ import {
   PhotoIcon,
 } from "./icons";
 import { MAIN_TAB_BAR_BOTTOM_INSET } from "./BottomNavigation";
+import { useLanguage } from "../i18n/LanguageContext";
 
 interface SpotDetailSheetProps {
   spot: Spot | null;
@@ -47,6 +48,7 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 function ExpandableReviewText({ text }: { text: string }) {
+  const { t } = useLanguage();
   const textRef = useRef<HTMLParagraphElement | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
@@ -100,7 +102,7 @@ function ExpandableReviewText({ text }: { text: string }) {
             color: "#e88fa3",
           }}
         >
-          {isExpanded ? "閉じる" : "もっと見る"}
+          {isExpanded ? t.spotDetail.expandClose : t.spotDetail.expandOpen}
         </button>
       )}
     </div>
@@ -245,6 +247,7 @@ function OverviewTab({
   isLoadingInfo?: boolean;
   onShowMap?: () => void;
 }) {
+  const { t } = useLanguage();
   // 予約以外の情報をフィルタリング
   const infosWithoutReservation = spot.infos.filter(info => info.type !== "reservation");
   
@@ -259,7 +262,7 @@ function OverviewTab({
         }}
       >
         <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#374151", marginBottom: "12px" }}>
-          スポット紹介
+          {t.spotDetail.introHeading}
         </h3>
         <p style={{ color: "#4b5563", fontSize: "15px", lineHeight: "1.8" }}>
           {spot.description}
@@ -277,7 +280,7 @@ function OverviewTab({
             <span className="flex min-w-0 justify-end" aria-hidden>
               <LocationIcon size={20} color="#ffffff" />
             </span>
-            <span className="whitespace-nowrap text-center">地図で見る</span>
+            <span className="whitespace-nowrap text-center">{t.spotDetail.viewOnMap}</span>
             <span className="min-w-0" aria-hidden />
           </button>
         )}
@@ -301,9 +304,7 @@ function OverviewTab({
               animation: "spin 0.8s linear infinite",
               flexShrink: 0,
             }} />
-            <span style={{ fontSize: "13px", color: "#9ca3af" }}>
-              Google Places から情報を取得中...
-            </span>
+            <span style={{ fontSize: "13px", color: "#9ca3af" }}>{t.spotDetail.fetchingPlaces}</span>
           </div>
         ) : infosWithoutReservation.length > 0 ? (
           infosWithoutReservation.map((info, index) => (
@@ -319,7 +320,7 @@ function OverviewTab({
           ))
         ) : (
           <div style={{ padding: "16px" }}>
-            <span style={{ fontSize: "13px", color: "#9ca3af" }}>情報なし</span>
+            <span style={{ fontSize: "13px", color: "#9ca3af" }}>{t.spotDetail.noInfo}</span>
           </div>
         )}
       </div>
@@ -329,16 +330,17 @@ function OverviewTab({
 
 // 予約タブ
 function ReservationTab({ spot }: { spot: Spot }) {
+  const { t } = useLanguage();
   const reservationInfos = spot.infos.filter(info => info.type === "reservation");
 
   if (reservationInfos.length === 0) {
     return (
       <div style={{ backgroundColor: "#f3f4f6", borderRadius: "12px", padding: "16px" }}>
         <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#374151", marginBottom: "8px" }}>
-          予約について
+          {t.spotDetail.reservationHeading}
         </h3>
         <p style={{ color: "#9ca3af", fontSize: "14px", lineHeight: "1.8" }}>
-          予約情報はありません
+          {t.spotDetail.reservationNone}
         </p>
       </div>
     );
@@ -380,14 +382,14 @@ function ReservationTab({ spot }: { spot: Spot }) {
                   textDecoration: "none",
                 }}
               >
-                予約サイトへ →
+                {t.spotDetail.reservationSiteCta}
               </a>
             )}
 
             {isPdf && (
               <div>
                 <p style={{ color: "#4b5563", fontSize: "13px", lineHeight: "1.8", marginBottom: "12px" }}>
-                  団体・体験学習の予約は予約シート（PDF）に記入のうえ、メールまたはFAXでお送りください。
+                  {t.spotDetail.reservationPdfNote}
                 </p>
                 <a
                   href={info.value}
@@ -408,7 +410,7 @@ function ReservationTab({ spot }: { spot: Spot }) {
                     textDecoration: "none",
                   }}
                 >
-                  📄 予約シートをダウンロード（PDF）
+                  {t.spotDetail.reservationPdfDownload}
                 </a>
               </div>
             )}
@@ -421,6 +423,7 @@ function ReservationTab({ spot }: { spot: Spot }) {
 
 // 口コミタブ
 function ReviewsTab({ spot }: { spot: Spot }) {
+  const { t } = useLanguage();
   const avgRating =
     spot.reviews.length > 0
       ? spot.reviews.reduce((sum, r) => sum + r.rating, 0) / spot.reviews.length
@@ -443,7 +446,7 @@ function ReviewsTab({ spot }: { spot: Spot }) {
         <div>
           <StarRating rating={Math.round(avgRating)} />
           <span style={{ fontSize: "14px", color: "#6b7280", marginTop: "4px", display: "block" }}>
-            {spot.reviews.length}件の口コミ
+            {t.spotDetail.reviewsCount.replace("{n}", String(spot.reviews.length))}
           </span>
         </div>
       </div>
@@ -481,6 +484,7 @@ function ReviewsTab({ spot }: { spot: Spot }) {
 
 // 写真タブ
 function PhotosTab({ spot }: { spot: Spot }) {
+  const { t } = useLanguage();
   const hasPhotos = spot.photos && spot.photos.length > 0;
   const hasVideos = spot.videos && spot.videos.length > 0;
 
@@ -490,7 +494,7 @@ function PhotosTab({ spot }: { spot: Spot }) {
       {hasVideos && (
         <div>
           <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#374151", marginBottom: "10px" }}>
-            🎬 PR動画
+            {t.spotDetail.prVideo}
           </h3>
           {spot.videos!.map((url, i) => (
             <div
@@ -528,7 +532,7 @@ function PhotosTab({ spot }: { spot: Spot }) {
       {hasPhotos ? (
         <div>
           <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#374151", marginBottom: "10px" }}>
-            📷 写真
+            {t.spotDetail.photosHeading}
           </h3>
           <div className="grid grid-cols-2 gap-3">
             {spot.photos!.map((url, i) => (
@@ -543,7 +547,7 @@ function PhotosTab({ spot }: { spot: Spot }) {
               >
                 <img
                   src={url}
-                  alt={`${spot.name} 写真${i + 1}`}
+                  alt={t.spotDetail.photoAlt.replace("{name}", spot.name).replace("{n}", String(i + 1))}
                   style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 />
               </div>
@@ -555,9 +559,7 @@ function PhotosTab({ spot }: { spot: Spot }) {
           <div className="mx-auto mb-3 flex justify-center">
             <PhotoIcon size={40} color="#D1D5DB" />
           </div>
-          <p style={{ fontSize: "14px", color: "#9ca3af" }}>
-            {spot.name}の写真（準備中）
-          </p>
+          <p style={{ fontSize: "14px", color: "#9ca3af" }}>{t.spotDetail.photosComing.replace("{name}", spot.name)}</p>
         </div>
       ) : null}
     </div>
@@ -577,6 +579,7 @@ export default function SpotDetailSheet({
   onShowMap,
   reserveMainBottomNav = true,
 }: SpotDetailSheetProps) {
+  const { t } = useLanguage();
   const [isVisible, setIsVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "photos" | "reservation">("photos");
   const [showTabTutorial, setShowTabTutorial] = useState(false);
@@ -745,7 +748,7 @@ export default function SpotDetailSheet({
                     cursor: "pointer",
                   }}
                 >
-                  🤖 お役立ちAI・相談
+                  {t.spotDetail.mannerAiCta}
                 </button>
               )}
             </div>
@@ -790,10 +793,10 @@ export default function SpotDetailSheet({
                     ✕
                   </button>
                   <p style={{ fontSize: "13px", fontWeight: "600", color: "#e88fa3", margin: "0 0 4px" }}>
-                    👆 タブで情報を切り替え！
+                    {t.spotDetail.tabTutorialTitle}
                   </p>
                   <p style={{ fontSize: "12px", color: "#6b7280", margin: 0, lineHeight: 1.5 }}>
-                    写真・概要・口コミ・予約を切り替えられます
+                    {t.spotDetail.tabTutorialBody}
                   </p>
                 </div>
                 {/* 矢印 */}
@@ -810,22 +813,22 @@ export default function SpotDetailSheet({
             )}
             <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb" }}>
               <TabButton
-                label="写真"
+                label={t.spotDetail.tabPhotos}
                 isActive={activeTab === "photos"}
                 onClick={() => handleTabChange("photos")}
               />
               <TabButton
-                label="概要"
+                label={t.spotDetail.tabOverview}
                 isActive={activeTab === "overview"}
                 onClick={() => handleTabChange("overview")}
               />
               <TabButton
-                label="口コミ"
+                label={t.spotDetail.tabReviews}
                 isActive={activeTab === "reviews"}
                 onClick={() => handleTabChange("reviews")}
               />
               <TabButton
-                label="予約"
+                label={t.spotDetail.tabReservation}
                 isActive={activeTab === "reservation"}
                 onClick={() => handleTabChange("reservation")}
               />

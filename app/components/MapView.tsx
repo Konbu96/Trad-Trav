@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { MapContainer, TileLayer, ZoomControl, useMap, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, ZoomControl, useMap, Marker, Popup, Polyline, CircleMarker } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import SearchBar, { type SearchLocation, type SearchResult } from "./SearchBar";
+import type { SearchLocation } from "./SearchBar";
 import SpotDetailSheet from "./SpotDetailSheet";
 import { recommendedSpots, type Spot } from "../data/spots";
+import { useLanguage } from "../i18n/LanguageContext";
+import type { Translations } from "../i18n/translations";
+import {
+  estimateDrivingMinutesFromCrowMeters,
+  formatStraightLineKm,
+  getDistanceMeters,
+} from "../lib/geoEstimate";
 
 type SearchResultSpot = Spot & { placeId?: string };
 
@@ -56,51 +63,112 @@ const createPinIcon = (size: "small" | "normal" = "normal") => {
   });
 };
 
-// マップの移動を制御するコンポーネント（複数ピン対応）
-function MapController({ searchLocations }: { searchLocations: SearchLocation[] }) {
+// マップの移動を制御するコンポーネント（複数ピン対応・現在地＋1件のときは両方を収める）
+function MapController({
+  searchLocations,
+  viewerPosition,
+}: {
+  searchLocations: SearchLocation[];
+  viewerPosition?: { lat: number; lng: number } | null;
+}) {
   const map = useMap();
-  const prevLocationsRef = useRef<SearchLocation[]>([]);
+  const prevSigRef = useRef("");
 
   useEffect(() => {
-    // 検索結果が変わった場合のみ処理
     if (searchLocations.length === 0) {
-      prevLocationsRef.current = [];
+      prevSigRef.current = "";
       return;
     }
 
-    // 同じ検索結果の場合はスキップ
-    if (
-      prevLocationsRef.current.length === searchLocations.length &&
-      prevLocationsRef.current.every((loc, i) => 
-        loc.lat === searchLocations[i].lat && loc.lng === searchLocations[i].lng
-      )
-    ) {
+    const sig = JSON.stringify({
+      locs: searchLocations.map((l) => [l.lat, l.lng]),
+      v: viewerPosition ? [viewerPosition.lat, viewerPosition.lng] : null,
+    });
+    if (sig === prevSigRef.current) return;
+    prevSigRef.current = sig;
+
+    if (viewerPosition && searchLocations.length === 1) {
+      const loc = searchLocations[0];
+      const dM = getDistanceMeters(viewerPosition.lat, viewerPosition.lng, loc.lat, loc.lng);
+      if (dM < 80) {
+        map.flyTo([loc.lat, loc.lng], 16, { duration: 0.9, easeLinearity: 0.25 });
+        return;
+      }
+      const bounds = L.latLngBounds(
+        [viewerPosition.lat, viewerPosition.lng] as L.LatLngTuple,
+        [loc.lat, loc.lng] as L.LatLngTuple
+      );
+      map.flyToBounds(bounds, {
+        padding: [90, 90],
+        maxZoom: 13,
+        duration: 1.2,
+      });
       return;
     }
-
-    prevLocationsRef.current = searchLocations;
 
     if (searchLocations.length === 1) {
-      // 1件の場合はその場所にズームイン
       const loc = searchLocations[0];
       map.flyTo([loc.lat, loc.lng], 14, {
         duration: 1.5,
         easeLinearity: 0.25,
       });
-    } else {
-      // 複数件の場合は全てのピンが見えるようにフィット
-      const bounds = L.latLngBounds(
-        searchLocations.map((loc) => [loc.lat, loc.lng] as [number, number])
-      );
-      map.flyToBounds(bounds, {
-        padding: [50, 50],
-        duration: 1.5,
-        maxZoom: 12,
-      });
+      return;
     }
-  }, [searchLocations, map]);
+
+    const bounds = L.latLngBounds(searchLocations.map((loc) => [loc.lat, loc.lng] as [number, number]));
+    map.flyToBounds(bounds, {
+      padding: [50, 50],
+      duration: 1.5,
+      maxZoom: 12,
+    });
+  }, [searchLocations, viewerPosition, map]);
 
   return null;
+}
+
+function ViewerToExperienceRoute({
+  viewer,
+  destination,
+  t,
+}: {
+  viewer: { lat: number; lng: number };
+  destination: SearchLocation;
+  t: Translations;
+}) {
+  const meters = getDistanceMeters(viewer.lat, viewer.lng, destination.lat, destination.lng);
+  const minutes = estimateDrivingMinutesFromCrowMeters(meters);
+  const kmStr = formatStraightLineKm(meters);
+
+  return (
+    <>
+      <CircleMarker
+        center={[viewer.lat, viewer.lng]}
+        radius={8}
+        pathOptions={{
+          color: "#1e40af",
+          fillColor: "#3b82f6",
+          fillOpacity: 0.92,
+          weight: 2,
+        }}
+      >
+        <Popup>
+          <span style={{ fontSize: "13px" }}>{t.map.routeLegendYou}</span>
+        </Popup>
+      </CircleMarker>
+      <Polyline
+        positions={[
+          [viewer.lat, viewer.lng],
+          [destination.lat, destination.lng],
+        ]}
+        pathOptions={{
+          color: "#e88fa3",
+          weight: 4,
+          opacity: 0.88,
+          dashArray: "10 12",
+        }}
+      />
+    </>
+  );
 }
 
 // スポットクリック時のマップ移動を制御
@@ -132,53 +200,12 @@ function SpotFlyController({ targetSpot }: { targetSpot: Spot | null }) {
 
 // 検索結果をSpot型に変換
 // カテゴリを日本語ラベルに変換
-function getCategoryLabel(category?: string, type?: string): string {
-  const map: Record<string, string> = {
-    tourism: "観光",
-    amenity: "施設",
-    historic: "歴史・文化財",
-    natural: "自然",
-    leisure: "レジャー",
-    shop: "ショップ",
-    religion: "宗教施設",
-    highway: "道路",
-    building: "建物",
-    place: "場所",
-    point_of_interest: "観光",
-    establishment: "施設",
-    tourist_attraction: "観光スポット",
-    museum: "博物館・美術館",
-    art_gallery: "美術館・ギャラリー",
-    park: "公園",
-    shrine: "神社",
-    temple: "寺院",
-    restaurant: "飲食店",
-    cafe: "カフェ",
-    lodging: "宿泊施設",
-    hotel: "宿泊施設",
-    spa: "温泉・スパ",
-  };
-  if (category && map[category]) return map[category];
-  if (type) {
-    const typeMap: Record<string, string> = {
-      shrine: "神社",
-      temple: "寺院",
-      museum: "博物館・美術館",
-      attraction: "観光スポット",
-      viewpoint: "展望スポット",
-      park: "公園",
-      castle: "城",
-      ruins: "遺跡",
-      artwork: "アート",
-      hotel: "宿泊施設",
-      restaurant: "飲食店",
-      cafe: "カフェ",
-      fast_food: "ファストフード",
-      hot_spring: "温泉",
-    };
-    if (typeMap[type]) return typeMap[type];
-  }
-  return "検索結果";
+function getCategoryLabel(category: string | undefined, type: string | undefined, t: Translations): string {
+  const byCat = t.map.poiByCategory as Record<string, string>;
+  const byType = t.map.poiByType as Record<string, string>;
+  if (category && byCat[category]) return byCat[category];
+  if (type && byType[type]) return byType[type];
+  return t.map.poiDefault;
 }
 
 function buildAddress(loc: SearchLocation): string {
@@ -200,9 +227,9 @@ function buildAddress(loc: SearchLocation): string {
   return parts.length > 0 ? parts.join(" ") : loc.name;
 }
 
-function searchLocationToSpot(location: SearchLocation, index: number): SearchResultSpot {
+function searchLocationToSpot(location: SearchLocation, index: number, t: Translations): SearchResultSpot {
   const shortName = location.name.trim();
-  const category = getCategoryLabel(location.category, location.type);
+  const category = getCategoryLabel(location.category, location.type, t);
   const address = buildAddress(location);
   const ext = location.extratags || {};
   const phone = ext.phone || ext["contact:phone"];
@@ -210,10 +237,10 @@ function searchLocationToSpot(location: SearchLocation, index: number): SearchRe
   const hours = ext.opening_hours;
 
   const infos: Spot["infos"] = [];
-  if (hours) infos.push({ type: "hours", label: "営業時間", value: hours });
-  infos.push({ type: "address", label: "住所", value: address });
-  if (phone) infos.push({ type: "phone", label: "電話番号", value: phone });
-  if (website) infos.push({ type: "website", label: "Webサイト", value: website });
+  if (hours) infos.push({ type: "hours", label: t.spot.hours, value: hours });
+  infos.push({ type: "address", label: t.spot.address, value: address });
+  if (phone) infos.push({ type: "phone", label: t.spot.phone, value: phone });
+  if (website) infos.push({ type: "website", label: t.spot.website, value: website });
 
   return {
     id: -1000 - index,
@@ -232,12 +259,14 @@ function searchLocationToSpot(location: SearchLocation, index: number): SearchRe
 }
 
 // 検索結果のマーカーコンポーネント（複数対応）
-function SearchMarkers({ 
-  locations, 
-  onLocationClick 
-}: { 
+function SearchMarkers({
+  locations,
+  onLocationClick,
+  t,
+}: {
   locations: SearchLocation[];
   onLocationClick: (spot: SearchResultSpot) => void;
+  t: Translations;
 }) {
   const [pinIcon, setPinIcon] = useState<L.DivIcon | null>(null);
 
@@ -255,7 +284,7 @@ function SearchMarkers({
           position={[location.lat, location.lng]} 
           icon={pinIcon}
           eventHandlers={{
-            click: () => onLocationClick(searchLocationToSpot(location, index)),
+            click: () => onLocationClick(searchLocationToSpot(location, index, t)),
           }}
         />
       ))}
@@ -341,6 +370,8 @@ interface MapViewProps {
   onToggleFavorite?: (spotId: number) => void;
   recommendedSpotIds?: number[] | null;
   externalSearchLocations?: SearchLocation[] | null;
+  /** 現在地が取れているとき、検索結果が1件の場合に体験スポットまでの線・距離を表示 */
+  viewerPosition?: { lat: number; lng: number } | null;
 }
 
 const TUTORIAL_KEY = "trad-trav-map-tutorial-done";
@@ -376,7 +407,9 @@ export default function MapView({
   onToggleFavorite,
   recommendedSpotIds,
   externalSearchLocations,
+  viewerPosition = null,
 }: MapViewProps) {
+  const { t, language } = useLanguage();
   const [isMounted, setIsMounted] = useState(false);
   const [searchLocations, setSearchLocations] = useState<SearchLocation[]>([]);
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
@@ -427,14 +460,6 @@ export default function MapView({
     onJumpComplete?.();
   }, [jumpToSpotId, isMounted]);
 
-  const handleLocationSearch = (result: SearchResult) => {
-    setSearchLocations(result.locations);
-  };
-
-  const handleClearSearch = () => {
-    setSearchLocations([]);
-  };
-
   useEffect(() => {
     if (!externalSearchLocations) return;
     setSearchLocations(externalSearchLocations);
@@ -468,6 +493,61 @@ export default function MapView({
     setSelectedSpot(null);
   };
 
+  const fetchPlaceDetailById = useCallback(
+    async (placeId: string) => {
+      setIsFetchingSpotInfo(true);
+      try {
+        const res = await fetch(
+          `/api/google-places/detail?placeId=${encodeURIComponent(placeId)}&lang=${encodeURIComponent(language)}`
+        );
+        if (!res.ok) return;
+        const info = await res.json();
+        const extraInfos: Spot["infos"] = [];
+        if (info.hours) extraInfos.push({ type: "hours", label: t.spot.hours, value: info.hours });
+        if (info.address) extraInfos.push({ type: "address", label: t.spot.address, value: info.address });
+        if (info.phone) extraInfos.push({ type: "phone", label: t.spot.phone, value: info.phone });
+        if (info.website) extraInfos.push({ type: "website", label: t.spot.website, value: info.website });
+        if (info.mapsUrl) extraInfos.push({ type: "website", label: t.map.googleMaps, value: info.mapsUrl });
+
+        setSelectedSpot((prev) =>
+          prev && "placeId" in prev && prev.placeId === placeId
+            ? {
+                ...prev,
+                name: info.name || prev.name,
+                category: info.category ? getCategoryLabel(info.category, info.category, t) : prev.category,
+                reviews: info.reviews?.length ? info.reviews : prev.reviews,
+                photos: info.photos?.length ? info.photos : prev.photos,
+                infos: [
+                  ...prev.infos.filter(
+                    (prevInfo) =>
+                      !extraInfos.some(
+                        (nextInfo) => nextInfo.type === prevInfo.type && nextInfo.label === prevInfo.label
+                      )
+                  ),
+                  ...extraInfos,
+                ],
+              }
+            : prev
+        );
+      } catch (err) {
+        console.warn("Google Places 情報の取得に失敗:", err);
+      } finally {
+        setIsFetchingSpotInfo(false);
+      }
+    },
+    [language, t]
+  );
+
+  useEffect(() => {
+    const placeId =
+      selectedSpot && "placeId" in selectedSpot && typeof selectedSpot.placeId === "string"
+        ? selectedSpot.placeId
+        : null;
+    if (!placeId) return;
+    void fetchPlaceDetailById(placeId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 言語切替時のみ再取得（開いた直後はクリックハンドラで取得）
+  }, [language]);
+
   // 検索結果のピンをクリックした時
   const handleSearchLocationClick = async (spot: SearchResultSpot) => {
     // まず既存情報で即座に詳細シートを表示
@@ -481,52 +561,34 @@ export default function MapView({
       return;
     }
 
-    // Google Places から追加情報を非同期で取得
-    setIsFetchingSpotInfo(true);
-    try {
-      const res = await fetch(`/api/google-places/detail?placeId=${encodeURIComponent(placeId)}`);
-      if (res.ok) {
-        const info = await res.json();
-        const extraInfos: Spot["infos"] = [];
-        if (info.hours)       extraInfos.push({ type: "hours",      label: "営業時間", value: info.hours });
-        if (info.address)     extraInfos.push({ type: "address",    label: "住所",     value: info.address });
-        if (info.phone)       extraInfos.push({ type: "phone",      label: "電話番号", value: info.phone });
-        if (info.website)     extraInfos.push({ type: "website",    label: "Webサイト", value: info.website });
-        if (info.mapsUrl)     extraInfos.push({ type: "website",    label: "Google Maps", value: info.mapsUrl });
-
-        if (extraInfos.length > 0) {
-          setSelectedSpot(prev => prev ? {
-            ...prev,
-            name: info.name || prev.name,
-            category: info.category ? getCategoryLabel(info.category, info.category) : prev.category,
-            reviews: info.reviews?.length ? info.reviews : prev.reviews,
-            photos: info.photos?.length ? info.photos : prev.photos,
-            infos: [
-              ...prev.infos.filter(prevInfo =>
-                !extraInfos.some(nextInfo => nextInfo.type === prevInfo.type && nextInfo.label === prevInfo.label)
-              ),
-              ...extraInfos,
-            ],
-          } : prev);
-        }
-      }
-    } catch (err) {
-      console.warn("Google Places 情報の取得に失敗:", err);
-    } finally {
-      setIsFetchingSpotInfo(false);
-    }
+    await fetchPlaceDetailById(placeId);
   };
 
   // 検索結果がある時はおすすめスポットとハートピンを非表示
   const showSpotMarkers = searchLocations.length === 0;
   const showFavoriteMarkers = searchLocations.length === 0;
 
+  const showViewerToSpotRoute = Boolean(viewerPosition && searchLocations.length === 1);
+  const routeDestination = showViewerToSpotRoute ? searchLocations[0] : null;
+  const routeMeters =
+    viewerPosition && routeDestination
+      ? getDistanceMeters(
+          viewerPosition.lat,
+          viewerPosition.lng,
+          routeDestination.lat,
+          routeDestination.lng
+        )
+      : null;
+  const routeMinutes =
+    routeMeters != null ? estimateDrivingMinutesFromCrowMeters(routeMeters) : null;
+  const routeKmStr = routeMeters != null ? formatStraightLineKm(routeMeters) : null;
+
   if (!isMounted) {
     return (
       <div className="absolute inset-0 z-0 flex items-center justify-center bg-gray-100">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-gray-600 text-sm">マップを読み込み中...</span>
+          <span className="text-gray-600 text-sm">{t.map.loading}</span>
         </div>
       </div>
     );
@@ -534,16 +596,7 @@ export default function MapView({
 
   return (
     <>
-      {/* 検索バー */}
-      <SearchBar 
-        onLocationSearch={handleLocationSearch} 
-        onClearSearch={handleClearSearch}
-        isHidden={selectedSpot !== null}
-        hasSearchResults={searchLocations.length > 0}
-      />
-      
-      {/* マップ */}
-      <div className="absolute inset-0 z-0">
+      <div className="trad-trav-map-root absolute inset-0 z-0">
         <MapContainer
           key={mapKey.current}
           center={MIYAGI_CENTER}
@@ -581,11 +634,14 @@ export default function MapView({
             maxZoom={12}
           />
           <ZoomControl position="bottomright" />
-          <MapController searchLocations={searchLocations} />
+          <MapController searchLocations={searchLocations} viewerPosition={viewerPosition} />
+          {showViewerToSpotRoute && viewerPosition && routeDestination ? (
+            <ViewerToExperienceRoute viewer={viewerPosition} destination={routeDestination} t={t} />
+          ) : null}
           <SpotFlyController targetSpot={targetSpot} />
           <SpotMarkers onSpotClick={handleSpotClick} isVisible={showSpotMarkers} filterIds={recommendedSpotIds} />
           <FavoriteMarkers favoriteSpotIds={favoriteSpotIds} onSpotClick={handleSpotClick} isVisible={showFavoriteMarkers} />
-          <SearchMarkers locations={searchLocations} onLocationClick={handleSearchLocationClick} />
+          <SearchMarkers locations={searchLocations} onLocationClick={handleSearchLocationClick} t={t} />
           {/* チュートリアル：マップ内ではピンのピクセル座標計算のみ行う */}
           {(() => {
             if (!showTutorial || searchLocations.length > 0) return null;
@@ -604,6 +660,78 @@ export default function MapView({
             return <TutorialPositionUpdater spot={tutorialSpot} onPositionChange={handleTutorialPosition} />;
           })()}
         </MapContainer>
+        {showViewerToSpotRoute &&
+        viewerPosition &&
+        routeDestination &&
+        routeKmStr != null &&
+        routeMinutes != null ? (
+          <div
+            className="pointer-events-none"
+            style={{
+              position: "absolute",
+              left: 10,
+              right: 10,
+              top: 10,
+              zIndex: 700,
+            }}
+          >
+            <div
+              className="pointer-events-auto"
+              style={{
+                marginLeft: "auto",
+                marginRight: "auto",
+                maxWidth: "340px",
+                backgroundColor: "rgba(255,255,255,0.96)",
+                borderRadius: "16px",
+                padding: "12px 14px",
+                border: "1px solid #f7dfe5",
+                boxShadow: "0 4px 18px rgba(15,23,42,0.12)",
+              }}
+            >
+              <p style={{ fontSize: "12px", fontWeight: 800, color: "#b85f74", margin: "0 0 6px", lineHeight: 1.35 }}>
+                {t.map.routeFromYouTitle}
+              </p>
+              <p style={{ fontSize: "13px", color: "#111827", margin: "0 0 4px", fontWeight: 700 }}>
+                {routeDestination.name}
+              </p>
+              <p style={{ fontSize: "12px", color: "#374151", margin: 0, lineHeight: 1.55 }}>
+                {t.map.routeStraightKm.replace("{km}", routeKmStr)}
+                <br />
+                {t.map.routeCarMinutes.replace("{minutes}", String(routeMinutes))}
+              </p>
+              <p style={{ fontSize: "10px", color: "#9ca3af", margin: "8px 0 0", lineHeight: 1.45 }}>
+                {t.map.routeAccessNote}
+              </p>
+              <div style={{ display: "flex", gap: "12px", marginTop: "8px", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "10px", color: "#6b7280", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span
+                    style={{
+                      width: "10px",
+                      height: "10px",
+                      borderRadius: "999px",
+                      backgroundColor: "#3b82f6",
+                      border: "2px solid #1e40af",
+                      flexShrink: 0,
+                    }}
+                  />
+                  {t.map.routeLegendYou}
+                </span>
+                <span style={{ fontSize: "10px", color: "#6b7280", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span
+                    style={{
+                      width: "14px",
+                      height: "14px",
+                      borderRadius: "2px",
+                      background: "repeating-linear-gradient(90deg, #e88fa3 0 3px, transparent 3px 6px)",
+                      flexShrink: 0,
+                    }}
+                  />
+                  {t.map.routeLegendSpot}
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {/* チュートリアル吹き出し（マップ外オーバーレイ） */}
@@ -646,10 +774,10 @@ export default function MapView({
               ✕
             </button>
             <p style={{ fontSize: "13px", fontWeight: "600", color: "#e88fa3", margin: "0 0 4px" }}>
-              👆 ここをタップ！
+              {t.spotDetail.mapTutorialTitle}
             </p>
             <p style={{ fontSize: "12px", color: "#6b7280", margin: 0, lineHeight: 1.4 }}>
-              スポットの詳細・営業時間が確認できます
+              {t.spotDetail.mapTutorialBody}
             </p>
           </div>
           <div

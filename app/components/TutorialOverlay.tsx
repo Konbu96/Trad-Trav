@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useLanguage } from "../i18n/LanguageContext";
 
 type TutorialOverlayProps = {
   targetId: string;
@@ -9,6 +10,10 @@ type TutorialOverlayProps = {
   stepIndex: number;
   totalSteps: number;
   onSkip: () => void;
+  /** 初回アプリウォークスルー: 「次へ」で進む（タブの data-tutorial-id を順に照らす） */
+  onAdvance?: () => void;
+  /** onAdvance 時のヒント文言（未指定なら walkthrough.tapHint を使用） */
+  advanceTapHint?: string;
 };
 
 type RectLike = {
@@ -55,7 +60,11 @@ export default function TutorialOverlay({
   stepIndex,
   totalSteps,
   onSkip,
+  onAdvance,
+  advanceTapHint,
 }: TutorialOverlayProps) {
+  const { t } = useLanguage();
+  const useAdvance = Boolean(onAdvance);
   const [targetRect, setTargetRect] = useState<RectLike | null>(null);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
 
@@ -185,7 +194,9 @@ export default function TutorialOverlay({
         }}
       >
         <p style={{ fontSize: "11px", fontWeight: 700, color: "#e88fa3" }}>
-          STEP {stepIndex + 1} / {totalSteps}
+          {t.tutorial.stepLabel
+            .replace("{current}", String(stepIndex + 1))
+            .replace("{total}", String(totalSteps))}
         </p>
         <h3 style={{ fontSize: "17px", fontWeight: 800, color: "#111827", marginTop: "6px", lineHeight: 1.4 }}>
           {title}
@@ -194,10 +205,19 @@ export default function TutorialOverlay({
           {description}
         </p>
         <p style={{ fontSize: "12px", color: "#b85f74", fontWeight: 700, marginTop: "10px" }}>
-          この部分を押すと次に進みます。
+          {useAdvance ? advanceTapHint ?? t.walkthrough.tapHint : t.tutorial.tapTargetHint}
         </p>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: useAdvance ? "space-between" : "flex-end",
+            alignItems: "center",
+            gap: "8px",
+            marginTop: "12px",
+          }}
+        >
           <button
+            type="button"
             onClick={onSkip}
             style={{
               borderRadius: "999px",
@@ -209,8 +229,26 @@ export default function TutorialOverlay({
               fontWeight: 700,
             }}
           >
-            スキップ
+            {t.tutorial.skip}
           </button>
+          {useAdvance && onAdvance ? (
+            <button
+              type="button"
+              onClick={onAdvance}
+              style={{
+                borderRadius: "999px",
+                border: "none",
+                background: "linear-gradient(135deg, #f9a8d4, #e88fa3)",
+                color: "white",
+                padding: "8px 16px",
+                fontSize: "12px",
+                fontWeight: 800,
+                boxShadow: "0 2px 10px rgba(232, 143, 163, 0.4)",
+              }}
+            >
+              {stepIndex >= totalSteps - 1 ? t.walkthrough.done : t.walkthrough.next}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

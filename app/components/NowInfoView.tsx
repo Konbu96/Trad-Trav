@@ -1,35 +1,36 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { TraditionalGenreId } from "../data/traditionalGenres";
 import { getRecommendedMannerItemsByScenes, type MannerItem } from "../data/manners";
-import { getRecommendedHelpfulTopicsByScenes, type HelpfulTabId } from "../data/helpfulInfo";
+import { getRecommendedHelpfulTopicsByScenes } from "../data/helpfulInfo";
+import { useLanguage } from "../i18n/LanguageContext";
+import type { Translations } from "../i18n/translations";
+import { estimateDrivingMinutesFromCrowMeters, getDistanceMeters } from "../lib/geoEstimate";
 import { makeLocationKey } from "../lib/location";
 import type { CurrentAddress, LocationPermissionState } from "../page";
 import type { SearchLocation } from "./SearchBar";
+import { locationIssueMessage } from "../lib/locationIssue";
+import type { LocationIssueCode } from "../lib/locationIssue";
+import { getLocalizedMannerItem, getLocalizedTopic } from "../lib/localizeHelpfulLibrary";
+import { resolveNearbyMannerIntro, type NearbyContextPayload } from "../lib/nearbyContextCopy";
 
 interface NowInfoViewProps {
   locationPermissionState?: LocationPermissionState;
-  locationError?: string;
+  locationIssueCode?: LocationIssueCode;
   currentPosition?: { latitude: number; longitude: number } | null;
   currentAddress?: CurrentAddress | null;
   isUsingMockLocation?: boolean;
   onRequestLocationPermission?: () => void;
   onOpenLocationSettings?: () => void;
-  onOpenHelpfulTab?: (tabId: HelpfulTabId) => void;
-  onOpenExperienceBooking?: () => void;
   onTutorialAction?: (actionId: string) => void;
+  /** 開発時のみ: 宮城県栗原市の固定座標を現在地として適用 */
+  onUseDeveloperKuriharaLocation?: () => void;
 }
-
-type NearbyContext = {
-  title: string;
-  summary: string;
-  scenes: string[];
-  placeName?: string;
-};
 
 type NearbyResponse = {
   locations?: SearchLocation[];
-  context?: NearbyContext;
+  context?: NearbyContextPayload;
   error?: string;
 };
 
@@ -38,24 +39,15 @@ const WALKING_REFETCH_DISTANCE_METERS = 150;
 const CYCLING_REFETCH_DISTANCE_METERS = 500;
 const VEHICLE_REFETCH_DISTANCE_METERS = 800;
 
-function getDistanceMeters(
-  fromLatitude: number,
-  fromLongitude: number,
-  toLatitude: number,
-  toLongitude: number
-) {
-  const toRadians = (value: number) => (value * Math.PI) / 180;
-  const earthRadiusMeters = 6371000;
-  const dLat = toRadians(toLatitude - fromLatitude);
-  const dLng = toRadians(toLongitude - fromLongitude);
-  const startLat = toRadians(fromLatitude);
-  const endLat = toRadians(toLatitude);
-
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(startLat) * Math.cos(endLat);
-
-  return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+function traditionalGenreLabel(genre: TraditionalGenreId | undefined, t: Translations): string | null {
+  if (!genre) return null;
+  const labels: Record<TraditionalGenreId, string> = {
+    performing: t.nowInfo.traditionalGenrePerforming,
+    festival: t.nowInfo.traditionalGenreFestival,
+    craft: t.nowInfo.traditionalGenreCraft,
+    history: t.nowInfo.traditionalGenreHistory,
+  };
+  return labels[genre] ?? null;
 }
 
 function getRefetchDistanceBySpeed(speedMetersPerSecond: number) {
@@ -64,39 +56,22 @@ function getRefetchDistanceBySpeed(speedMetersPerSecond: number) {
   return VEHICLE_REFETCH_DISTANCE_METERS;
 }
 
-function QuickJumpButton({
-  label,
-  onClick,
+function NearbySpotCard({
+  location,
+  origin,
+  t,
 }: {
-  label: string;
-  onClick: () => void;
+  location: SearchLocation;
+  origin: { latitude: number; longitude: number } | null;
+  t: Translations;
 }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        width: "100%",
-        borderRadius: "18px",
-        backgroundColor: "#fdf3f5",
-        border: "1px solid #f3d1da",
-        color: "#b85f74",
-        padding: "14px 16px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "12px",
-        fontSize: "14px",
-        fontWeight: 700,
-      }}
-    >
-      <span>{label}</span>
-      <span style={{ fontSize: "16px" }}>&gt;</span>
-    </button>
-  );
-}
-
-function NearbySpotCard({ location }: { location: SearchLocation }) {
   const photo = location.photos?.[0];
+  const meters =
+    origin != null
+      ? getDistanceMeters(origin.latitude, origin.longitude, location.lat, location.lng)
+      : null;
+  const minutes = meters != null ? estimateDrivingMinutesFromCrowMeters(meters) : null;
+  const genreLabel = traditionalGenreLabel(location.traditionalGenre, t);
 
   return (
     <article
@@ -145,22 +120,38 @@ function NearbySpotCard({ location }: { location: SearchLocation }) {
         </div>
 
         <div style={{ minWidth: 0, flex: 1 }}>
+          {genreLabel ? (
+            <p style={{ fontSize: "11px", fontWeight: 700, color: "#b85f74", marginBottom: "4px", lineHeight: 1.4 }}>
+              {genreLabel}
+            </p>
+          ) : null}
           <p style={{ fontSize: "15px", fontWeight: "800", color: "#111827", lineHeight: "1.4" }}>
             {location.name}
           </p>
-          <p style={{ fontSize: "12px", color: "#6b7280", lineHeight: "1.6", marginTop: "4px" }}>
-            {location.formattedAddress || "住所情報は準備中です。"}
-          </p>
-          <p style={{ fontSize: "13px", color: "#374151", lineHeight: "1.7", marginTop: "8px" }}>
-            {location.summary || "現在地から立ち寄りやすい体験スポットです。"}
-          </p>
+          {minutes != null ? (
+            <p style={{ fontSize: "13px", color: "#4b5563", lineHeight: 1.6, marginTop: "6px" }}>
+              {t.nowInfo.nearbyFacilityCarMinutes.replace("{minutes}", String(minutes))}
+            </p>
+          ) : null}
         </div>
       </div>
     </article>
   );
 }
 
-function RecommendedMannerCard({ item }: { item: MannerItem }) {
+function RecommendedMannerCard({
+  item,
+  mannerBadge,
+  t,
+}: {
+  item: MannerItem;
+  mannerBadge: string;
+  t: Translations;
+}) {
+  const loc = getLocalizedMannerItem(item.id, t);
+  const title = loc?.title ?? item.title;
+  const shortDescription = loc?.shortDescription ?? item.shortDescription;
+  const details = loc?.details ?? item.details;
   return (
     <article
       style={{
@@ -171,16 +162,12 @@ function RecommendedMannerCard({ item }: { item: MannerItem }) {
         boxShadow: "0 2px 12px rgba(236,72,153,0.08)",
       }}
     >
-      <p style={{ fontSize: "11px", fontWeight: 700, color: "#e88fa3", marginBottom: "6px" }}>マナー</p>
-      <p style={{ fontSize: "15px", fontWeight: "800", color: "#111827", lineHeight: "1.4" }}>
-        {item.title}
-      </p>
-      <p style={{ fontSize: "13px", color: "#374151", lineHeight: "1.8", marginTop: "8px" }}>
-        {item.shortDescription}
-      </p>
+      <p style={{ fontSize: "11px", fontWeight: 700, color: "#b85f74", marginBottom: "6px" }}>{mannerBadge}</p>
+      <p style={{ fontSize: "15px", fontWeight: "800", color: "#111827", lineHeight: "1.4" }}>{title}</p>
+      <p style={{ fontSize: "13px", color: "#374151", lineHeight: "1.8", marginTop: "8px" }}>{shortDescription}</p>
       <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
-        {item.details.slice(0, 2).map((detail) => (
-          <div key={detail} style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+        {details.slice(0, 2).map((detail, index) => (
+          <div key={`${item.id}-${index}`} style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
             <div
               style={{
                 width: "10px",
@@ -191,7 +178,7 @@ function RecommendedMannerCard({ item }: { item: MannerItem }) {
                 marginTop: "5px",
               }}
             />
-            <p style={{ fontSize: "12px", color: "#4b5563", lineHeight: "1.7" }}>{detail}</p>
+            <p style={{ fontSize: "12px", color: "#374151", lineHeight: "1.7" }}>{detail}</p>
           </div>
         ))}
       </div>
@@ -237,13 +224,13 @@ function HelpfulTopicCard({
           {emoji}
         </div>
         <div style={{ minWidth: 0 }}>
-          <p style={{ fontSize: "11px", fontWeight: 700, color: "#e88fa3" }}>{subtitle}</p>
+          <p style={{ fontSize: "11px", fontWeight: 700, color: "#b85f74" }}>{subtitle}</p>
           <p style={{ fontSize: "15px", fontWeight: 800, color: "#111827", marginTop: "4px", lineHeight: "1.4" }}>
             {title}
           </p>
         </div>
       </div>
-      <p style={{ fontSize: "13px", color: "#4b5563", lineHeight: "1.75", marginTop: "10px" }}>
+      <p style={{ fontSize: "13px", color: "#374151", lineHeight: "1.75", marginTop: "10px" }}>
         {description}
       </p>
     </article>
@@ -252,24 +239,21 @@ function HelpfulTopicCard({
 
 export default function NowInfoView({
   locationPermissionState = "idle",
-  locationError = "",
+  locationIssueCode = "",
   currentPosition = null,
   currentAddress = null,
   isUsingMockLocation = false,
   onRequestLocationPermission,
   onOpenLocationSettings,
-  onOpenHelpfulTab,
-  onOpenExperienceBooking,
   onTutorialAction,
+  onUseDeveloperKuriharaLocation,
 }: NowInfoViewProps) {
+  const { t, language } = useLanguage();
   const [nearbyLocations, setNearbyLocations] = useState<SearchLocation[]>([]);
-  const [nearbyContext, setNearbyContext] = useState<NearbyContext | null>(null);
+  const [nearbyContext, setNearbyContext] = useState<NearbyContextPayload | null>(null);
   const [nearbyError, setNearbyError] = useState("");
   const [isLoadingNearby, setIsLoadingNearby] = useState(false);
   const [nearbyFetchPosition, setNearbyFetchPosition] = useState<{ latitude: number; longitude: number } | null>(null);
-  const mannerSectionRef = useRef<HTMLElement | null>(null);
-  const facilitySectionRef = useRef<HTMLElement | null>(null);
-  const guideSectionRef = useRef<HTMLElement | null>(null);
   const lastNearbyFetchPositionRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const lastNearbyFetchAtRef = useRef(0);
   const lastObservedPositionRef = useRef<{ latitude: number; longitude: number } | null>(null);
@@ -359,7 +343,7 @@ export default function NowInfoView({
 
       try {
         const res = await fetch(
-          `/api/google-places/nearby?lat=${encodeURIComponent(nearbyFetchPosition.latitude)}&lng=${encodeURIComponent(nearbyFetchPosition.longitude)}`
+          `/api/google-places/nearby?lat=${encodeURIComponent(nearbyFetchPosition.latitude)}&lng=${encodeURIComponent(nearbyFetchPosition.longitude)}&lang=${encodeURIComponent(language)}`
         );
         const data: NearbyResponse = await res.json();
 
@@ -375,7 +359,7 @@ export default function NowInfoView({
         if (!isActive) return;
         setNearbyLocations([]);
         setNearbyContext(null);
-        setNearbyError("近くの施設情報を取得できませんでした。少し時間をおいて再度お試しください。");
+        setNearbyError(t.nowInfo.nearbyFetchFailed);
       } finally {
         if (isActive) {
           setIsLoadingNearby(false);
@@ -388,7 +372,7 @@ export default function NowInfoView({
     return () => {
       isActive = false;
     };
-  }, [nearbyFetchKey, nearbyFetchPosition]);
+  }, [nearbyFetchKey, nearbyFetchPosition, language, t.nowInfo.nearbyFetchFailed]);
 
   const recommendedItems = useMemo(
     () => getRecommendedMannerItemsByScenes(nearbyContext?.scenes || [], 3),
@@ -399,18 +383,12 @@ export default function NowInfoView({
     [nearbyContext]
   );
 
+  const nearbyMannerLines = useMemo(() => {
+    if (!nearbyContext) return null;
+    return resolveNearbyMannerIntro(nearbyContext.kind, nearbyContext.placeName, t);
+  }, [nearbyContext, t]);
+
   const hasLocation = Boolean(currentPosition);
-  const scrollToSection = (element: HTMLElement | null) => {
-    if (!element) return;
-    element.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-  const handleHelpfulJump = (tabId: HelpfulTabId, section: HTMLElement | null) => {
-    if (!hasLocation && onOpenHelpfulTab) {
-      onOpenHelpfulTab(tabId);
-      return;
-    }
-    scrollToSection(section);
-  };
 
   return (
     <div
@@ -433,7 +411,7 @@ export default function NowInfoView({
           justifyContent: "center",
         }}
       >
-        <h1 style={{ fontSize: "20px", fontWeight: 800, textAlign: "center" }}>なう情報</h1>
+        <h1 style={{ fontSize: "20px", fontWeight: 800, textAlign: "center" }}>{t.nowInfo.pageTitle}</h1>
       </div>
 
       <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: "18px" }}>
@@ -449,11 +427,9 @@ export default function NowInfoView({
           {hasLocation ? (
             <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>
               <div>
-                <p style={{ fontSize: "16px", fontWeight: "800", color: "#b85f74" }}>現在地</p>
-                <p style={{ fontSize: "12px", color: "#6b7280", lineHeight: "1.7", marginTop: "4px" }}>
-                  {isUsingMockLocation
-                    ? "PC確認用の仮位置を使っています。"
-                    : "現在地に合わせて、いま役立つ情報を表示します。"}
+                <p style={{ fontSize: "16px", fontWeight: "800", color: "#b85f74" }}>{t.nowInfo.currentLocationTitle}</p>
+                <p style={{ fontSize: "12px", color: "#374151", lineHeight: "1.7", marginTop: "4px" }}>
+                  {isUsingMockLocation ? t.nowInfo.locationMockHint : t.nowInfo.locationLiveHint}
                 </p>
               </div>
 
@@ -475,31 +451,55 @@ export default function NowInfoView({
                     flexShrink: 0,
                   }}
                 >
-                  {isUsingMockLocation ? "位置を更新" : "現在地を更新"}
+                  {isUsingMockLocation ? t.nowInfo.refreshPosition : t.nowInfo.refreshCurrentLocation}
                 </button>
               )}
             </div>
           ) : locationPermissionState === "requesting" ? (
             <div>
               <p style={{ fontSize: "14px", fontWeight: "800", color: "#111827" }}>
-                現在地を取得中です...
+                {t.nowInfo.locationRequestingTitle}
               </p>
-              <p style={{ fontSize: "11px", color: "#6b7280", lineHeight: "1.7", marginTop: "6px" }}>
-                geolocation API で現在地を確認しています。
-                <br />
-                取得できると緯度・経度を表示します。
-              </p>
+              <ul
+                style={{
+                  marginTop: "10px",
+                  marginBottom: 0,
+                  paddingLeft: "1.25rem",
+                  listStyleType: "disc",
+                  listStylePosition: "outside",
+                  fontSize: "12px",
+                  color: "#374151",
+                  lineHeight: 1.75,
+                }}
+              >
+                <li style={{ marginBottom: "6px", display: "list-item" }}>{t.nowInfo.locationRequestingPoint1}</li>
+                <li style={{ display: "list-item" }}>{t.nowInfo.locationRequestingPoint2}</li>
+              </ul>
             </div>
           ) : (
             <div>
               <p style={{ fontSize: "14px", fontWeight: "800", color: "#111827" }}>
-                現在地の取得が許可されていません
+                {t.nowInfo.locationDeniedTitle}
               </p>
-              <p style={{ fontSize: "11px", color: "#6b7280", lineHeight: "1.7", marginTop: "6px" }}>
-                位置情報を使うと、現在地に合わせて
-                <br />
-                今役立つスポット、体験施設を表示できます。
+              <p style={{ fontSize: "12px", color: "#374151", lineHeight: "1.75", marginTop: "8px" }}>
+                {t.nowInfo.locationDeniedLead}
               </p>
+              <ul
+                style={{
+                  marginTop: "10px",
+                  marginBottom: 0,
+                  paddingLeft: "1.25rem",
+                  listStyleType: "disc",
+                  listStylePosition: "outside",
+                  fontSize: "12px",
+                  color: "#374151",
+                  lineHeight: 1.75,
+                }}
+              >
+                <li style={{ marginBottom: "6px", display: "list-item" }}>{t.nowInfo.locationDeniedBenefit1}</li>
+                <li style={{ marginBottom: "6px", display: "list-item" }}>{t.nowInfo.locationDeniedBenefit2}</li>
+                <li style={{ display: "list-item" }}>{t.nowInfo.locationDeniedBenefit3}</li>
+              </ul>
             </div>
           )}
 
@@ -508,11 +508,13 @@ export default function NowInfoView({
               <p style={{ fontSize: "14px", fontWeight: "700", color: "#111827" }}>
                 {currentAddress.prefecture}{currentAddress.city}{currentAddress.town}
               </p>
-              <p style={{ fontSize: "12px", color: "#475569", marginTop: "4px", lineHeight: "1.7" }}>
+              <p style={{ fontSize: "12px", color: "#374151", marginTop: "4px", lineHeight: "1.7" }}>
                 {currentAddress.formattedAddress}
               </p>
-              <p style={{ fontSize: "11px", color: "#64748b", marginTop: "6px" }}>
-                緯度 {currentPosition?.latitude.toFixed(5)} / 経度 {currentPosition?.longitude.toFixed(5)}
+              <p style={{ fontSize: "11px", color: "#374151", marginTop: "6px" }}>
+                {t.common.latLng
+                  .replace("{lat}", String(currentPosition?.latitude.toFixed(5)))
+                  .replace("{lng}", String(currentPosition?.longitude.toFixed(5)))}
               </p>
             </div>
           )}
@@ -536,12 +538,12 @@ export default function NowInfoView({
                   fontWeight: "700",
                 }}
               >
-                マイページで位置情報を設定
+                {t.nowInfo.openLocationSettingsButton}
               </button>
             </div>
           )}
 
-          {!hasLocation && locationError && (
+          {!hasLocation && locationIssueCode && (
             <div
               style={{
                 marginTop: "12px",
@@ -551,46 +553,67 @@ export default function NowInfoView({
                 padding: "12px 14px",
               }}
             >
-              <p style={{ fontSize: "12px", color: "#991b1b", lineHeight: "1.7" }}>{locationError}</p>
+              <p style={{ fontSize: "12px", color: "#991b1b", lineHeight: "1.7" }}>
+                {locationIssueMessage(t, locationIssueCode)}
+              </p>
+            </div>
+          )}
+
+          {onUseDeveloperKuriharaLocation && (
+            <div
+              style={{
+                marginTop: "16px",
+                paddingTop: "14px",
+                borderTop: "1px dashed #d1d5db",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 800,
+                  color: "#9ca3af",
+                  letterSpacing: "0.06em",
+                  marginBottom: "4px",
+                }}
+              >
+                {t.nowInfo.developerLocationSectionLabel}
+              </p>
+              <p style={{ fontSize: "11px", color: "#6b7280", lineHeight: 1.6, marginBottom: "10px" }}>
+                {t.nowInfo.developerKuriharaLocationHelp}
+              </p>
+              <button
+                type="button"
+                onClick={onUseDeveloperKuriharaLocation}
+                style={{
+                  width: "100%",
+                  borderRadius: "12px",
+                  border: "1px solid #d4d4d8",
+                  backgroundColor: "#f4f4f5",
+                  color: "#52525b",
+                  padding: "10px 14px",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {t.nowInfo.developerKuriharaLocationButton}
+              </button>
             </div>
           )}
         </section>
 
-        <section style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <QuickJumpButton label="マナーの情報を見に行く" onClick={() => handleHelpfulJump("manner", mannerSectionRef.current)} />
-          <QuickJumpButton
-            label="体験施設の情報を見に行く"
-            onClick={() => {
-              if (onOpenExperienceBooking) {
-                onOpenExperienceBooking();
-                return;
-              }
-              scrollToSection(facilitySectionRef.current);
-            }}
-          />
-          <div data-tutorial-id="now.guide-jump-button">
-            <QuickJumpButton
-              label="ガイド情報を見に行く"
-              onClick={() => {
-                onTutorialAction?.("now.guide-jump-button");
-                handleHelpfulJump("travel", guideSectionRef.current);
-              }}
-            />
-          </div>
-        </section>
-
         {hasLocation && (
           <>
-            <section ref={mannerSectionRef}>
+            <section>
               <div style={{ marginBottom: "10px" }}>
-                <p style={{ fontSize: "17px", fontWeight: "800", color: "#111827" }}>マナーの情報</p>
-                {nearbyContext && (
+                <p style={{ fontSize: "17px", fontWeight: "800", color: "#111827" }}>{t.nowInfo.mannerSectionTitle}</p>
+                {nearbyMannerLines && (
                   <>
-                    <p style={{ fontSize: "12px", color: "#e88fa3", fontWeight: "700", marginTop: "6px" }}>
-                      {nearbyContext.title}
+                    <p style={{ fontSize: "12px", color: "#b85f74", fontWeight: "700", marginTop: "6px" }}>
+                      {nearbyMannerLines.title}
                     </p>
-                    <p style={{ fontSize: "13px", color: "#475569", lineHeight: "1.8", marginTop: "4px" }}>
-                      {nearbyContext.summary}
+                    <p style={{ fontSize: "13px", color: "#374151", lineHeight: "1.8", marginTop: "4px" }}>
+                      {nearbyMannerLines.summary}
                     </p>
                   </>
                 )}
@@ -598,17 +621,17 @@ export default function NowInfoView({
 
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 {recommendedItems.map((item) => (
-                  <RecommendedMannerCard key={item.id} item={item} />
+                  <RecommendedMannerCard key={item.id} item={item} mannerBadge={t.nowInfo.mannerBadge} t={t} />
                 ))}
               </div>
             </section>
 
-            <section ref={facilitySectionRef}>
+            <section>
               <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", marginBottom: "10px" }}>
                 <div>
-                  <p style={{ fontSize: "17px", fontWeight: "800", color: "#111827" }}>体験施設の情報</p>
-                  <p style={{ fontSize: "12px", color: "#64748b", lineHeight: "1.7", marginTop: "4px" }}>
-                    現在地の近くで立ち寄りやすい施設を最大5件表示します。
+                  <p style={{ fontSize: "17px", fontWeight: "800", color: "#111827" }}>{t.nowInfo.facilitiesSectionTitle}</p>
+                  <p style={{ fontSize: "12px", color: "#374151", lineHeight: "1.7", marginTop: "4px" }}>
+                    {t.nowInfo.nearbyFacilitiesIntro}
                   </p>
                 </div>
               </div>
@@ -622,7 +645,7 @@ export default function NowInfoView({
                     padding: "18px 16px",
                   }}
                 >
-                  <p style={{ fontSize: "13px", color: "#64748b" }}>近くの施設を読み込み中です...</p>
+                  <p style={{ fontSize: "13px", color: "#374151" }}>{t.nowInfo.facilitiesLoading}</p>
                 </div>
               )}
 
@@ -648,8 +671,8 @@ export default function NowInfoView({
                     padding: "18px 16px",
                   }}
                 >
-                  <p style={{ fontSize: "13px", color: "#64748b", lineHeight: "1.8" }}>
-                    近くの体験施設がまだ見つかっていません。位置情報を更新すると結果が変わる場合があります。
+                  <p style={{ fontSize: "13px", color: "#374151", lineHeight: "1.8" }}>
+                    {t.nowInfo.facilitiesEmpty}
                   </p>
                 </div>
               )}
@@ -657,30 +680,38 @@ export default function NowInfoView({
               {!isLoadingNearby && !nearbyError && nearbyLocations.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                   {nearbyLocations.map((location) => (
-                    <NearbySpotCard key={`${location.placeId || location.name}-${location.lat}-${location.lng}`} location={location} />
+                    <NearbySpotCard
+                      key={`${location.placeId || location.name}-${location.lat}-${location.lng}`}
+                      location={location}
+                      origin={currentPosition}
+                      t={t}
+                    />
                   ))}
                 </div>
               )}
             </section>
 
-            <section ref={guideSectionRef}>
+            <section>
               <div style={{ marginBottom: "10px" }}>
-                <p style={{ fontSize: "17px", fontWeight: "800", color: "#111827" }}>ガイド情報</p>
-                <p style={{ fontSize: "12px", color: "#64748b", lineHeight: "1.7", marginTop: "4px" }}>
-                  いまの場所に合わせて、知っておくと役立つ豆知識や旅のヒントをまとめています。
+                <p style={{ fontSize: "17px", fontWeight: "800", color: "#111827" }}>{t.nowInfo.guideSectionTitle}</p>
+                <p style={{ fontSize: "12px", color: "#374151", lineHeight: "1.7", marginTop: "4px" }}>
+                  {t.nowInfo.guideSectionLead}
                 </p>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                {recommendedGuideTopics.map((topic) => (
-                  <HelpfulTopicCard
-                    key={topic.id}
-                    title={topic.title}
-                    subtitle={topic.subtitle}
-                    description={topic.description}
-                    emoji={topic.emoji}
-                  />
-                ))}
+                {recommendedGuideTopics.map((topic) => {
+                  const loc = getLocalizedTopic(topic.id, t);
+                  return (
+                    <HelpfulTopicCard
+                      key={topic.id}
+                      title={loc?.title ?? topic.title}
+                      subtitle={loc?.subtitle ?? topic.subtitle}
+                      description={loc?.description ?? topic.description}
+                      emoji={topic.emoji}
+                    />
+                  );
+                })}
               </div>
             </section>
           </>

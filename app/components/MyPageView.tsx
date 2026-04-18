@@ -1,12 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
-import type { DiagnosisResult } from "./DiagnosisView";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
 import { ClockIcon, DefaultAvatarIcon, GearIcon, HeartIcon, PenIcon } from "./icons";
-import { recommendedSpots, getRecommendedSpotIds, INTEREST_CATEGORY_MAP } from "../data/spots";
+import { recommendedSpots } from "../data/spots";
 import type { CurrentAddress, LocationPermissionState } from "../page";
-import { BADGE_META, defaultPlayerProgress, xpIntoCurrentLevel, type PlayerProgress } from "../lib/playerProgress";
+import {
+  cosmeticsCoinsForLevelUp,
+  loadCosmeticsCoins,
+  saveCosmeticsCoins,
+} from "../lib/cosmeticsCoins";
+import { locationIssueMessage } from "../lib/locationIssue";
+import type { LocationIssueCode } from "../lib/locationIssue";
+import {
+  QUESTS,
+  dailyQuestStateForUi,
+  defaultPlayerProgress,
+  getQuestProgressViewsForCategory,
+  getQuestUnclaimedBadgeCounts,
+  xpIntoCurrentLevel,
+  type PlayerProgress,
+  type QuestCategory,
+} from "../lib/playerProgress";
 
 interface User {
   name: string;
@@ -20,7 +35,7 @@ interface ViewHistoryItem {
   category: string;
 }
 
-type MypagePanel = "main" | "history" | "favorites" | "settings";
+type MypagePanel = "main" | "history" | "favorites" | "settings" | "cosmetics";
 
 function MypageSubHeader({ title, onBack }: { title: string; onBack: () => void }) {
   const { t } = useLanguage();
@@ -58,7 +73,6 @@ function MypageSubHeader({ title, onBack }: { title: string; onBack: () => void 
 }
 
 interface MyPageViewProps {
-  diagnosisResult: DiagnosisResult | null;
   user: User | null;
   viewHistory?: ViewHistoryItem[];
   onLogout?: () => void;
@@ -66,7 +80,7 @@ interface MyPageViewProps {
   onStartDiagnosis?: () => void;
   onLoginRequest?: () => void;
   locationPermissionState?: LocationPermissionState;
-  locationError?: string;
+  locationIssueCode?: LocationIssueCode;
   currentPosition?: { latitude: number; longitude: number } | null;
   currentAddress?: CurrentAddress | null;
   isUsingMockLocation?: boolean;
@@ -80,10 +94,13 @@ interface MyPageViewProps {
   guestDisplayName?: string;
   onSaveDisplayName?: (name: string) => Promise<void>;
   playerProgress?: PlayerProgress;
+  /** クエスト報酬の受け取り（「達成」押下） */
+  onClaimQuest?: (questId: string) => void;
+  /** 開発時のみ: 経験値・クエスト等を初期化 */
+  onResetPlayerProgressDev?: () => void | Promise<void>;
 }
 
 export default function MyPageView({
-  diagnosisResult,
   user,
   viewHistory = [],
   onLogout,
@@ -91,7 +108,7 @@ export default function MyPageView({
   onStartDiagnosis,
   onLoginRequest,
   locationPermissionState = "idle",
-  locationError = "",
+  locationIssueCode = "",
   currentPosition = null,
   currentAddress = null,
   isUsingMockLocation = false,
@@ -104,11 +121,105 @@ export default function MyPageView({
   guestDisplayName = "",
   onSaveDisplayName,
   playerProgress: playerProgressProp,
+  onClaimQuest,
+  onResetPlayerProgressDev,
 }: MyPageViewProps) {
   const playerProgress = playerProgressProp ?? defaultPlayerProgress();
   const levelRingGradId = useId().replace(/:/g, "");
   const { language, setLanguage, t } = useLanguage();
   const { level: playerLevel, current: xpInLevel, need: xpNeedForLevel } = xpIntoCurrentLevel(playerProgress.xp);
+  const [questCategory, setQuestCategory] = useState<QuestCategory>("daily");
+  const [xpGainOverlay, setXpGainOverlay] = useState<{ xp: number } | null>(null);
+  const [levelUpOverlay, setLevelUpOverlay] = useState<{ level: number; coinsEarned: number } | null>(null);
+  const [ringPulseOn, setRingPulseOn] = useState(false);
+  const prevLevelOverlayRef = useRef(playerLevel);
+  const levelOverlayMountedRef = useRef(false);
+  const prevXpRingRef = useRef(playerProgress.xp);
+  const xpRingFirstRef = useRef(true);
+  const xpGainOverlayRef = useRef(xpGainOverlay);
+  const pendingLevelUpRef = useRef<{ level: number; coinsEarned: number } | null>(null);
+  xpGainOverlayRef.current = xpGainOverlay;
+
+  const dismissXpGainOverlay = useCallback(() => {
+    setXpGainOverlay((prev) => {
+      if (prev == null) return prev;
+      const pending = pendingLevelUpRef.current;
+      pendingLevelUpRef.current = null;
+      if (pending != null) {
+        queueMicrotask(() => setLevelUpOverlay(pending));
+      }
+      return null;
+    });
+  }, []);
+
+  const dismissLevelUpOverlay = useCallback(() => {
+    setLevelUpOverlay(null);
+  }, []);
+
+  useEffect(() => {
+    if (!levelOverlayMountedRef.current) {
+      levelOverlayMountedRef.current = true;
+      prevLevelOverlayRef.current = playerLevel;
+      return;
+    }
+    if (playerLevel > prevLevelOverlayRef.current) {
+      const payload = {
+        level: playerLevel,
+        coinsEarned: cosmeticsCoinsForLevelUp(playerLevel),
+      };
+      if (xpGainOverlayRef.current != null) {
+        pendingLevelUpRef.current = payload;
+      } else {
+        setLevelUpOverlay(payload);
+      }
+      prevLevelOverlayRef.current = playerLevel;
+      return;
+    }
+    prevLevelOverlayRef.current = playerLevel;
+  }, [playerLevel]);
+
+  useEffect(() => {
+    if (xpRingFirstRef.current) {
+      xpRingFirstRef.current = false;
+      prevXpRingRef.current = playerProgress.xp;
+      return;
+    }
+    if (playerProgress.xp > prevXpRingRef.current) {
+      setRingPulseOn(true);
+      const timer = window.setTimeout(() => setRingPulseOn(false), 1000);
+      prevXpRingRef.current = playerProgress.xp;
+      return () => window.clearTimeout(timer);
+    }
+    prevXpRingRef.current = playerProgress.xp;
+  }, [playerProgress.xp]);
+  const questRowsSorted = useMemo(() => {
+    const questOrder = (id: string) => QUESTS.findIndex((q) => q.id === id);
+    const dailyUi = dailyQuestStateForUi(playerProgress.dailyQuestState);
+    const raw = getQuestProgressViewsForCategory(
+      playerProgress.stats,
+      dailyUi,
+      questCategory,
+      playerProgress.completedQuestIds
+    );
+    /** 0=達成ボタン表示中（最上段）, 1=未達成, 2=達成済み（最下段） */
+    const rank = (row: (typeof raw)[0]) => {
+      if (row.rewardClaimed) return 2;
+      if (row.done) return 0;
+      return 1;
+    };
+    return [...raw].sort((a, b) => {
+      const ra = rank(a);
+      const rb = rank(b);
+      if (ra !== rb) return ra - rb;
+      return questOrder(a.quest.id) - questOrder(b.quest.id);
+    });
+  }, [playerProgress.stats, playerProgress.dailyQuestState, playerProgress.completedQuestIds, questCategory]);
+
+  const questUnclaimedBadges = useMemo(
+    () => getQuestUnclaimedBadgeCounts(playerProgress),
+    [playerProgress]
+  );
+
   const levelBarPercent =
     xpNeedForLevel > 0 ? Math.min(100, Math.round((xpInLevel / xpNeedForLevel) * 100)) : 0;
   const xpToNextLevel = Math.max(0, xpNeedForLevel - xpInLevel);
@@ -123,10 +234,29 @@ export default function MyPageView({
   const [savingName, setSavingName] = useState(false);
   const [saveNameError, setSaveNameError] = useState("");
   const [showLanguageModal, setShowLanguageModal] = useState(false);
-  const [showTravelTypeModal, setShowTravelTypeModal] = useState(false);
   const [panel, setPanel] = useState<MypagePanel>("main");
   const [subPanelEntered, setSubPanelEntered] = useState(false);
   const locationSectionRef = useRef<HTMLDivElement | null>(null);
+  const [cosmeticsCoins, setCosmeticsCoins] = useState(() => loadCosmeticsCoins());
+  const prevLevelCoinRef = useRef(playerLevel);
+  const coinLevelMountedRef = useRef(false);
+
+  useEffect(() => {
+    if (!coinLevelMountedRef.current) {
+      coinLevelMountedRef.current = true;
+      prevLevelCoinRef.current = playerLevel;
+      return;
+    }
+    if (playerLevel > prevLevelCoinRef.current) {
+      const delta = cosmeticsCoinsForLevelUp(playerLevel);
+      setCosmeticsCoins((c) => {
+        const next = c + delta;
+        saveCosmeticsCoins(next);
+        return next;
+      });
+    }
+    prevLevelCoinRef.current = playerLevel;
+  }, [playerLevel]);
 
   useEffect(() => {
     if (panel === "main") {
@@ -152,45 +282,16 @@ export default function MyPageView({
     [subPanelEntered]
   );
 
-  // 診断結果からおすすめスポット・カテゴリを計算
-  const recommendedSpotIds = diagnosisResult ? getRecommendedSpotIds(diagnosisResult.interests) : [];
-  const recommendedSpotList = recommendedSpots.filter(s => recommendedSpotIds.includes(s.id));
-  const recommendedCategories = diagnosisResult
-    ? Array.from(new Map(
-        diagnosisResult.interests.flatMap(i => INTEREST_CATEGORY_MAP[i] || []).map(c => [c.label, c])
-      ).values())
-    : [];
-
   const favoriteDisplayRows = favoriteSpotIds.map((id) => {
     const spot = recommendedSpots.find((s) => s.id === id);
     const hist = viewHistory.find((h) => h.id === id);
     const name =
       spot?.name ||
       hist?.name ||
-      (language === "ja" ? "マップのスポット" : "Map spot");
+      t.mypage.favoriteNameMapSpot;
     const category = spot?.category || hist?.category || "";
     return { id, name, category };
   });
-
-  // 旅行タイプの表示名を取得
-  const getTravelStyleEmoji = (style: string) => {
-    if (style.includes("グルメ") || style.includes("Gourmet")) return "🍜";
-    if (style.includes("アクティブ") || style.includes("Active")) return "🏔️";
-    if (style.includes("癒し") || style.includes("Relax")) return "♨️";
-    if (style.includes("観光") || style.includes("Sightseeing")) return "🏛️";
-    return "🌸";
-  };
-
-  const getLocalizedTravelStyle = (style: string) => {
-    if (language === "en") {
-      if (style.includes("グルメ")) return t.diagnosis.travelStyles.gourmet;
-      if (style.includes("アクティブ")) return t.diagnosis.travelStyles.active;
-      if (style.includes("癒し")) return t.diagnosis.travelStyles.relaxGourmet;
-      if (style.includes("観光")) return t.diagnosis.travelStyles.sightseeing;
-      return t.diagnosis.travelStyles.balanced;
-    }
-    return style;
-  };
 
   useEffect(() => {
     if (!settingsOpenKey) return;
@@ -238,26 +339,26 @@ export default function MyPageView({
 
   const getLocationErrorGuide = () => {
     if (locationPermissionState === "denied") {
-      return "ブラウザや端末の設定で、このサイトの位置情報を許可してください。";
+      return t.mypage.locationGuideDenied;
     }
 
     if (locationPermissionState === "unsupported") {
-      return "この端末やブラウザでは、位置情報機能が使えない可能性があります。";
+      return t.mypage.locationGuideUnsupported;
     }
 
-    if (locationError.includes("タイムアウト")) {
-      return "屋外や電波の良い場所に移動して、もう一度お試しください。";
+    if (locationIssueCode === "timeout") {
+      return t.mypage.locationGuideTimeout;
     }
 
-    if (locationError.includes("安全な接続")) {
-      return "https の URL で開いているか確認してください。";
+    if (locationIssueCode === "insecure_context") {
+      return t.mypage.locationGuideInsecure;
     }
 
-    if (locationError.includes("特定できません")) {
-      return "GPS、Wi-Fi、モバイル通信がオンになっているか確認してください。";
+    if (locationIssueCode === "position_unavailable") {
+      return t.mypage.locationGuideUnavailable;
     }
 
-    return "少し時間を置いてから、もう一度お試しください。";
+    return t.mypage.locationGuideGeneric;
   };
 
   const settingsPanelBody = (
@@ -292,10 +393,10 @@ export default function MyPageView({
             </div>
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: "15px", fontWeight: "600", color: "#1f2937" }}>
-                位置情報の利用
+                {t.mypage.locationSectionTitle}
               </p>
               <p style={{ fontSize: "12px", color: "#6b7280", lineHeight: "1.7", marginTop: "4px" }}>
-                下のボタンを押したときだけ、ブラウザに位置情報の許可を求めます。許可後、なう情報などが場所に合わせて変わります。
+                {t.mypage.locationSectionLead}
               </p>
             </div>
           </div>
@@ -329,19 +430,19 @@ export default function MyPageView({
               }}
             >
               {locationPermissionState === "requesting"
-                ? "取得中..."
+                ? t.mypage.locationButtonRequesting
                 : isUsingMockLocation
-                  ? "仙台市の仮位置を使用中"
+                  ? t.mypage.locationButtonMock
                   : locationPermissionState === "granted"
-                    ? "現在地を取得中"
-                    : "現在地を共有する（許可を確認）"}
+                    ? t.mypage.locationButtonWatching
+                    : t.mypage.locationButtonPrompt}
             </button>
           )}
 
           {currentPosition && (
             <div style={{ marginTop: "10px" }}>
               <p style={{ fontSize: "12px", color: isUsingMockLocation ? "#b45309" : "#166534", fontWeight: "700" }}>
-                {isUsingMockLocation ? "PC確認用に仮の現在地を表示しています" : "現在地を継続監視しています"}
+                {isUsingMockLocation ? t.mypage.locationStatusMock : t.mypage.locationStatusWatching}
               </p>
               {currentAddress && (
                 <p style={{ fontSize: "12px", color: "#1f2937", lineHeight: "1.6", marginTop: "4px" }}>
@@ -349,7 +450,9 @@ export default function MyPageView({
                 </p>
               )}
               <p style={{ fontSize: "12px", color: "#374151", lineHeight: "1.6", marginTop: "2px" }}>
-                緯度 {currentPosition.latitude.toFixed(5)} / 経度 {currentPosition.longitude.toFixed(5)}
+                {t.common.latLng
+                  .replace("{lat}", String(currentPosition.latitude.toFixed(5)))
+                  .replace("{lng}", String(currentPosition.longitude.toFixed(5)))}
               </p>
               {currentAddress?.formattedAddress && (
                 <p style={{ fontSize: "11px", color: "#6b7280", lineHeight: "1.6", marginTop: "4px" }}>
@@ -359,7 +462,7 @@ export default function MyPageView({
             </div>
           )}
 
-          {(locationPermissionState === "denied" || locationPermissionState === "unsupported" || locationPermissionState === "error") && locationError && (
+          {(locationPermissionState === "denied" || locationPermissionState === "unsupported" || locationPermissionState === "error") && locationIssueCode && (
             <div
               style={{
                 marginTop: "12px",
@@ -370,10 +473,10 @@ export default function MyPageView({
               }}
             >
               <p style={{ fontSize: "12px", color: "#b91c1c", fontWeight: "700" }}>
-                位置情報を取得できませんでした
+                {t.mypage.locationFetchFailedTitle}
               </p>
               <p style={{ fontSize: "12px", color: "#991b1b", lineHeight: "1.7", marginTop: "4px" }}>
-                {locationError}
+                {locationIssueMessage(t, locationIssueCode)}
               </p>
               <p style={{ fontSize: "11px", color: "#7f1d1d", lineHeight: "1.7", marginTop: "6px" }}>
                 {getLocationErrorGuide()}
@@ -412,7 +515,14 @@ export default function MyPageView({
               <span style={{ fontSize: "15px", color: "#374151" }}>{t.mypage.language}</span>
             </div>
             <span style={{ fontSize: "14px", color: "#9ca3af" }}>
-              {language === "ja" ? "日本語" : "English"} ›
+              {language === "ja"
+                ? t.mypage.japanese
+                : language === "en"
+                  ? t.mypage.english
+                  : language === "zh"
+                    ? t.mypage.chinese
+                    : t.mypage.korean}{" "}
+              ›
             </span>
           </button>
           {onReplayTutorials && (
@@ -433,17 +543,68 @@ export default function MyPageView({
             >
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <span style={{ fontSize: "20px" }}>💡</span>
-                <span style={{ fontSize: "15px", color: "#374151" }}>チュートリアルをもう一度見る</span>
+                <span style={{ fontSize: "15px", color: "#374151" }}>{t.mypage.tutorialReplay}</span>
               </div>
               <span style={{ fontSize: "14px", color: "#9ca3af" }}>›</span>
             </button>
           )}
         </div>
+
+        {onResetPlayerProgressDev && (
+          <div
+            style={{
+              marginTop: "12px",
+              backgroundColor: "white",
+              borderRadius: "16px",
+              padding: "16px 14px",
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+              border: "1px dashed #d4d4d8",
+            }}
+          >
+            <p
+              style={{
+                fontSize: "10px",
+                fontWeight: 800,
+                color: "#9ca3af",
+                letterSpacing: "0.06em",
+                marginBottom: "6px",
+              }}
+            >
+              {t.mypage.developerToolsSection}
+            </p>
+            <p style={{ fontSize: "11px", color: "#6b7280", lineHeight: 1.65, marginBottom: "12px" }}>
+              {t.mypage.developerQuestResetHelp}
+            </p>
+            <button
+              type="button"
+              onClick={async () => {
+                if (typeof window !== "undefined" && !window.confirm(t.mypage.developerQuestResetConfirm)) {
+                  return;
+                }
+                await onResetPlayerProgressDev();
+              }}
+              style={{
+                width: "100%",
+                borderRadius: "12px",
+                border: "1px solid #fecdd3",
+                backgroundColor: "#fdf2f8",
+                color: "#9d174d",
+                padding: "10px 14px",
+                fontSize: "12px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              {t.mypage.developerQuestResetButton}
+            </button>
+          </div>
+        )}
       </div>
     </>
   );
 
-  const showSubPanelLayer = panel === "history" || panel === "favorites" || panel === "settings";
+  const showSubPanelLayer =
+    panel === "history" || panel === "favorites" || panel === "settings" || panel === "cosmetics";
 
   return (
     <div
@@ -456,6 +617,233 @@ export default function MyPageView({
         overflow: "hidden",
       }}
     >
+      {xpGainOverlay ? (
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={t.mypage.playerRewardTapToContinue}
+          onClick={dismissXpGainOverlay}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              dismissXpGainOverlay();
+            }
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 84,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(15, 23, 42, 0.12)",
+            backdropFilter: "blur(2px)",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              width: "min(300px, calc(100vw - 40px))",
+              padding: "22px 20px 16px",
+              borderRadius: "22px",
+              background: "linear-gradient(145deg, #ffffff 0%, #fff5f8 45%, #fdf3f5 100%)",
+              border: "2px solid #f7dfe5",
+              boxShadow:
+                "0 12px 40px rgba(232, 143, 163, 0.35), 0 0 0 1px rgba(255,255,255,0.8) inset, 0 0 48px rgba(243, 167, 184, 0.25)",
+              textAlign: "center",
+              overflow: "hidden",
+              transform: "translate(-50%, -50%)",
+              animation: "trad-trav-xp-card-enter 0.65s cubic-bezier(0.34, 1.2, 0.64, 1) forwards",
+              pointerEvents: "none",
+            }}
+          >
+            <div
+              aria-hidden
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.85) 50%, transparent 60%)",
+                animation: "trad-trav-xp-shine-sweep 1.1s ease-out 0.15s forwards",
+                pointerEvents: "none",
+              }}
+            />
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                gap: "10px",
+                marginBottom: "6px",
+                fontSize: "22px",
+                lineHeight: 1,
+              }}
+              aria-hidden
+            >
+              <span style={{ animation: "trad-trav-xp-sparkle 0.9s ease-in-out infinite" }}>
+                {t.mypage.playerXpGainSparkle}
+              </span>
+              <span style={{ animation: "trad-trav-xp-sparkle 0.9s ease-in-out 0.12s infinite" }}>
+                {t.mypage.playerXpGainSparkle}
+              </span>
+              <span style={{ animation: "trad-trav-xp-sparkle 0.9s ease-in-out 0.24s infinite" }}>
+                {t.mypage.playerXpGainSparkle}
+              </span>
+            </div>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "42px",
+                fontWeight: 900,
+                letterSpacing: "-0.03em",
+                background: "linear-gradient(135deg, #e88fa3 0%, #d4728a 50%, #b85f74 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                color: "transparent",
+                lineHeight: 1.1,
+                textShadow: "0 2px 16px rgba(232, 143, 163, 0.25)",
+              }}
+            >
+              +{xpGainOverlay.xp}
+            </p>
+            <p style={{ margin: "8px 0 0", fontSize: "13px", fontWeight: 800, color: "#b85f74", lineHeight: 1.4 }}>
+              {t.mypage.playerXpGainLine}
+            </p>
+            <p style={{ margin: "6px 0 0", fontSize: "12px", fontWeight: 700, color: "#9ca3af", lineHeight: 1.45 }}>
+              {t.mypage.playerQuestClaimToast.replace("{n}", String(xpGainOverlay.xp))}
+            </p>
+            <p
+              style={{
+                margin: "14px 0 0",
+                paddingTop: "12px",
+                borderTop: "1px dashed #f3d1da",
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "#e88fa3",
+                letterSpacing: "0.04em",
+              }}
+            >
+              {t.mypage.playerRewardTapToContinue}
+            </p>
+          </div>
+        </div>
+      ) : null}
+      {levelUpOverlay != null ? (
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={t.mypage.playerRewardTapToContinue}
+          onClick={dismissLevelUpOverlay}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              dismissLevelUpOverlay();
+            }
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 86,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(15, 23, 42, 0.18)",
+            backdropFilter: "blur(3px)",
+          }}
+        >
+          <div
+            aria-hidden
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              width: "200px",
+              height: "200px",
+              marginTop: "-100px",
+              marginLeft: "-100px",
+              borderRadius: "50%",
+              background: "conic-gradient(from 0deg, transparent, rgba(232,143,163,0.12), transparent, rgba(243,167,184,0.15), transparent)",
+              animation: "trad-trav-level-up-rays 2.2s ease-out forwards",
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              width: "min(320px, calc(100vw - 36px))",
+              padding: "26px 22px 24px",
+              borderRadius: "24px",
+              background: "linear-gradient(165deg, #ffffff 0%, #fff8fa 40%, #fdf3f5 100%)",
+              border: "2px solid #f3b6c3",
+              boxShadow: "0 16px 48px rgba(232, 143, 163, 0.4)",
+              textAlign: "center",
+              transform: "translate(-50%, -50%)",
+              animation: "trad-trav-level-up-card 0.75s cubic-bezier(0.34, 1.45, 0.64, 1) forwards",
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                fontSize: "13px",
+                fontWeight: 900,
+                letterSpacing: language === "en" ? "0.28em" : "0.12em",
+                color: "#e88fa3",
+                ...(language === "en" ? { textTransform: "uppercase" as const } : {}),
+              }}
+            >
+              {t.mypage.playerLevelUpTitle}
+            </p>
+            <p
+              style={{
+                margin: "14px 0 0",
+                fontSize: "44px",
+                fontWeight: 900,
+                lineHeight: 1,
+                color: "#111827",
+                letterSpacing: "-0.02em",
+              }}
+            >
+              Lv.{levelUpOverlay.level}
+            </p>
+            <p style={{ margin: "12px 0 0", fontSize: "14px", fontWeight: 700, color: "#b85f74", lineHeight: 1.5 }}>
+              {t.mypage.playerLevelUpSubtitle}
+            </p>
+            <p
+              style={{
+                margin: "14px 0 0",
+                fontSize: "16px",
+                fontWeight: 900,
+                color: "#b45309",
+                lineHeight: 1.4,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+              }}
+            >
+              <span aria-hidden>🪙</span>
+              {t.mypage.playerLevelUpCoins.replace("{n}", String(levelUpOverlay.coinsEarned))}
+            </p>
+            <p
+              style={{
+                margin: "16px 0 0",
+                paddingTop: "14px",
+                borderTop: "1px dashed #f3b6c3",
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "#e88fa3",
+                letterSpacing: "0.04em",
+              }}
+            >
+              {t.mypage.playerRewardTapToContinue}
+            </p>
+          </div>
+        </div>
+      ) : null}
       {showSubPanelLayer && (
         <div
           role="dialog"
@@ -634,6 +1022,67 @@ export default function MyPageView({
           <div style={{ flex: 1, overflowY: "auto", padding: "8px 24px 100px" }}>{settingsPanelBody}</div>
         </>
       )}
+
+      {panel === "cosmetics" && (
+        <>
+          <MypageSubHeader title={t.mypage.cosmeticsShopTitle} onBack={beginCloseSubPanel} />
+          <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px 100px" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "12px",
+                marginBottom: "16px",
+                padding: "14px 16px",
+                borderRadius: "16px",
+                background: "linear-gradient(135deg, #fffbeb 0%, #fff7ed 100%)",
+                border: "1px solid #fde68a",
+              }}
+            >
+              <p style={{ margin: 0, fontSize: "13px", fontWeight: 800, color: "#92400e" }}>
+                {t.mypage.cosmeticsShopCoinsLabel}
+              </p>
+              <p style={{ margin: 0, fontSize: "22px", fontWeight: 900, color: "#b45309", letterSpacing: "0.02em" }}>
+                🪙 {cosmeticsCoins}
+              </p>
+            </div>
+            <p style={{ fontSize: "13px", color: "#4b5563", lineHeight: 1.75, margin: "0 0 20px" }}>
+              {t.mypage.cosmeticsShopLead}
+            </p>
+            {(
+              [
+                { emoji: "🏅", title: t.mypage.cosmeticsShopSectionBadges },
+                { emoji: "✨", title: t.mypage.cosmeticsShopSectionTitles },
+                { emoji: "🐰", title: t.mypage.cosmeticsShopSectionCharacter },
+              ] as const
+            ).map((row) => (
+              <div
+                key={row.title}
+                style={{
+                  marginBottom: "12px",
+                  padding: "16px",
+                  borderRadius: "16px",
+                  backgroundColor: "white",
+                  border: "1px solid #f3f4f6",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+                  <span style={{ fontSize: "24px" }}>{row.emoji}</span>
+                  <p style={{ margin: 0, fontSize: "15px", fontWeight: 800, color: "#111827" }}>{row.title}</p>
+                </div>
+                <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "#e88fa3" }}>
+                  {t.mypage.cosmeticsShopComingSoon}
+                </p>
+                <p style={{ margin: "6px 0 0", fontSize: "12px", color: "#6b7280", lineHeight: 1.55 }}>
+                  {t.mypage.cosmeticsShopComingSoonHint}
+                </p>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
         </div>
       )}
 
@@ -670,6 +1119,7 @@ export default function MyPageView({
           <div style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}>
             <div style={{ position: "relative", width: RING_SIZE, height: RING_SIZE, flexShrink: 0 }}>
               <div
+                className={ringPulseOn ? "trad-trav-avatar-ring-pulse-on" : undefined}
                 style={{
                   position: "relative",
                   width: RING_SIZE,
@@ -694,6 +1144,7 @@ export default function MyPageView({
                     strokeWidth={6}
                   />
                   <circle
+                    key={`xp-ring-${playerLevel}`}
                     cx={RING_SIZE / 2}
                     cy={RING_SIZE / 2}
                     r={RING_R}
@@ -703,6 +1154,9 @@ export default function MyPageView({
                     strokeLinecap="round"
                     strokeDasharray={ringCircumference}
                     strokeDashoffset={ringDashOffset}
+                    style={{
+                      transition: "stroke-dashoffset 1.25s cubic-bezier(0.22, 0.61, 0.36, 1)",
+                    }}
                   />
                   <defs>
                     <linearGradient id={levelRingGradId} x1="0%" y1="0%" x2="100%" y2="0%">
@@ -731,7 +1185,7 @@ export default function MyPageView({
             </div>
 
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: "12px", fontWeight: 800, color: "#e88fa3", margin: "0 0 4px" }}>
+            <p style={{ fontSize: "12px", fontWeight: 800, color: "#b85f74", margin: "0 0 4px" }}>
               {t.mypage.playerProgressLevel.replace("{level}", String(playerLevel))}
             </p>
             {isEditingName ? (
@@ -833,7 +1287,7 @@ export default function MyPageView({
                 <span style={{ fontSize: "14px", opacity: 0.7 }}>✏️</span>
               </button>
             )}
-            <p style={{ fontSize: "13px", color: "#6b7280", marginTop: "4px" }}>
+            <p style={{ fontSize: "13px", color: "#4b5563", marginTop: "4px" }}>
               {user ? t.mypage.accountDisplayNameLabel : t.mypage.guestTravelerNameLabel}
             </p>
           </div>
@@ -846,10 +1300,10 @@ export default function MyPageView({
               borderTop: "1px solid #f3f4f6",
             }}
           >
-            <p style={{ fontSize: "14px", fontWeight: 700, color: "#374151", margin: "0 0 6px" }}>
+            <p style={{ fontSize: "14px", fontWeight: 700, color: "#1f2937", margin: "0 0 6px" }}>
               {t.mypage.playerXpToNext.replace("{n}", String(xpToNextLevel))}
             </p>
-            <p style={{ fontSize: "13px", color: "#6b7280", margin: 0 }}>
+            <p style={{ fontSize: "13px", color: "#374151", margin: 0 }}>
               {t.mypage.playerXpCurrent.replace("{xp}", String(playerProgress.xp))}
             </p>
           </div>
@@ -858,7 +1312,7 @@ export default function MyPageView({
         <div style={{ display: "flex", gap: "12px", marginTop: "14px" }}>
           {[
             {
-              label: "閲覧履歴",
+              label: t.mypage.menuHistory,
               icon: <ClockIcon size={18} color="white" />,
               onClick: () => setPanel("history"),
             },
@@ -867,9 +1321,9 @@ export default function MyPageView({
               icon: <HeartIcon size={18} color="white" />,
               onClick: () => setPanel("favorites"),
             },
-            { label: "診断", icon: <PenIcon size={18} color="white" />, onClick: onStartDiagnosis },
+            { label: t.mypage.menuDiagnosis, icon: <PenIcon size={18} color="white" />, onClick: onStartDiagnosis },
             {
-              label: "設定",
+              label: t.mypage.menuSettings,
               icon: <GearIcon size={18} color="white" />,
               onClick: () => {
                 onTutorialAction?.("mypage.settings-entry");
@@ -877,9 +1331,9 @@ export default function MyPageView({
               },
               tutorialId: "mypage.settings-entry" as const,
             },
-          ].map((item) => (
+          ].map((item, idx) => (
             <button
-              key={item.label}
+              key={idx}
               type="button"
               data-tutorial-id={"tutorialId" in item ? item.tutorialId : undefined}
               onClick={item.onClick}
@@ -912,10 +1366,71 @@ export default function MyPageView({
               >
                 {item.icon}
               </div>
-              <p style={{ fontSize: "11px", color: "#374151", fontWeight: 600 }}>{item.label}</p>
+              <p style={{ fontSize: "11px", color: "#1f2937", fontWeight: 600 }}>{item.label}</p>
             </button>
           ))}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setPanel("cosmetics")}
+          style={{
+            width: "100%",
+            marginTop: "14px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            padding: "14px 16px",
+            borderRadius: "18px",
+            border: "2px solid #f7dfe5",
+            background: "linear-gradient(135deg, #ffffff 0%, #fff5f8 55%, #fdf3f5 100%)",
+            boxShadow: "0 4px 16px rgba(232, 143, 163, 0.15)",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
+            <span
+              style={{
+                width: "46px",
+                height: "46px",
+                borderRadius: "14px",
+                background: "linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "22px",
+                flexShrink: 0,
+              }}
+              aria-hidden
+            >
+              🎀
+            </span>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: "15px", fontWeight: 900, color: "#b85f74", lineHeight: 1.3 }}>
+                {t.mypage.cosmeticsShopButton}
+              </p>
+              <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#6b7280", lineHeight: 1.45 }}>
+                {t.mypage.cosmeticsShopButtonSub}
+              </p>
+            </div>
+          </div>
+          <div
+            style={{
+              flexShrink: 0,
+              padding: "6px 12px",
+              borderRadius: "999px",
+              backgroundColor: "rgba(254, 243, 199, 0.95)",
+              border: "1px solid #fde68a",
+              fontSize: "13px",
+              fontWeight: 800,
+              color: "#b45309",
+            }}
+          >
+            🪙 {cosmeticsCoins}
+          </div>
+        </button>
       </div>
 
       <div style={{ padding: "24px 24px 16px" }}>
@@ -928,140 +1443,221 @@ export default function MyPageView({
             border: "1px solid #f3f4f6",
           }}
         >
-          <h2 style={{ fontSize: "15px", fontWeight: 700, color: "#374151", marginBottom: "10px" }}>
-            {t.mypage.playerProgressBadges}
-          </h2>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-            {playerProgress.badgeIds.length === 0 ? (
-              <span style={{ fontSize: "12px", color: "#9ca3af" }}>—</span>
-            ) : (
-              playerProgress.badgeIds.map((id) => {
-                const meta = BADGE_META[id];
-                const label = meta ? (language === "en" ? meta.labelEn : meta.labelJa) : id;
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "10px",
+              flexWrap: "wrap",
+              marginBottom: "10px",
+            }}
+          >
+            <h2 style={{ fontSize: "15px", fontWeight: 800, color: "#111827", margin: 0 }}>
+              {t.mypage.playerQuestsTitle}
+            </h2>
+            <div
+              role="tablist"
+              aria-label={t.mypage.playerQuestsTitle}
+              style={{
+                display: "flex",
+                borderRadius: "10px",
+                backgroundColor: "#f3f4f6",
+                padding: "3px",
+                gap: "2px",
+                flexShrink: 0,
+              }}
+            >
+              {(
+                [
+                  {
+                    id: "daily" as const,
+                    label: t.mypage.playerQuestTabDaily,
+                    showBadge: questUnclaimedBadges.dailyUnclaimed > 0,
+                  },
+                  {
+                    id: "normal" as const,
+                    label: t.mypage.playerQuestTabNormal,
+                    showBadge: questUnclaimedBadges.normalUnclaimed > 0,
+                  },
+                ] as const
+              ).map(({ id, label, showBadge }) => {
+                const selected = questCategory === id;
                 return (
-                  <span
+                  <button
                     key={id}
-                    title={label}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    onClick={() => setQuestCategory(id)}
                     style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      color: "#b85f74",
-                      backgroundColor: "#fdf3f5",
+                      position: "relative",
+                      border: "none",
+                      borderRadius: "8px",
                       padding: "6px 10px",
-                      borderRadius: "999px",
+                      fontSize: "10px",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                      maxWidth: "132px",
+                      lineHeight: 1.25,
+                      backgroundColor: selected ? "white" : "transparent",
+                      color: selected ? "#b85f74" : "#6b7280",
+                      boxShadow: selected ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
                     }}
                   >
-                    {meta?.emoji ? <span>{meta.emoji}</span> : null}
                     {label}
-                  </span>
+                    {showBadge ? (
+                      <span
+                        aria-hidden
+                        style={{
+                          position: "absolute",
+                          top: "3px",
+                          right: "4px",
+                          width: "7px",
+                          height: "7px",
+                          borderRadius: "999px",
+                          backgroundColor: "#ef4444",
+                          border: "1px solid white",
+                          boxShadow: "0 0 0 1px rgba(239,68,68,0.35)",
+                        }}
+                      />
+                    ) : null}
+                  </button>
                 );
-              })
-            )}
+              })}
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {questRowsSorted.map(({ quest, done, rewardClaimed, current, target }) => {
+              const byId = t.mypage.questById[quest.id as keyof typeof t.mypage.questById];
+              const title =
+                typeof byId === "string" ? byId : language === "ja" ? quest.labelJa : quest.labelEn;
+              const showCounter =
+                quest.kind.type === "spot_views" ||
+                quest.kind.type === "daily_spot_views" ||
+                quest.kind.type === "favorites" ||
+                quest.kind.type === "tutorials_all" ||
+                (quest.kind.type === "diagnosis" && !done);
+              const progressLabel = t.mypage.playerQuestProgress
+                .replace("{current}", String(current))
+                .replace("{target}", String(target));
+              const isSaved = rewardClaimed;
+              return (
+                <div
+                  key={quest.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    padding: "10px 12px",
+                    borderRadius: "14px",
+                    border: isSaved ? "1px solid #e5e7eb" : done ? "1px solid #f7dfe5" : "1px solid #f3f4f6",
+                    backgroundColor: isSaved ? "#f3f4f6" : done ? "#fdf3f5" : "#fafafa",
+                    opacity: isSaved ? 0.92 : 1,
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        color: isSaved ? "#6b7280" : "#1f2937",
+                        margin: 0,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {title}
+                    </p>
+                    {showCounter && !done && (
+                      <p style={{ fontSize: "11px", color: "#6b7280", marginTop: "4px", marginBottom: 0 }}>
+                        {progressLabel}
+                      </p>
+                    )}
+                    {!isSaved && !done && (
+                      <p style={{ fontSize: "11px", color: "#9ca3af", marginTop: "4px", marginBottom: 0 }}>
+                        {t.mypage.playerQuestXpReward.replace("{xp}", String(quest.xpReward))}
+                      </p>
+                    )}
+                    {!isSaved && done && (
+                      <p
+                        style={{
+                          fontSize: "13px",
+                          fontWeight: 800,
+                          color: "#b85f74",
+                          marginTop: "6px",
+                          marginBottom: 0,
+                          letterSpacing: "0.02em",
+                        }}
+                      >
+                        {t.mypage.playerQuestClaimablePoints.replace("{xp}", String(quest.xpReward))}
+                      </p>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px", flexShrink: 0 }}>
+                    {isSaved ? (
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 800,
+                          color: "#6b7280",
+                          backgroundColor: "#e5e7eb",
+                          padding: "4px 10px",
+                          borderRadius: "999px",
+                          border: "1px solid #d1d5db",
+                        }}
+                      >
+                        {t.mypage.playerQuestDoneSaved}
+                      </span>
+                    ) : done ? (
+                      <button
+                        type="button"
+                        disabled={!onClaimQuest}
+                        onClick={() => {
+                          setXpGainOverlay({ xp: quest.xpReward });
+                          onClaimQuest?.(quest.id);
+                        }}
+                        style={{
+                          border: "none",
+                          borderRadius: "999px",
+                          padding: "6px 14px",
+                          fontSize: "11px",
+                          fontWeight: 800,
+                          cursor: onClaimQuest ? "pointer" : "default",
+                          opacity: onClaimQuest ? 1 : 0.5,
+                          background: "linear-gradient(135deg, #e88fa3 0%, #f3a7b8 100%)",
+                          color: "white",
+                          boxShadow: onClaimQuest ? "0 1px 4px rgba(232,143,163,0.45)" : "none",
+                        }}
+                      >
+                        {t.mypage.playerQuestDone}
+                      </button>
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          color: "#9ca3af",
+                          backgroundColor: "#f3f4f6",
+                          padding: "3px 8px",
+                          borderRadius: "999px",
+                          border: "1px solid #e5e7eb",
+                        }}
+                      >
+                        {t.mypage.playerQuestStatusIncomplete}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
           {!user && (
-            <p style={{ fontSize: "11px", color: "#9ca3af", marginTop: "10px", marginBottom: 0, lineHeight: 1.5 }}>
+            <p style={{ fontSize: "11px", color: "#6b7280", marginTop: "10px", marginBottom: 0, lineHeight: 1.5 }}>
               {t.mypage.playerProgressGuestHint}
             </p>
           )}
         </div>
-      </div>
-
-      {/* 診断（結果または受ける導線を一括） */}
-      <div style={{ padding: "20px 24px" }}>
-        <h2 style={{ fontSize: "16px", fontWeight: "600", color: "#374151", marginBottom: "12px" }}>
-          {t.diagnosis.title}
-        </h2>
-        {diagnosisResult ? (
-          <button
-            type="button"
-            onClick={() => setShowTravelTypeModal(true)}
-            style={{
-              width: "100%",
-              backgroundColor: "white",
-              borderRadius: "16px",
-              padding: "20px",
-              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
-              border: "none",
-              cursor: "pointer",
-              textAlign: "left",
-            }}
-          >
-            <p style={{ fontSize: "12px", fontWeight: 600, color: "#9ca3af", marginBottom: "10px" }}>
-              {t.mypage.travelType}
-            </p>
-            <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "16px" }}>
-              <div style={{
-                width: "56px", height: "56px", borderRadius: "50%",
-                backgroundColor: "#fdf3f5", display: "flex",
-                alignItems: "center", justifyContent: "center", fontSize: "28px",
-              }}>
-                {getTravelStyleEmoji(diagnosisResult.travelStyle)}
-              </div>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: "18px", fontWeight: "bold", color: "#b85f74" }}>
-                  {getLocalizedTravelStyle(diagnosisResult.travelStyle)}
-                </p>
-                <p style={{ fontSize: "13px", color: "#9ca3af" }}>
-                  {diagnosisResult.recommendedPlan.title}
-                </p>
-              </div>
-              <span style={{ fontSize: "20px", color: "#e88fa3" }}>›</span>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-              {diagnosisResult.interests.map((interest) => (
-                <span key={interest} style={{
-                  backgroundColor: "#f7dfe5", color: "#b85f74",
-                  padding: "4px 10px", borderRadius: "12px", fontSize: "12px",
-                }}>
-                  {t.diagnosis.interests[interest as keyof typeof t.diagnosis.interests] || interest}
-                </span>
-              ))}
-            </div>
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onStartDiagnosis}
-            style={{
-              width: "100%",
-              backgroundColor: "white",
-              borderRadius: "16px",
-              padding: "20px",
-              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              textAlign: "left",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-              <div
-                style={{
-                  width: "48px", height: "48px", borderRadius: "14px",
-                  backgroundColor: "#fdf3f5",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: "24px",
-                }}
-              >
-                🌸
-              </div>
-              <div>
-                <p style={{ fontSize: "15px", fontWeight: "600", color: "#1f2937" }}>
-                  {language === "ja" ? "診断を受ける" : "Start Diagnosis"}
-                </p>
-                <p style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>
-                  {language === "ja" ? "あなたにぴったりのスポットを見つけよう" : "Find spots that suit you"}
-                </p>
-              </div>
-            </div>
-            <span style={{ fontSize: "20px", color: "#e88fa3" }}>›</span>
-          </button>
-        )}
       </div>
 
       {/* ログイン / ログアウトボタン */}
@@ -1085,11 +1681,7 @@ export default function MyPageView({
           </button>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <p style={{ textAlign: "center", fontSize: "13px", color: "#9ca3af" }}>
-              {language === "ja"
-                ? "ログインすると閲覧履歴やお気に入りが保存されます"
-                : "Log in to save your history and favorites"}
-            </p>
+            <p style={{ textAlign: "center", fontSize: "13px", color: "#6b7280" }}>{t.mypage.loginGuestHint}</p>
             <button
               onClick={onLoginRequest}
               style={{
@@ -1105,131 +1697,12 @@ export default function MyPageView({
                 boxShadow: "0 4px 12px rgba(236, 72, 153, 0.35)",
               }}
             >
-              {language === "ja" ? "ログイン / 新規登録" : "Login / Sign Up"}
+              {t.mypage.loginCta}
             </button>
           </div>
         )}
       </div>
 
-        </div>
-      )}
-
-      {/* 旅行タイプ詳細モーダル */}
-      {showTravelTypeModal && diagnosisResult && (
-        <div
-          style={{
-            position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)",
-            zIndex: 9999, display: "flex", alignItems: "flex-end",
-          }}
-          onClick={() => setShowTravelTypeModal(false)}
-        >
-          <div
-            style={{
-              backgroundColor: "white", borderTopLeftRadius: "24px",
-              borderTopRightRadius: "24px", width: "100%",
-              maxHeight: "85vh", overflowY: "auto", padding: "24px",
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div style={{ width: "48px", height: "5px", backgroundColor: "#d1d5db", borderRadius: "99px", margin: "0 auto 20px" }} />
-
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
-              <div style={{
-                width: "52px", height: "52px", borderRadius: "50%",
-                backgroundColor: "#fdf3f5", display: "flex", alignItems: "center",
-                justifyContent: "center", fontSize: "26px",
-              }}>
-                {getTravelStyleEmoji(diagnosisResult.travelStyle)}
-              </div>
-              <div>
-                <p style={{ fontSize: "20px", fontWeight: "bold", color: "#b85f74" }}>
-                  {getLocalizedTravelStyle(diagnosisResult.travelStyle)}
-                </p>
-                <p style={{ fontSize: "13px", color: "#9ca3af" }}>{diagnosisResult.recommendedPlan.title}</p>
-              </div>
-            </div>
-
-            <div style={{ backgroundColor: "#fdf3f5", borderRadius: "12px", padding: "14px", marginBottom: "20px" }}>
-              <p style={{ fontSize: "14px", color: "#4b5563", lineHeight: "1.7" }}>
-                {diagnosisResult.recommendedPlan.description}
-              </p>
-            </div>
-
-            {recommendedCategories.length > 0 && (
-              <div style={{ marginBottom: "20px" }}>
-                <p style={{ fontSize: "14px", fontWeight: "600", color: "#374151", marginBottom: "10px" }}>
-                  おすすめカテゴリ
-                </p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                  {recommendedCategories.map(cat => (
-                    <span key={cat.label} style={{
-                      backgroundColor: "#f7dfe5", color: "#b85f74",
-                      padding: "6px 14px", borderRadius: "20px",
-                      fontSize: "14px", fontWeight: "500",
-                    }}>
-                      {cat.emoji} {cat.label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div style={{ marginBottom: "20px" }}>
-              <p style={{ fontSize: "14px", fontWeight: "600", color: "#374151", marginBottom: "10px" }}>
-                あなたにおすすめのスポット
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {recommendedSpotList.map(spot => (
-                  <button
-                    key={spot.id}
-                    type="button"
-                    onClick={() => { onJumpToSpot?.(spot.id); setShowTravelTypeModal(false); }}
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      backgroundColor: "#f9fafb", borderRadius: "12px",
-                      padding: "12px 14px", border: "1px solid #f3f4f6",
-                      cursor: "pointer", textAlign: "left",
-                    }}
-                  >
-                    <div>
-                      <p style={{ fontSize: "15px", fontWeight: "500", color: "#1f2937" }}>{spot.name}</p>
-                      <p style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>{spot.category}</p>
-                    </div>
-                    <span style={{ color: "#e88fa3", fontSize: "16px" }}>地図 ›</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {diagnosisResult.recommendedPlan.tips.length > 0 && (
-              <div>
-                <p style={{ fontSize: "14px", fontWeight: "600", color: "#374151", marginBottom: "10px" }}>
-                  旅のヒント
-                </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  {diagnosisResult.recommendedPlan.tips.map((tip, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                      <span style={{ color: "#e88fa3", fontSize: "14px", flexShrink: 0 }}>💡</span>
-                      <p style={{ fontSize: "14px", color: "#4b5563", lineHeight: "1.6" }}>{tip}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setShowTravelTypeModal(false)}
-              style={{
-                width: "100%", marginTop: "24px", padding: "14px",
-                borderRadius: "12px", backgroundColor: "#e88fa3",
-                color: "white", border: "none", fontSize: "15px",
-                fontWeight: "600", cursor: "pointer",
-              }}
-            >
-              閉じる
-            </button>
-          </div>
         </div>
       )}
 
@@ -1262,7 +1735,10 @@ export default function MyPageView({
             </h3>
             
             <button
-              onClick={() => { setLanguage("ja"); setShowLanguageModal(false); }}
+              onClick={() => {
+                setLanguage("ja");
+                setShowLanguageModal(false);
+              }}
               style={{
                 width: "100%",
                 padding: "14px",
@@ -1276,26 +1752,73 @@ export default function MyPageView({
                 justifyContent: "space-between",
               }}
             >
-              <span style={{ fontSize: "15px", color: "#374151" }}>🇯🇵 日本語</span>
+              <span style={{ fontSize: "15px", color: "#374151" }}>🇯🇵 {t.mypage.japanese}</span>
               {language === "ja" && <span style={{ color: "#e88fa3" }}>✓</span>}
             </button>
-            
+
             <button
-              onClick={() => { setLanguage("en"); setShowLanguageModal(false); }}
+              onClick={() => {
+                setLanguage("en");
+                setShowLanguageModal(false);
+              }}
               style={{
                 width: "100%",
                 padding: "14px",
                 borderRadius: "12px",
                 border: language === "en" ? "2px solid #e88fa3" : "1px solid #e5e7eb",
                 backgroundColor: language === "en" ? "#fdf3f5" : "white",
+                marginBottom: "12px",
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
               }}
             >
-              <span style={{ fontSize: "15px", color: "#374151" }}>🇺🇸 English</span>
+              <span style={{ fontSize: "15px", color: "#374151" }}>🇺🇸 {t.mypage.english}</span>
               {language === "en" && <span style={{ color: "#e88fa3" }}>✓</span>}
+            </button>
+
+            <button
+              onClick={() => {
+                setLanguage("zh");
+                setShowLanguageModal(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "14px",
+                borderRadius: "12px",
+                border: language === "zh" ? "2px solid #e88fa3" : "1px solid #e5e7eb",
+                backgroundColor: language === "zh" ? "#fdf3f5" : "white",
+                marginBottom: "12px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span style={{ fontSize: "15px", color: "#374151" }}>🇨🇳 {t.mypage.chinese}</span>
+              {language === "zh" && <span style={{ color: "#e88fa3" }}>✓</span>}
+            </button>
+
+            <button
+              onClick={() => {
+                setLanguage("ko");
+                setShowLanguageModal(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "14px",
+                borderRadius: "12px",
+                border: language === "ko" ? "2px solid #e88fa3" : "1px solid #e5e7eb",
+                backgroundColor: language === "ko" ? "#fdf3f5" : "white",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span style={{ fontSize: "15px", color: "#374151" }}>🇰🇷 {t.mypage.korean}</span>
+              {language === "ko" && <span style={{ color: "#e88fa3" }}>✓</span>}
             </button>
           </div>
         </div>

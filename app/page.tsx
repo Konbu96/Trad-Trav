@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BottomNavigation from "./components/BottomNavigation";
 import SplashScreen from "./components/SplashScreen";
+import PostSplashLanguageOverlay from "./components/PostSplashLanguageOverlay";
 import DiagnosisView, { type DiagnosisResult } from "./components/DiagnosisView";
 import MyPageView from "./components/MyPageView";
 import AuthView from "./components/AuthView";
@@ -10,7 +11,8 @@ import MapTabView from "./components/MapTabView";
 import MannerView from "./components/MannerView";
 import NowInfoView from "./components/NowInfoView";
 import TutorialOverlay from "./components/TutorialOverlay";
-import { LanguageProvider } from "./i18n/LanguageContext";
+import { LanguageProvider, useLanguage } from "./i18n/LanguageContext";
+import type { LocationIssueCode } from "./lib/locationIssue";
 import {
   saveDiagnosisResult,
   getDiagnosisResult,
@@ -23,6 +25,7 @@ import {
   getPlayerProgress,
   mergeAndSavePlayerProgress,
   recordPlayerEvent,
+  savePlayerProgress,
   type ViewHistoryItem,
   auth,
 } from "./lib/firebase";
@@ -41,6 +44,8 @@ import {
   clearGuestPlayerProgress,
   defaultPlayerProgress,
   loadGuestPlayerProgress,
+  getQuestUnclaimedBadgeCounts,
+  recomputePlayerXp,
   saveGuestPlayerProgress,
   type PlayerEvent,
   type PlayerProgress,
@@ -48,6 +53,12 @@ import {
 import { getRecommendedSpotIds } from "./data/spots";
 import type { HelpfulTabId } from "./data/helpfulInfo";
 import { signOut } from "firebase/auth";
+import {
+  readFirstAppWalkthroughDone,
+  readPostSplashLanguageSeen,
+  writeFirstAppWalkthroughDone,
+  writePostSplashLanguageSeen,
+} from "./lib/firstLaunchFlow";
 
 // 画面の種類
 export type ScreenType = "map" | "now" | "manner" | "mypage";
@@ -74,22 +85,27 @@ export interface CurrentAddress {
   formattedAddress: string;
 }
 
-const ASSUMED_SENDAI_POSITION = {
-  latitude: 38.2682,
-  longitude: 140.8694,
+/** PC 相当の環境・開発者ツールで使う仮現在地（栗原市役所付近） */
+const ASSUMED_FALLBACK_POSITION = {
+  latitude: 38.72977,
+  longitude: 141.02098,
 };
 
-const ASSUMED_SENDAI_ADDRESS: CurrentAddress = {
+const ASSUMED_FALLBACK_ADDRESS: CurrentAddress = {
   prefecture: "宮城県",
-  city: "仙台市",
-  town: "青葉区",
-  formattedAddress: "宮城県仙台市青葉区",
+  city: "栗原市",
+  town: "築館",
+  formattedAddress: "宮城県栗原市築館薬師1丁目7-1付近",
 };
 
 const GUEST_DISPLAY_NAME_KEY = "trad-trav-guest-display-name";
 
 function AppContent() {
+  const { t, language } = useLanguage();
   const [showSplash, setShowSplash] = useState(true);
+  const [showPostSplashLanguage, setShowPostSplashLanguage] = useState(false);
+  const [showFirstAppWalkthrough, setShowFirstAppWalkthrough] = useState(false);
+  const [firstAppWalkthroughStepIndex, setFirstAppWalkthroughStepIndex] = useState(0);
   const [showAuth, setShowAuth] = useState(false);
   const [showDiagnosis, setShowDiagnosis] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -102,7 +118,7 @@ function AppContent() {
   const [mannerHelperSpot, setMannerHelperSpot] = useState<string | null>(null);
   const [preferredHelpfulTab, setPreferredHelpfulTab] = useState<HelpfulTabId | null>(null);
   const [locationPermissionState, setLocationPermissionState] = useState<LocationPermissionState>("idle");
-  const [locationError, setLocationError] = useState("");
+  const [locationIssueCode, setLocationIssueCode] = useState<LocationIssueCode>("");
   const [currentPosition, setCurrentPosition] = useState<{ latitude: number; longitude: number } | null>(null);
   const [currentAddress, setCurrentAddress] = useState<CurrentAddress | null>(null);
   const [isUsingMockLocation, setIsUsingMockLocation] = useState(false);
@@ -114,6 +130,8 @@ function AppContent() {
   const [playerProgress, setPlayerProgress] = useState<PlayerProgress>(() => defaultPlayerProgress());
   const locationWatchIdRef = useRef<number | null>(null);
   const lastReverseGeocodeKeyRef = useRef<string>("");
+  const currentPositionRef = useRef(currentPosition);
+  currentPositionRef.current = currentPosition;
   const hasLocation = Boolean(currentPosition);
 
   // 診断結果からおすすめスポットIDを計算
@@ -121,14 +139,70 @@ function AppContent() {
     ? getRecommendedSpotIds(diagnosisResult.interests)
     : null;
   const activeTutorialSteps = useMemo(
-    () => (activeTutorialScreen ? getTutorialSteps(activeTutorialScreen, { hasNowLocation: hasLocation }) : []),
-    [activeTutorialScreen, hasLocation]
+    () =>
+      activeTutorialScreen ? getTutorialSteps(activeTutorialScreen, { hasNowLocation: hasLocation }, t.tutorial) : [],
+    [activeTutorialScreen, hasLocation, t.tutorial]
   );
   const activeTutorialStep = activeTutorialSteps[activeTutorialStepIndex] ?? null;
 
+  const questUnclaimedNavBadge = useMemo(
+    () => getQuestUnclaimedBadgeCounts(playerProgress).totalUnclaimed > 0,
+    [playerProgress]
+  );
+
   const handleSplashFinish = () => {
     setShowSplash(false);
+    if (typeof window === "undefined") return;
+    try {
+      if (!readPostSplashLanguageSeen()) {
+        setShowPostSplashLanguage(true);
+      } else if (!readFirstAppWalkthroughDone()) {
+        setFirstAppWalkthroughStepIndex(0);
+        setShowFirstAppWalkthrough(true);
+      }
+    } catch {
+      setShowPostSplashLanguage(true);
+    }
   };
+
+  const handlePostSplashLanguageDismiss = useCallback(() => {
+    writePostSplashLanguageSeen();
+    setShowPostSplashLanguage(false);
+    if (!readFirstAppWalkthroughDone()) {
+      setFirstAppWalkthroughStepIndex(0);
+      setShowFirstAppWalkthrough(true);
+    }
+  }, []);
+
+  const firstAppWalkthroughSteps = useMemo(() => {
+    const w = t.walkthrough;
+    return [
+      { targetId: "nav.map", title: w.navMapTitle, description: w.navMapDesc },
+      { targetId: "nav.now", title: w.navNowTitle, description: w.navNowDesc },
+      { targetId: "nav.manner", title: w.navMannerTitle, description: w.navMannerDesc },
+      { targetId: "nav.mypage", title: w.navMypageTitle, description: w.navMypageDesc },
+    ];
+  }, [t.walkthrough]);
+
+  const handleFirstWalkthroughSkip = useCallback(() => {
+    writeFirstAppWalkthroughDone();
+    setShowFirstAppWalkthrough(false);
+    setFirstAppWalkthroughStepIndex(0);
+  }, []);
+
+  const handleFirstWalkthroughNext = useCallback(() => {
+    setFirstAppWalkthroughStepIndex((idx) => {
+      const nextIdx = idx + 1;
+      if (nextIdx >= firstAppWalkthroughSteps.length) {
+        queueMicrotask(() => {
+          writeFirstAppWalkthroughDone();
+          setShowFirstAppWalkthrough(false);
+        });
+        return 0;
+      }
+      return nextIdx;
+    });
+  }, [firstAppWalkthroughSteps.length]);
 
   useEffect(() => {
     setTutorialProgress(loadTutorialProgress());
@@ -224,6 +298,23 @@ function AppContent() {
     [user?.id]
   );
 
+  const handleResetPlayerProgressDev = useCallback(async () => {
+    const fresh = recomputePlayerXp(defaultPlayerProgress());
+    const uid = user?.id;
+    if (uid) {
+      try {
+        await savePlayerProgress(uid, defaultPlayerProgress());
+        setPlayerProgress(fresh);
+      } catch (error) {
+        console.error("プレイヤー進捗のリセットに失敗:", error);
+      }
+      return;
+    }
+    clearGuestPlayerProgress();
+    saveGuestPlayerProgress(fresh);
+    setPlayerProgress(fresh);
+  }, [user?.id]);
+
   useEffect(() => {
     if (!user) {
       setPlayerProgress(loadGuestPlayerProgress());
@@ -293,7 +384,14 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    if (!tutorialProgress || showSplash || showDiagnosis || showAuth) {
+    if (
+      !tutorialProgress ||
+      showSplash ||
+      showDiagnosis ||
+      showAuth ||
+      showPostSplashLanguage ||
+      showFirstAppWalkthrough
+    ) {
       return;
     }
 
@@ -312,11 +410,22 @@ function AppContent() {
       setActiveTutorialScreen(nextScreen);
       setActiveTutorialStepIndex(0);
     }
-  }, [activeTutorialScreen, currentScreen, showAuth, showDiagnosis, showSplash, tutorialProgress]);
+  }, [
+    activeTutorialScreen,
+    currentScreen,
+    showAuth,
+    showDiagnosis,
+    showFirstAppWalkthrough,
+    showPostSplashLanguage,
+    showSplash,
+    tutorialProgress,
+  ]);
 
   const reverseGeocode = useCallback(async (latitude: number, longitude: number) => {
     try {
-      const res = await fetch(`/api/google-places/reverse-geocode?lat=${encodeURIComponent(latitude)}&lng=${encodeURIComponent(longitude)}`);
+      const res = await fetch(
+        `/api/google-places/reverse-geocode?lat=${encodeURIComponent(latitude)}&lng=${encodeURIComponent(longitude)}&lang=${encodeURIComponent(language)}`
+      );
       const data = await res.json() as {
         prefecture?: string;
         city?: string;
@@ -339,15 +448,32 @@ function AppContent() {
       console.warn("位置情報の住所変換に失敗:", error);
       setCurrentAddress(null);
     }
-  }, []);
+  }, [language]);
 
-  const applyAssumedSendaiLocation = useCallback(() => {
-    setCurrentPosition(ASSUMED_SENDAI_POSITION);
-    setCurrentAddress(ASSUMED_SENDAI_ADDRESS);
+  useEffect(() => {
+    const pos = currentPositionRef.current;
+    if (!pos) return;
+    void reverseGeocode(pos.latitude, pos.longitude);
+  }, [language, reverseGeocode]);
+
+  const applyAssumedFallbackLocation = useCallback(() => {
+    setCurrentPosition(ASSUMED_FALLBACK_POSITION);
+    setCurrentAddress(ASSUMED_FALLBACK_ADDRESS);
     setLocationPermissionState("granted");
-    setLocationError("");
+    setLocationIssueCode("");
     setIsUsingMockLocation(true);
   }, []);
+
+  /** なう情報の開発者ツール: GPS を止め、栗原市の固定座標を現在地にする */
+  const handleUseDeveloperKuriharaLocation = useCallback(() => {
+    if (locationWatchIdRef.current !== null && typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.clearWatch(locationWatchIdRef.current);
+      locationWatchIdRef.current = null;
+    }
+    applyAssumedFallbackLocation();
+    lastReverseGeocodeKeyRef.current = "";
+    void reverseGeocode(ASSUMED_FALLBACK_POSITION.latitude, ASSUMED_FALLBACK_POSITION.longitude);
+  }, [applyAssumedFallbackLocation, reverseGeocode]);
 
   const isDesktopLikeDevice = useCallback(() => {
     if (typeof navigator === "undefined") return false;
@@ -356,13 +482,15 @@ function AppContent() {
 
   const startLocationTracking = useCallback(() => {
     if (isDesktopLikeDevice()) {
-      applyAssumedSendaiLocation();
+      applyAssumedFallbackLocation();
+      lastReverseGeocodeKeyRef.current = "";
+      void reverseGeocode(ASSUMED_FALLBACK_POSITION.latitude, ASSUMED_FALLBACK_POSITION.longitude);
       return;
     }
 
     if (!navigator.geolocation) {
       setLocationPermissionState("unsupported");
-      setLocationError("この端末では位置情報を利用できません。");
+      setLocationIssueCode("device_unsupported");
       setCurrentPosition(null);
       setCurrentAddress(null);
       setIsUsingMockLocation(false);
@@ -371,7 +499,7 @@ function AppContent() {
 
     if (!window.isSecureContext) {
       setLocationPermissionState("error");
-      setLocationError("位置情報は安全な接続のページでのみ利用できます。");
+      setLocationIssueCode("insecure_context");
       setCurrentPosition(null);
       setCurrentAddress(null);
       setIsUsingMockLocation(false);
@@ -384,7 +512,7 @@ function AppContent() {
     }
 
     setLocationPermissionState("requesting");
-    setLocationError("");
+    setLocationIssueCode("");
     setIsUsingMockLocation(false);
 
     // watchPosition でアプリ表示中は現在地を継続監視する
@@ -394,7 +522,7 @@ function AppContent() {
         const longitude = position.coords.longitude;
         setCurrentPosition({ latitude, longitude });
         setLocationPermissionState("granted");
-        setLocationError("");
+        setLocationIssueCode("");
         setIsUsingMockLocation(false);
 
         const nextKey = makeLocationKey(latitude, longitude);
@@ -406,7 +534,7 @@ function AppContent() {
       (error) => {
         if (error.code === error.PERMISSION_DENIED) {
           setLocationPermissionState("denied");
-          setLocationError("位置情報の許可がオフになっています。");
+          setLocationIssueCode("permission_denied");
           setCurrentPosition(null);
           setCurrentAddress(null);
           setIsUsingMockLocation(false);
@@ -419,7 +547,7 @@ function AppContent() {
 
         if (error.code === error.POSITION_UNAVAILABLE) {
           setLocationPermissionState("error");
-          setLocationError("現在地を特定できませんでした。GPSや通信状況をご確認ください。");
+          setLocationIssueCode("position_unavailable");
           setCurrentPosition(null);
           setCurrentAddress(null);
           setIsUsingMockLocation(false);
@@ -428,7 +556,7 @@ function AppContent() {
 
         if (error.code === error.TIMEOUT) {
           setLocationPermissionState("error");
-          setLocationError("位置情報の取得がタイムアウトしました。少し待ってから再度お試しください。");
+          setLocationIssueCode("timeout");
           setCurrentPosition(null);
           setCurrentAddress(null);
           setIsUsingMockLocation(false);
@@ -436,7 +564,7 @@ function AppContent() {
         }
 
         setLocationPermissionState("error");
-        setLocationError("位置情報を取得できませんでした。");
+        setLocationIssueCode("generic");
         setCurrentPosition(null);
         setCurrentAddress(null);
         setIsUsingMockLocation(false);
@@ -447,7 +575,7 @@ function AppContent() {
         maximumAge: 60000,
       }
     );
-  }, [applyAssumedSendaiLocation, isDesktopLikeDevice, reverseGeocode]);
+  }, [applyAssumedFallbackLocation, isDesktopLikeDevice, reverseGeocode]);
 
   const handleRequestLocationPermission = useCallback(() => {
     startLocationTracking();
@@ -477,14 +605,6 @@ function AppContent() {
     setPreferredHelpfulTab(tabId);
     setMannerHelperSpot(null);
     setCurrentScreen("manner");
-  };
-
-  const handleOpenExperienceBooking = () => {
-    setPreferredHelpfulTab(null);
-    setMannerHelperSpot(null);
-    setJumpToSpotId(null);
-    setMapResetKey((prev) => prev + 1);
-    setCurrentScreen("map");
   };
 
   // マップタブへジャンプ（プランビューや閲覧履歴から）
@@ -556,6 +676,10 @@ function AppContent() {
         <SplashScreen onFinish={handleSplashFinish} />
       )}
 
+      {!showSplash && showPostSplashLanguage && (
+        <PostSplashLanguageOverlay onDismiss={handlePostSplashLanguageDismiss} />
+      )}
+
       {/* 診断画面 */}
       {showDiagnosis && (
         <DiagnosisView
@@ -580,6 +704,7 @@ function AppContent() {
               onOpenTravelGuide={() => handleOpenHelpfulTab("travel")}
               resetToSearchKey={mapResetKey}
               onTutorialAction={handleTutorialAction}
+              viewerPosition={currentPosition}
             />
           )}
 
@@ -600,22 +725,22 @@ function AppContent() {
           {currentScreen === "now" && (
             <NowInfoView
               locationPermissionState={locationPermissionState}
-              locationError={locationError}
+              locationIssueCode={locationIssueCode}
               currentPosition={currentPosition}
               currentAddress={currentAddress}
               isUsingMockLocation={isUsingMockLocation}
               onRequestLocationPermission={handleRequestLocationPermission}
               onOpenLocationSettings={handleOpenLocationSettings}
-              onOpenHelpfulTab={handleOpenHelpfulTab}
-              onOpenExperienceBooking={handleOpenExperienceBooking}
               onTutorialAction={handleTutorialAction}
+              onUseDeveloperKuriharaLocation={
+                process.env.NODE_ENV === "development" ? handleUseDeveloperKuriharaLocation : undefined
+              }
             />
           )}
 
           {/* マイページ */}
           {currentScreen === "mypage" && (
             <MyPageView
-              diagnosisResult={diagnosisResult}
               user={user}
               guestDisplayName={guestDisplayName}
               onSaveDisplayName={handleSaveDisplayName}
@@ -625,7 +750,7 @@ function AppContent() {
               onStartDiagnosis={() => setShowDiagnosis(true)}
               onLoginRequest={() => setShowAuth(true)}
               locationPermissionState={locationPermissionState}
-              locationError={locationError}
+              locationIssueCode={locationIssueCode}
               currentPosition={currentPosition}
               currentAddress={currentAddress}
               isUsingMockLocation={isUsingMockLocation}
@@ -636,6 +761,10 @@ function AppContent() {
               favoriteSpotIds={favoriteSpotIds}
               onToggleFavorite={handleToggleFavorite}
               playerProgress={playerProgress}
+              onClaimQuest={(questId) => void bumpPlayerProgress({ type: "quest_claim", questId })}
+              onResetPlayerProgressDev={
+                process.env.NODE_ENV === "development" ? handleResetPlayerProgressDev : undefined
+              }
             />
           )}
 
@@ -644,8 +773,9 @@ function AppContent() {
             currentScreen={currentScreen}
             onScreenChange={handleScreenChange}
             onTutorialAction={handleTutorialAction}
+            showMypageQuestUnclaimedBadge={questUnclaimedNavBadge}
           />
-          {activeTutorialScreen === currentScreen && activeTutorialStep && (
+          {activeTutorialScreen === currentScreen && activeTutorialStep && !showFirstAppWalkthrough && (
             <TutorialOverlay
               targetId={activeTutorialStep.targetId}
               title={activeTutorialStep.title}
@@ -653,6 +783,19 @@ function AppContent() {
               stepIndex={activeTutorialStepIndex}
               totalSteps={activeTutorialSteps.length}
               onSkip={handleSkipTutorial}
+            />
+          )}
+
+          {showFirstAppWalkthrough && firstAppWalkthroughSteps[firstAppWalkthroughStepIndex] && (
+            <TutorialOverlay
+              key={`first-walkthrough-${firstAppWalkthroughStepIndex}`}
+              targetId={firstAppWalkthroughSteps[firstAppWalkthroughStepIndex].targetId}
+              title={firstAppWalkthroughSteps[firstAppWalkthroughStepIndex].title}
+              description={firstAppWalkthroughSteps[firstAppWalkthroughStepIndex].description}
+              stepIndex={firstAppWalkthroughStepIndex}
+              totalSteps={firstAppWalkthroughSteps.length}
+              onSkip={handleFirstWalkthroughSkip}
+              onAdvance={handleFirstWalkthroughNext}
             />
           )}
         </>

@@ -6,6 +6,8 @@ import { CloseIcon, SearchIcon } from "./icons";
 import HelpfulTopicPage from "./HelpfulTopicPage";
 import MannerCategoryPage from "./MannerCategoryPage";
 import type { LocationPermissionState } from "../page";
+import type { Translations } from "../i18n/translations";
+import { useLanguage } from "../i18n/LanguageContext";
 import { MANNER_QUICK_QUESTIONS, searchMannerItems } from "../data/manners";
 import {
   HELPFUL_TABS,
@@ -16,6 +18,7 @@ import {
   type HelpfulDetail,
   type HelpfulTabId,
 } from "../data/helpfulInfo";
+import { getLocalizedHelpfulDetailTitle, localizeHelpfulCard } from "../lib/localizeHelpfulLibrary";
 
 interface MannerViewProps {
   spotName?: string | null;
@@ -61,29 +64,29 @@ function searchHelpfulTopics(query: string) {
   });
 }
 
-function getHelperReply(query: string, spotName?: string | null) {
+function getHelperReply(query: string, spotName: string | null | undefined, t: Translations["manner"]) {
   const matchedItems = searchMannerItems(query).slice(0, 3);
   const matchedTopics = searchHelpfulTopics(query).slice(0, 2);
   const intro = spotName
-    ? `「${spotName}」に行く前提で、いま役立ちそうな情報をまとめます。`
-    : "いまの質問に近いお役立ち情報をまとめます。";
+    ? t.introWithSpot.replace("{spot}", spotName)
+    : t.introDefault;
 
   const helperResults: HelperResult[] = [
     ...matchedItems.map((item) => ({
       title: item.title,
       description: item.shortDescription,
-      badge: "マナー",
+      badge: t.badgeManner,
     })),
     ...matchedTopics.map((topic) => ({
       title: topic.title,
       description: topic.description,
-      badge: topic.tabId === "trivia" ? "豆知識" : "旅ガイド",
+      badge: topic.tabId === "trivia" ? t.badgeTrivia : t.badgeTravel,
     })),
   ];
 
   if (helperResults.length === 0) {
     return {
-      text: `${intro} 仮実装のため、まずは「写真」「電車」「体験」「祭り」「豆知識」などで聞いてみてください。`,
+      text: t.aiStubLine.replace("{intro}", intro),
       items: [],
     };
   }
@@ -107,6 +110,7 @@ export default function MannerView({
   onPreferredTabApplied,
   onTutorialAction,
 }: MannerViewProps) {
+  const { t } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -117,12 +121,7 @@ export default function MannerView({
   const [activeTab, setActiveTab] = useState<HelpfulTabId>(isHelpfulTabId(selectedTabParam) ? selectedTabParam : "manner");
   const [isHelperOpen, setIsHelperOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [helperMessages, setHelperMessages] = useState<HelperMessage[]>([
-    {
-      role: "assistant",
-      text: "お役立ちAIは仮実装です。いまはマナー、豆知識、旅ガイドの内容を中心に案内できます。",
-    },
-  ]);
+  const [helperMessages, setHelperMessages] = useState<HelperMessage[]>([]);
   const [helperResults, setHelperResults] = useState<HelperResult[]>([]);
   const closeTimerRef = useRef<number | null>(null);
   const visibleDetailRef = useRef<HelpfulDetail | null>(null);
@@ -130,7 +129,18 @@ export default function MannerView({
   const [visibleDetail, setVisibleDetail] = useState<HelpfulDetail | null>(getHelpfulDetail(selectedDetailParam));
   const [isClosingDetail, setIsClosingDetail] = useState(false);
   const selectedDetail = visibleDetail ?? getHelpfulDetail(selectedDetailParam);
-  const activeCards = useMemo(() => getHelpfulCards(activeTab), [activeTab]);
+  const activeCards = useMemo(
+    () =>
+      getHelpfulCards(activeTab).map((card) => ({
+        ...card,
+        ...localizeHelpfulCard(card.key, t),
+      })),
+    [activeTab, t]
+  );
+
+  useEffect(() => {
+    setHelperMessages([{ role: "assistant", text: t.manner.aiStubDisclaimer }]);
+  }, [t.manner.aiStubDisclaimer]);
 
   useEffect(() => {
     if (isHelpfulTabId(selectedTabParam)) {
@@ -255,7 +265,7 @@ export default function MannerView({
     const trimmed = nextQuery.trim();
     if (!trimmed) return;
 
-    const reply = getHelperReply(trimmed, spotName);
+    const reply = getHelperReply(trimmed, spotName, t.manner);
     setHelperMessages((prev) => [
       ...prev,
       { role: "user", text: trimmed },
@@ -300,7 +310,7 @@ export default function MannerView({
           }}
         >
           <h1 style={{ fontSize: "20px", fontWeight: 800, color: "white", textAlign: "center" }}>
-            お役立ち情報
+            {t.manner.pageTitle}
           </h1>
         </div>
 
@@ -316,11 +326,9 @@ export default function MannerView({
             >
               {locationPermissionState === "granted" && (
                 <>
-                  <p style={{ fontSize: "13px", color: "#b85f74", lineHeight: "1.7" }}>
-                    状況に合わせたマナーやガイド情報を表示しています。
-                  </p>
+                  <p style={{ fontSize: "13px", color: "#b85f74", lineHeight: "1.7" }}>{t.manner.lead}</p>
                   <p style={{ fontSize: "12px", color: "#166534", lineHeight: "1.6", marginTop: "8px", fontWeight: 700 }}>
-                    {isUsingMockLocation ? "現在は仙台市の仮位置を使用しています。" : "現在地の利用が許可されています。"}
+                    {isUsingMockLocation ? t.manner.mockLocationNote : t.manner.grantedLocationNote}
                   </p>
                 </>
               )}
@@ -333,7 +341,7 @@ export default function MannerView({
                     marginTop: locationPermissionState === "granted" ? "6px" : 0,
                   }}
                 >
-                  スポット連携中: {spotName}
+                  {t.manner.spotLinked.replace("{name}", spotName)}
                 </p>
               )}
             </div>
@@ -353,6 +361,8 @@ export default function MannerView({
           >
             {HELPFUL_TABS.map((tab) => {
               const isActive = activeTab === tab.id;
+              const tabLabel =
+                tab.id === "manner" ? t.manner.badgeManner : tab.id === "trivia" ? t.manner.badgeTrivia : t.manner.badgeTravel;
               return (
                 <button
                   key={tab.id}
@@ -371,7 +381,7 @@ export default function MannerView({
                     boxShadow: isActive ? "0 8px 18px rgba(236,72,153,0.2)" : "none",
                   }}
                 >
-                  {tab.label}
+                  {tabLabel}
                 </button>
               );
             })}
@@ -434,18 +444,14 @@ export default function MannerView({
               boxShadow: "0 2px 12px rgba(15,23,42,0.05)",
             }}
           >
-            <p style={{ fontSize: "12px", fontWeight: 700, color: "#e88fa3" }}>AIヘルプの使い方</p>
-            <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#111827", marginTop: "4px" }}>
-              気になることはAIに質問
-            </h3>
-            <p style={{ fontSize: "14px", color: "#4b5563", lineHeight: "1.8", marginTop: "8px" }}>
-              右下のボタンから開けます。仮実装では、入力内容に近いマナーや豆知識、旅のヒントを返します。
-            </p>
+            <p style={{ fontSize: "12px", fontWeight: 700, color: "#e88fa3" }}>{t.manner.aiHowTitle}</p>
+            <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#111827", marginTop: "4px" }}>{t.manner.aiHowHeadline}</h3>
+            <p style={{ fontSize: "14px", color: "#4b5563", lineHeight: "1.8", marginTop: "8px" }}>{t.manner.aiHowDescription}</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "12px" }}>
-              {MANNER_QUICK_QUESTIONS.map((question) => (
+              {MANNER_QUICK_QUESTIONS.map((canonical, i) => (
                 <button
-                  key={question}
-                  onClick={() => handleAskHelper(question)}
+                  key={canonical}
+                  onClick={() => handleAskHelper(canonical)}
                   style={{
                     borderRadius: "999px",
                     border: "1px solid #f3d1da",
@@ -456,7 +462,7 @@ export default function MannerView({
                     fontWeight: 700,
                   }}
                 >
-                  {question}
+                  {t.manner.quickQuestions[i] ?? canonical}
                 </button>
               ))}
             </div>
@@ -489,7 +495,7 @@ export default function MannerView({
             }}
           >
             <h1 style={{ fontSize: "20px", fontWeight: 800, color: "white", textAlign: "center" }}>
-              {selectedDetail.title}
+              {getLocalizedHelpfulDetailTitle(selectedDetail, t)}
             </h1>
           </div>
 
@@ -533,7 +539,7 @@ export default function MannerView({
         }}
       >
         <span style={{ fontSize: "20px", lineHeight: 1 }}>AI</span>
-        <span style={{ fontSize: "10px", fontWeight: 700 }}>ヘルプ</span>
+        <span style={{ fontSize: "10px", fontWeight: 700 }}>{t.manner.helpFab}</span>
       </button>
 
       {isHelperOpen && (
@@ -563,9 +569,9 @@ export default function MannerView({
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <p style={{ fontSize: "12px", fontWeight: 700, color: "#e88fa3" }}>お役立ちAI</p>
+                <p style={{ fontSize: "12px", fontWeight: 700, color: "#e88fa3" }}>{t.manner.aiSheetTitle}</p>
                 <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#111827", marginTop: "4px" }}>
-                  質問しながら情報検索
+                  {t.manner.aiSheetSubtitle}
                 </h3>
               </div>
               <button onClick={() => setIsHelperOpen(false)} style={{ color: "#6b7280" }}>
@@ -574,10 +580,10 @@ export default function MannerView({
             </div>
 
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              {MANNER_QUICK_QUESTIONS.map((question) => (
+              {MANNER_QUICK_QUESTIONS.map((canonical, i) => (
                 <button
-                  key={question}
-                  onClick={() => handleAskHelper(question)}
+                  key={canonical}
+                  onClick={() => handleAskHelper(canonical)}
                   style={{
                     borderRadius: "999px",
                     border: "1px solid #e5e7eb",
@@ -588,7 +594,7 @@ export default function MannerView({
                     fontWeight: 700,
                   }}
                 >
-                  {question}
+                  {t.manner.quickQuestions[i] ?? canonical}
                 </button>
               ))}
             </div>
@@ -656,7 +662,7 @@ export default function MannerView({
                     handleAskHelper(query);
                   }
                 }}
-                placeholder="例: 写真は撮っていい？"
+                placeholder={t.manner.aiInputPlaceholder}
                 style={{
                   flex: 1,
                   outline: "none",
@@ -676,7 +682,7 @@ export default function MannerView({
                   fontWeight: 700,
                 }}
               >
-                送信
+                {t.manner.send}
               </button>
             </div>
           </div>

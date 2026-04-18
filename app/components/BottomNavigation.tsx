@@ -69,9 +69,16 @@ interface BottomNavigationProps {
   currentScreen: ScreenType;
   onScreenChange: (screen: ScreenType) => void;
   onTutorialAction?: (actionId: string) => void;
+  /** クエスト報酬が未回収のとき、マイページタブ右上に赤丸 */
+  showMypageQuestUnclaimedBadge?: boolean;
 }
 
-export default function BottomNavigation({ currentScreen, onScreenChange, onTutorialAction }: BottomNavigationProps) {
+export default function BottomNavigation({
+  currentScreen,
+  onScreenChange,
+  onTutorialAction,
+  showMypageQuestUnclaimedBadge = false,
+}: BottomNavigationProps) {
   const { t } = useLanguage();
 
   return (
@@ -98,6 +105,7 @@ export default function BottomNavigation({ currentScreen, onScreenChange, onTuto
                   <span
                     className={isActive ? "text-pink-500" : "text-gray-500"}
                     style={{
+                      position: "relative",
                       width: "28px",
                       height: "28px",
                       display: "flex",
@@ -108,6 +116,22 @@ export default function BottomNavigation({ currentScreen, onScreenChange, onTuto
                     }}
                   >
                     {item.icon}
+                    {item.id === "mypage" && showMypageQuestUnclaimedBadge ? (
+                      <span
+                        aria-hidden
+                        style={{
+                          position: "absolute",
+                          top: "1px",
+                          right: "1px",
+                          width: "9px",
+                          height: "9px",
+                          borderRadius: "999px",
+                          backgroundColor: "#ef4444",
+                          border: "1.5px solid white",
+                          boxShadow: "0 0 0 1px rgba(239,68,68,0.35)",
+                        }}
+                      />
+                    ) : null}
                   </span>
                   <span
                     className={`text-xs font-medium ${isActive ? "text-pink-500" : "text-gray-500"}`}

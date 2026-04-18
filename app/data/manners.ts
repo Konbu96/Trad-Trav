@@ -17,6 +17,14 @@ export interface MannerItem {
   scenes: string[];
 }
 
+/** AI 検索用の定型クエリ（データ側キーワードは日本語のまま） */
+export const MANNER_CATEGORY_AI_QUERY: Record<MannerCategoryId, string> = {
+  transit: "移動中で気を付けることは？",
+  facility: "施設内で気を付けることは？",
+  experience: "体験中で気を付けることは？",
+  community: "地域文化で気を付けることは？",
+};
+
 export const MANNER_CATEGORIES: MannerCategory[] = [
   {
     id: "transit",

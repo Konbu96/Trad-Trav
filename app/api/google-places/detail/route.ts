@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { maybeTranslateJapanesePlaceName } from "../../../lib/mymemoryJaToEn";
+import { googleReviewAuthorFallback, placesDetailLanguageCode } from "../../../lib/placesApiLanguage";
 import { placesPhotoProxyUrl } from "../_lib/photo";
 
 type GooglePlaceReview = {
@@ -33,11 +35,17 @@ type GooglePlaceDetailResponse = {
   };
 };
 
+const ALLOWED_LANG = new Set(["ja", "en", "zh", "ko"]);
+
 export async function GET(req: NextRequest) {
   const placeId = req.nextUrl.searchParams.get("placeId")?.trim();
   if (!placeId) {
     return NextResponse.json({ error: "placeId is required" }, { status: 400 });
   }
+
+  const rawLang = req.nextUrl.searchParams.get("lang")?.trim().toLowerCase() || "ja";
+  const appLang = ALLOWED_LANG.has(rawLang) ? rawLang : "ja";
+  const languageCode = placesDetailLanguageCode(appLang);
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
@@ -46,23 +54,26 @@ export async function GET(req: NextRequest) {
 
   try {
     const id = placeId.replace(/^places\//, "");
-    const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(id)}?languageCode=ja&regionCode=JP`, {
-      headers: {
-        "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": [
-          "displayName",
-          "formattedAddress",
-          "primaryType",
-          "websiteUri",
-          "nationalPhoneNumber",
-          "googleMapsUri",
-          "regularOpeningHours.weekdayDescriptions",
-          "reviews",
-          "photos",
-        ].join(","),
-      },
-      cache: "no-store",
-    });
+    const res = await fetch(
+      `https://places.googleapis.com/v1/places/${encodeURIComponent(id)}?languageCode=${encodeURIComponent(languageCode)}&regionCode=JP`,
+      {
+        headers: {
+          "X-Goog-Api-Key": apiKey,
+          "X-Goog-FieldMask": [
+            "displayName",
+            "formattedAddress",
+            "primaryType",
+            "websiteUri",
+            "nationalPhoneNumber",
+            "googleMapsUri",
+            "regularOpeningHours.weekdayDescriptions",
+            "reviews",
+            "photos",
+          ].join(","),
+        },
+        cache: "no-store",
+      }
+    );
 
     const data: GooglePlaceDetailResponse = await res.json();
     if (!res.ok) {
@@ -72,9 +83,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const authorFallback = googleReviewAuthorFallback(languageCode);
+
     const reviews = (data.reviews || [])
       .map(review => ({
-        author: review.authorAttribution?.displayName || "Google ユーザー",
+        author: review.authorAttribution?.displayName || authorFallback,
         rating: Math.max(1, Math.min(5, Math.round(review.rating || 0))) || 0,
         comment: review.text?.text || "",
         date: (review.publishTime || "").split("T")[0] || "",
@@ -88,8 +101,10 @@ export async function GET(req: NextRequest) {
 
     const photos = photoNames.map((photoName) => placesPhotoProxyUrl(photoName));
 
+    const name = await maybeTranslateJapanesePlaceName(data.displayName?.text, appLang);
+
     return NextResponse.json({
-      name: data.displayName?.text,
+      name,
       address: data.formattedAddress,
       category: data.primaryType,
       phone: data.nationalPhoneNumber,

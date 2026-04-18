@@ -1,6 +1,8 @@
 "use client";
 
 import type { HelpfulTopic } from "../data/helpfulInfo";
+import { useLanguage } from "../i18n/LanguageContext";
+import { getLocalizedTopic } from "../lib/localizeHelpfulLibrary";
 
 interface HelpfulTopicPageProps {
   topic: HelpfulTopic;
@@ -8,11 +10,14 @@ interface HelpfulTopicPageProps {
   onAskAi: (query: string) => void;
 }
 
-export default function HelpfulTopicPage({
-  topic,
-  onBack,
-  onAskAi,
-}: HelpfulTopicPageProps) {
+export default function HelpfulTopicPage({ topic, onBack, onAskAi }: HelpfulTopicPageProps) {
+  const { t } = useLanguage();
+  const loc = getLocalizedTopic(topic.id, t);
+  const title = loc?.title ?? topic.title;
+  const subtitle = loc?.subtitle ?? topic.subtitle;
+  const description = loc?.description ?? topic.description;
+  const details = loc?.details ?? topic.details;
+
   return (
     <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
       <button
@@ -28,7 +33,7 @@ export default function HelpfulTopicPage({
         }}
       >
         <span style={{ fontSize: "18px", lineHeight: 1 }}>←</span>
-        お役立ち情報へ戻る
+        {t.manner.detailBackToTips}
       </button>
 
       <div
@@ -56,15 +61,13 @@ export default function HelpfulTopicPage({
             {topic.emoji}
           </div>
           <div style={{ minWidth: 0 }}>
-            <p style={{ fontSize: "12px", fontWeight: 700, color: "#e88fa3" }}>{topic.subtitle}</p>
+            <p style={{ fontSize: "12px", fontWeight: 700, color: "#e88fa3" }}>{subtitle}</p>
             <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#111827", lineHeight: "1.4", marginTop: "2px" }}>
-              {topic.title}
+              {title}
             </h2>
           </div>
         </div>
-        <p style={{ fontSize: "14px", color: "#374151", lineHeight: "1.8", marginTop: "12px" }}>
-          {topic.description}
-        </p>
+        <p style={{ fontSize: "14px", color: "#374151", lineHeight: "1.8", marginTop: "12px" }}>{description}</p>
       </div>
 
       <article
@@ -76,11 +79,13 @@ export default function HelpfulTopicPage({
           boxShadow: "0 2px 12px rgba(15,23,42,0.05)",
         }}
       >
-        <p style={{ fontSize: "11px", fontWeight: 700, color: "#e88fa3", marginBottom: "8px" }}>ポイント</p>
+        <p style={{ fontSize: "11px", fontWeight: 700, color: "#e88fa3", marginBottom: "8px" }}>
+          {t.manner.detailPointsLabel}
+        </p>
         <div style={{ display: "flex", flexDirection: "column" }}>
-          {topic.details.map((detail, index) => (
+          {details.map((detail, index) => (
             <div
-              key={detail}
+              key={`${topic.id}-${index}`}
               style={{
                 display: "flex",
                 alignItems: "flex-start",
@@ -99,9 +104,7 @@ export default function HelpfulTopicPage({
                   marginTop: "6px",
                 }}
               />
-              <p style={{ fontSize: "13px", color: "#374151", lineHeight: "1.75" }}>
-                {detail}
-              </p>
+              <p style={{ fontSize: "13px", color: "#374151", lineHeight: "1.75" }}>{detail}</p>
             </div>
           ))}
         </div>
@@ -115,9 +118,9 @@ export default function HelpfulTopicPage({
           border: "1px solid #f3d1da",
         }}
       >
-        <p style={{ fontSize: "12px", fontWeight: 700, color: "#e88fa3" }}>迷ったときはAIへ</p>
+        <p style={{ fontSize: "12px", fontWeight: 700, color: "#e88fa3" }}>{t.manner.detailAskAiTopicTitle}</p>
         <p style={{ fontSize: "14px", color: "#374151", lineHeight: "1.8", marginTop: "6px" }}>
-          右下のAIから、この内容に関する質問をそのままできます。
+          {t.manner.detailAskAiTopicBody}
         </p>
         <button
           onClick={() => onAskAi(topic.aiPrompt)}
@@ -131,7 +134,7 @@ export default function HelpfulTopicPage({
             fontWeight: 700,
           }}
         >
-          この内容をAIに相談
+          {t.manner.detailAskAiTopicCta}
         </button>
       </div>
     </div>

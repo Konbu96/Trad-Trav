@@ -17,7 +17,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   // ローカルストレージから言語設定を読み込み
   useEffect(() => {
     const saved = localStorage.getItem("language") as Language;
-    if (saved && (saved === "ja" || saved === "en")) {
+    if (saved && (saved === "ja" || saved === "en" || saved === "zh" || saved === "ko")) {
       setLanguageState(saved);
     }
   }, []);

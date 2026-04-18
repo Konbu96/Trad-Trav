@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useLanguage } from "../i18n/LanguageContext";
+import type { TraditionalGenreId } from "../data/traditionalGenres";
 
 // 検索結果の位置情報の型
 export interface SearchLocation {
@@ -13,6 +15,8 @@ export interface SearchLocation {
   summary?: string;
   officialSourceUrl?: string;
   genreLabel?: string;
+  /** 伝統文化の大分類（なう情報の近傍体験施設など） */
+  traditionalGenre?: TraditionalGenreId;
   /** 一覧などで見せる具体的な体験・行事ラベル（例: 陶芸体験、地域祭り） */
   experienceCategory?: string;
   source?: "google";
@@ -71,6 +75,7 @@ export default function SearchBar({
   isHidden = false,
   hasSearchResults = false,
 }: SearchBarProps) {
+  const { t, language } = useLanguage();
   const [searchValue, setSearchValue] = useState("");
   const [activeQuery, setActiveQuery] = useState(""); // 検索実行済みのクエリ
   const [isSearching, setIsSearching] = useState(false);
@@ -81,7 +86,9 @@ export default function SearchBar({
 
     setIsSearching(true);
     try {
-      const res = await fetch(`/api/google-places/search?query=${encodeURIComponent(query)}`);
+      const res = await fetch(
+        `/api/google-places/search?query=${encodeURIComponent(query)}&lang=${encodeURIComponent(language)}`
+      );
       const data: GooglePlacesSearchResponse = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Google search failed");
@@ -94,11 +101,11 @@ export default function SearchBar({
         // 入力欄はクリアしない（activeQueryで表示）
         setSearchValue("");
       } else {
-        alert("場所が見つかりませんでした");
+        alert(t.search.notFound);
       }
     } catch (error) {
       console.error("Google Places search error:", error);
-      alert("検索に失敗しました。Google Maps API の設定を確認してください。");
+      alert(t.search.apiFailed);
     } finally {
       setIsSearching(false);
     }
@@ -170,7 +177,7 @@ export default function SearchBar({
           
           <input
             type="text"
-            placeholder="場所を検索..."
+            placeholder={t.common.searchPlaceholder}
             value={displayValue}
             onChange={(e) => {
               setSearchValue(e.target.value);

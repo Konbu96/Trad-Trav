@@ -1,5 +1,7 @@
 "use client";
 
+import type { Translations } from "../i18n/translations";
+
 export type TutorialTabId = "map" | "now" | "manner" | "mypage";
 
 export type TutorialProgress = Record<TutorialTabId, boolean>;
@@ -63,7 +65,8 @@ export function getTutorialSteps(
   screen: TutorialTabId,
   options: {
     hasNowLocation?: boolean;
-  } = {}
+  } = {},
+  copy: Translations["tutorial"]
 ): TutorialStep[] {
   switch (screen) {
     case "map":
@@ -71,14 +74,14 @@ export function getTutorialSteps(
         {
           id: "map-search-input",
           targetId: "map.search-input",
-          title: "体験を探す",
-          description: "まずは検索欄を押して、気になるスポット名や体験名を入力してみましょう。",
+          title: copy.mapSearchTitle,
+          description: copy.mapSearchDesc,
         },
         {
           id: "map-subtab",
           targetId: "map.subtab.map",
-          title: "地図でも確認",
-          description: "次にマップへ切り替えると、見つけたスポットの場所を地図上で確認できます。",
+          title: copy.mapSubtabTitle,
+          description: copy.mapSubtabDesc,
         },
       ];
     case "now":
@@ -87,8 +90,8 @@ export function getTutorialSteps(
           {
             id: "now-location-settings",
             targetId: "now.location-settings-button",
-            title: "まずは位置情報を設定",
-            description: "現在地に合わせた情報を出すために、マイページの位置情報設定を開いてみましょう。",
+            title: copy.nowSetupTitle,
+            description: copy.nowSetupDesc,
           },
         ];
       }
@@ -97,14 +100,8 @@ export function getTutorialSteps(
         {
           id: "now-location-refresh",
           targetId: "now.location-update-button",
-          title: "現在地を更新",
-          description: "このボタンから、いまの位置をもう一度取得して近くの情報を更新できます。",
-        },
-        {
-          id: "now-guide-jump",
-          targetId: "now.guide-jump-button",
-          title: "必要な情報へすぐ移動",
-          description: "気になる項目を押すと、この画面の中ですぐ必要な情報までジャンプできます。",
+          title: copy.nowRefreshTitle,
+          description: copy.nowRefreshDesc,
         },
       ];
     case "manner":
@@ -112,14 +109,14 @@ export function getTutorialSteps(
         {
           id: "manner-travel-tab",
           targetId: "manner.tab.travel",
-          title: "旅ガイドに切り替え",
-          description: "上の切り替えから、マナーだけでなく旅ガイドや豆知識にもすぐ移れます。",
+          title: copy.mannerTravelTitle,
+          description: copy.mannerTravelDesc,
         },
         {
           id: "manner-ai-button",
           targetId: "manner.ai-button",
-          title: "AIに相談",
-          description: "迷ったときは右下の AI ボタンを押すと、その場で質問できます。",
+          title: copy.mannerAiTitle,
+          description: copy.mannerAiDesc,
         },
       ];
     case "mypage":
@@ -127,20 +124,20 @@ export function getTutorialSteps(
         {
           id: "mypage-settings-open",
           targetId: "mypage.settings-entry",
-          title: "設定を開く",
-          description: "まず設定を開き、位置情報や言語はここから変更できます。",
+          title: copy.mypageSettingsTitle,
+          description: copy.mypageSettingsDesc,
         },
         {
           id: "mypage-location-share",
           targetId: "mypage.location-share-button",
-          title: "現在地の利用を設定",
-          description: "「現在地を共有する」を押すと、ブラウザに許可を求めます。許可後、なう情報などが場所に合わせて変わります。",
+          title: copy.mypageLocationTitle,
+          description: copy.mypageLocationDesc,
         },
         {
           id: "mypage-language",
           targetId: "mypage.language-button",
-          title: "表示言語を変更",
-          description: "言語を押すと、日本語と英語の表示を切り替えられます。",
+          title: copy.mypageLanguageTitle,
+          description: copy.mypageLanguageDesc,
         },
       ];
     default:

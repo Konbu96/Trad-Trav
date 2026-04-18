@@ -4,7 +4,11 @@ import {
   TRADITIONAL_GENRES,
   type TraditionalGenreId,
 } from "../../../data/traditionalGenres";
+import { maybeTranslateJapanesePlaceName } from "../../../lib/mymemoryJaToEn";
+import { placesDetailLanguageCode } from "../../../lib/placesApiLanguage";
 import { placesPhotoProxyUrl } from "../_lib/photo";
+
+const ALLOWED_LANG = new Set(["ja", "en", "zh", "ko"]);
 
 /** experienceTitle が無い候補用。概要の一行目を短く一覧向けラベルにする */
 function shortExperienceFromSummary(summary: string, genreFallback: string): string {
@@ -130,7 +134,8 @@ type CuratedLocation = {
 
 async function searchTextMiyagiExpansion(
   apiKey: string,
-  textQuery: string
+  textQuery: string,
+  placesLanguageCode: string
 ): Promise<GoogleTextSearchPlace[]> {
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
@@ -142,7 +147,7 @@ async function searchTextMiyagiExpansion(
     },
     body: JSON.stringify({
       textQuery,
-      languageCode: "ja",
+      languageCode: placesLanguageCode,
       regionCode: "JP",
       maxResultCount: 20,
       locationRestriction: {
@@ -165,7 +170,9 @@ async function mergeExpansionPlaces(
   apiKey: string,
   genre: TraditionalGenreId,
   genreConfig: (typeof TRADITIONAL_GENRES)[number],
-  curatedLocations: CuratedLocation[]
+  curatedLocations: CuratedLocation[],
+  placesLanguageCode: string,
+  appLang: string
 ): Promise<CuratedLocation[]> {
   const seen = new Set<string>();
   for (const loc of curatedLocations) {
@@ -179,7 +186,7 @@ async function mergeExpansionPlaces(
     if (curatedLocations.length + extra.length >= EXPANDED_TOTAL_MAX) break;
     let places: GoogleTextSearchPlace[] = [];
     try {
-      places = await searchTextMiyagiExpansion(apiKey, q);
+      places = await searchTextMiyagiExpansion(apiKey, q, placesLanguageCode);
     } catch {
       continue;
     }
@@ -197,10 +204,18 @@ async function mergeExpansionPlaces(
       const photoName = place.photos?.[0]?.name;
       const photos = photoName ? [placesPhotoProxyUrl(photoName)] : [];
 
+      const displayNameRaw = place.displayName.text;
+      const displayName =
+        (await maybeTranslateJapanesePlaceName(displayNameRaw, appLang)) || displayNameRaw;
+      const summary =
+        appLang === "ja"
+          ? `${displayName}（${genreConfig.label}関連のスポット）`
+          : displayName;
+
       extra.push({
         lat,
         lng,
-        name: place.displayName.text,
+        name: displayName,
         placeId: pid,
         formattedAddress: place.formattedAddress,
         category: place.primaryType,
@@ -208,7 +223,7 @@ async function mergeExpansionPlaces(
         genreLabel: genreConfig.label,
         experienceCategory: genreConfig.label,
         photos,
-        summary: `${place.displayName.text}（${genreConfig.label}関連のスポット）`,
+        summary,
         source: "google",
       });
     }
@@ -316,10 +331,10 @@ async function ensureCuratedPhotos(
   };
 }
 
-async function getCuratedPlace(apiKey: string, placeId: string) {
+async function getCuratedPlace(apiKey: string, placeId: string, placesLanguageCode: string) {
   const id = normalizePlaceIdForV1(placeId);
   const res = await fetch(
-    `https://places.googleapis.com/v1/places/${encodeURIComponent(id)}?languageCode=ja&regionCode=JP`,
+    `https://places.googleapis.com/v1/places/${encodeURIComponent(id)}?languageCode=${encodeURIComponent(placesLanguageCode)}&regionCode=JP`,
     {
       headers: {
         "X-Goog-Api-Key": apiKey,
@@ -354,7 +369,11 @@ async function getCuratedPlace(apiKey: string, placeId: string) {
   };
 }
 
-async function searchCuratedPlaceByText(apiKey: string, fallbackName: string) {
+async function searchCuratedPlaceByText(
+  apiKey: string,
+  fallbackName: string,
+  placesLanguageCode: string
+) {
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
@@ -365,7 +384,7 @@ async function searchCuratedPlaceByText(apiKey: string, fallbackName: string) {
     },
     body: JSON.stringify({
       textQuery: fallbackName.includes("宮城") ? fallbackName : `${fallbackName} 宮城県`,
-      languageCode: "ja",
+      languageCode: placesLanguageCode,
       regionCode: "JP",
       maxResultCount: 1,
     }),
@@ -389,7 +408,7 @@ async function searchCuratedPlaceByText(apiKey: string, fallbackName: string) {
 
   if (!photos.length && resolvedId) {
     try {
-      const refreshed = await getCuratedPlace(apiKey, resolvedId);
+      const refreshed = await getCuratedPlace(apiKey, resolvedId, placesLanguageCode);
       if (refreshed.photos.length > 0) {
         photos = refreshed.photos;
       }
@@ -424,6 +443,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "GOOGLE_MAPS_API_KEY is not configured" }, { status: 500 });
   }
 
+  const rawLang = req.nextUrl.searchParams.get("lang")?.trim().toLowerCase() || "ja";
+  const appLang = ALLOWED_LANG.has(rawLang) ? rawLang : "ja";
+  const placesLanguageCode = placesDetailLanguageCode(appLang);
+
   try {
     const expanded = req.nextUrl.searchParams.get("expanded") === "1";
     const fullCuratedList = CURATED_TRADITIONAL_PLACES[genre] || [];
@@ -437,10 +460,10 @@ export async function GET(req: NextRequest) {
         try {
           let detail;
           try {
-            detail = await getCuratedPlace(apiKey, place.placeId);
+            detail = await getCuratedPlace(apiKey, place.placeId, placesLanguageCode);
           } catch (error) {
             console.warn("curated placeId lookup failed, trying text search:", place.fallbackName, error);
-            detail = await searchCuratedPlaceByText(apiKey, place.fallbackName);
+            detail = await searchCuratedPlaceByText(apiKey, place.fallbackName, placesLanguageCode);
           }
 
           detail = await ensureCuratedPhotos(apiKey, detail, place.fallbackName);
@@ -458,10 +481,13 @@ export async function GET(req: NextRequest) {
             place.experienceTitle?.trim() ||
             shortExperienceFromSummary(place.summary, genreConfig.label);
 
+          const nameRaw = detail.name || place.fallbackName;
+          const resolvedName = (await maybeTranslateJapanesePlaceName(nameRaw, appLang)) || nameRaw;
+
           const loc: CuratedLocation = {
             lat: detail.lat,
             lng: detail.lng,
-            name: detail.name || place.fallbackName,
+            name: resolvedName,
             placeId: detail.placeId || normalizePlaceIdForV1(place.placeId),
             formattedAddress: detail.address,
             category: detail.category,
@@ -486,7 +512,14 @@ export async function GET(req: NextRequest) {
     let locations: CuratedLocation[] = resolved.filter((x): x is CuratedLocation => x != null);
 
     if (expanded && locations.length < EXPANDED_TOTAL_MAX) {
-      locations = await mergeExpansionPlaces(apiKey, genre, genreConfig, locations);
+      locations = await mergeExpansionPlaces(
+        apiKey,
+        genre,
+        genreConfig,
+        locations,
+        placesLanguageCode,
+        appLang
+      );
     }
 
     if (curatedPlaces.length > 0 && locations.length === 0 && failedCount > 0) {
