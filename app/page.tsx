@@ -11,6 +11,7 @@ import MapTabView from "./components/MapTabView";
 import MannerView from "./components/MannerView";
 import NowInfoView from "./components/NowInfoView";
 import TutorialOverlay from "./components/TutorialOverlay";
+import AppOnboardingWalkthrough from "./components/AppOnboardingWalkthrough";
 import { LanguageProvider, useLanguage } from "./i18n/LanguageContext";
 import type { LocationIssueCode } from "./lib/locationIssue";
 import {
@@ -59,6 +60,8 @@ import {
   writeFirstAppWalkthroughDone,
   writePostSplashLanguageSeen,
 } from "./lib/firstLaunchFlow";
+
+const FIRST_APP_ONBOARDING_SLIDE_COUNT = 3;
 
 // 画面の種類
 export type ScreenType = "map" | "now" | "manner" | "mypage";
@@ -174,16 +177,6 @@ function AppContent() {
     }
   }, []);
 
-  const firstAppWalkthroughSteps = useMemo(() => {
-    const w = t.walkthrough;
-    return [
-      { targetId: "nav.map", title: w.navMapTitle, description: w.navMapDesc },
-      { targetId: "nav.now", title: w.navNowTitle, description: w.navNowDesc },
-      { targetId: "nav.manner", title: w.navMannerTitle, description: w.navMannerDesc },
-      { targetId: "nav.mypage", title: w.navMypageTitle, description: w.navMypageDesc },
-    ];
-  }, [t.walkthrough]);
-
   const handleFirstWalkthroughSkip = useCallback(() => {
     writeFirstAppWalkthroughDone();
     setShowFirstAppWalkthrough(false);
@@ -193,7 +186,7 @@ function AppContent() {
   const handleFirstWalkthroughNext = useCallback(() => {
     setFirstAppWalkthroughStepIndex((idx) => {
       const nextIdx = idx + 1;
-      if (nextIdx >= firstAppWalkthroughSteps.length) {
+      if (nextIdx >= FIRST_APP_ONBOARDING_SLIDE_COUNT) {
         queueMicrotask(() => {
           writeFirstAppWalkthroughDone();
           setShowFirstAppWalkthrough(false);
@@ -202,7 +195,7 @@ function AppContent() {
       }
       return nextIdx;
     });
-  }, [firstAppWalkthroughSteps.length]);
+  }, []);
 
   useEffect(() => {
     setTutorialProgress(loadTutorialProgress());
@@ -680,6 +673,14 @@ function AppContent() {
         <PostSplashLanguageOverlay onDismiss={handlePostSplashLanguageDismiss} />
       )}
 
+      {!showSplash && showFirstAppWalkthrough && (
+        <AppOnboardingWalkthrough
+          slideIndex={firstAppWalkthroughStepIndex}
+          onPrimary={handleFirstWalkthroughNext}
+          onSkip={handleFirstWalkthroughSkip}
+        />
+      )}
+
       {/* 診断画面 */}
       {showDiagnosis && (
         <DiagnosisView
@@ -786,18 +787,6 @@ function AppContent() {
             />
           )}
 
-          {showFirstAppWalkthrough && firstAppWalkthroughSteps[firstAppWalkthroughStepIndex] && (
-            <TutorialOverlay
-              key={`first-walkthrough-${firstAppWalkthroughStepIndex}`}
-              targetId={firstAppWalkthroughSteps[firstAppWalkthroughStepIndex].targetId}
-              title={firstAppWalkthroughSteps[firstAppWalkthroughStepIndex].title}
-              description={firstAppWalkthroughSteps[firstAppWalkthroughStepIndex].description}
-              stepIndex={firstAppWalkthroughStepIndex}
-              totalSteps={firstAppWalkthroughSteps.length}
-              onSkip={handleFirstWalkthroughSkip}
-              onAdvance={handleFirstWalkthroughNext}
-            />
-          )}
         </>
       )}
 
