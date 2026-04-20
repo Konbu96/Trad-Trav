@@ -61,6 +61,11 @@ function normalizePlaceIdForV1(placeId: string) {
   return placeId.replace(/^places\//, "");
 }
 
+function errorToDebugMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
 const PREVIEW_CURATED_MAX = 5;
 const EXPANDED_TOTAL_MAX = 30;
 
@@ -125,6 +130,7 @@ type CuratedLocation = {
   category?: string;
   type?: string;
   genreLabel: string;
+  traditionalGenre: TraditionalGenreId;
   experienceCategory?: string;
   photos: string[];
   summary: string;
@@ -207,10 +213,11 @@ async function mergeExpansionPlaces(
       const displayNameRaw = place.displayName.text;
       const displayName =
         (await maybeTranslateJapanesePlaceName(displayNameRaw, appLang)) || displayNameRaw;
+      const summaryJa = `${displayName}（${genreConfig.label}関連のスポット）`;
       const summary =
-        appLang === "ja"
-          ? `${displayName}（${genreConfig.label}関連のスポット）`
-          : displayName;
+        (await maybeTranslateJapanesePlaceName(summaryJa, appLang)) || summaryJa;
+      const experienceCategory =
+        (await maybeTranslateJapanesePlaceName(genreConfig.label, appLang)) || genreConfig.label;
 
       extra.push({
         lat,
@@ -221,7 +228,8 @@ async function mergeExpansionPlaces(
         category: place.primaryType,
         type: place.types?.[0] || place.primaryType,
         genreLabel: genreConfig.label,
-        experienceCategory: genreConfig.label,
+        traditionalGenre: genre,
+        experienceCategory,
         photos,
         summary,
         source: "google",
@@ -455,6 +463,8 @@ export async function GET(req: NextRequest) {
       : fullCuratedList.slice(0, PREVIEW_CURATED_MAX);
 
     let failedCount = 0;
+    /** 全件失敗時の 502 で返す用（開発時のみクライアントへ載せる） */
+    let lastFailureReason: string | undefined;
     const resolved = (await Promise.all(
       curatedPlaces.map(async (place) => {
         try {
@@ -474,15 +484,25 @@ export async function GET(req: NextRequest) {
 
           if (typeof detail.lat !== "number" || typeof detail.lng !== "number") {
             failedCount += 1;
+            lastFailureReason = "missing coordinates after place resolution";
             return null;
           }
 
-          const experienceCategory =
+          const experienceCategoryRaw =
             place.experienceTitle?.trim() ||
             shortExperienceFromSummary(place.summary, genreConfig.label);
+          const experienceCategory =
+            (await maybeTranslateJapanesePlaceName(experienceCategoryRaw, appLang)) ||
+            experienceCategoryRaw;
 
           const nameRaw = detail.name || place.fallbackName;
           const resolvedName = (await maybeTranslateJapanesePlaceName(nameRaw, appLang)) || nameRaw;
+
+          const summaryJa = place.experienceTitle
+            ? `${place.experienceTitle}体験ができます。${place.summary}`
+            : place.summary;
+          const summary =
+            (await maybeTranslateJapanesePlaceName(summaryJa, appLang)) || summaryJa;
 
           const loc: CuratedLocation = {
             lat: detail.lat,
@@ -493,17 +513,17 @@ export async function GET(req: NextRequest) {
             category: detail.category,
             type: detail.category,
             genreLabel: genreConfig.label,
+            traditionalGenre: genre,
             experienceCategory,
             photos: detail.photos,
-            summary: place.experienceTitle
-              ? `${place.experienceTitle}体験ができます。${place.summary}`
-              : place.summary,
+            summary,
             officialSourceUrl: place.officialSourceUrl,
             source: "google",
           };
           return loc;
         } catch (error) {
           failedCount += 1;
+          lastFailureReason = errorToDebugMessage(error);
           console.error("google-places curated mapping error:", error);
           return null;
         }
@@ -522,11 +542,15 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // 候補はあるのに Google 解決がすべて落ちたとき（キー無効・API 未有効・制限など）
     if (curatedPlaces.length > 0 && locations.length === 0 && failedCount > 0) {
-      return NextResponse.json(
-        { error: "curated places could not be loaded" },
-        { status: 502 }
-      );
+      const body: { error: string; debugMessage?: string } = {
+        error: "curated places could not be loaded",
+      };
+      if (process.env.NODE_ENV === "development" && lastFailureReason) {
+        body.debugMessage = lastFailureReason;
+      }
+      return NextResponse.json(body, { status: 502 });
     }
 
     return NextResponse.json({ locations });

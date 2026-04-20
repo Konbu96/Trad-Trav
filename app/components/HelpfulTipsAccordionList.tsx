@@ -3,7 +3,8 @@
 import { type MouseEvent } from "react";
 import type { HelpfulTopic } from "../data/helpfulInfo";
 import { useLanguage } from "../i18n/LanguageContext";
-import { getLocalizedTopic } from "../lib/localizeHelpfulLibrary";
+import { getHelpfulTopicKeywords } from "../lib/helpfulTopicKeywords";
+import { getLocalizedTopic, helpfulTopicTabSubtitle } from "../lib/localizeHelpfulLibrary";
 
 interface HelpfulTipsAccordionListProps {
   topics: HelpfulTopic[];
@@ -25,7 +26,7 @@ export default function HelpfulTipsAccordionList({
   favoriteKeyPrefix = "tips:",
   onToggleHelpfulFavorite,
 }: HelpfulTipsAccordionListProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   const toggleTopic = (topic: HelpfulTopic, event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -43,13 +44,14 @@ export default function HelpfulTipsAccordionList({
       {topics.map((topic) => {
         const loc = getLocalizedTopic(topic.id, t);
         const title = loc?.title ?? topic.title;
-        const subtitle = loc?.subtitle ?? topic.subtitle;
+        const subtitle = helpfulTopicTabSubtitle(topic.id, t) || loc?.subtitle || topic.subtitle;
         const description = loc?.description ?? topic.description;
         const details = loc?.details ?? topic.details;
         const isStepGuide = Boolean(topic.guideSteps?.length);
         const expanded = !isStepGuide && expandedTopicId === topic.id;
         const favoriteKey = `${favoriteKeyPrefix}${topic.id}`;
         const isFav = helpfulFavoriteKeys.includes(favoriteKey);
+        const keywords = getHelpfulTopicKeywords(topic.id, language);
 
         return (
           <article
@@ -93,7 +95,7 @@ export default function HelpfulTipsAccordionList({
                   }}
                 >
                   <span style={{ fontSize: "12px", fontWeight: 700, color: "#e88fa3", flexShrink: 0 }}>{subtitle}</span>
-                  {topic.keywords.map((kw, kwIndex) => (
+                  {keywords.map((kw, kwIndex) => (
                     <span
                       key={`${topic.id}-kw-${kwIndex}`}
                       style={{

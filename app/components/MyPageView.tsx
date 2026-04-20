@@ -2,6 +2,7 @@
 
 import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
+import { LANGUAGE_PICKER_ROW_LABEL } from "../i18n/languagePickerLabels";
 import { ClockIcon, DefaultAvatarIcon, GearIcon, HeartIcon, PenIcon } from "./icons";
 import { TIPS_TOPICS } from "../data/helpfulInfo";
 import { recommendedSpots } from "../data/spots";
@@ -259,7 +260,10 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
   const ringCircumference = 2 * Math.PI * RING_R;
   const ringDashOffset = ringCircumference * (1 - levelBarPercent / 100);
   const savedRawDisplayName = user ? (user.name ?? "") : guestDisplayName;
-  const resolvedDisplayName = savedRawDisplayName.trim() || t.mypage.guest;
+  /** 未ログイン時は「ゲスト」表記を出さない（空なら名前欄を畳む） */
+  const resolvedDisplayName = user
+    ? savedRawDisplayName.trim() || t.mypage.guest
+    : savedRawDisplayName.trim();
   const [draftName, setDraftName] = useState(savedRawDisplayName);
   const [isEditingName, setIsEditingName] = useState(false);
   const [savingName, setSavingName] = useState(false);
@@ -613,14 +617,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
               <span style={{ fontSize: "15px", color: "#374151" }}>{t.mypage.language}</span>
             </div>
             <span style={{ fontSize: "14px", color: "#9ca3af" }}>
-              {language === "ja"
-                ? t.mypage.japanese
-                : language === "en"
-                  ? t.mypage.english
-                  : language === "zh"
-                    ? t.mypage.chinese
-                    : t.mypage.korean}{" "}
-              ›
+              {LANGUAGE_PICKER_ROW_LABEL[language]} ›
             </span>
           </button>
           {onReplayTutorials && (
@@ -1448,7 +1445,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                   }}
                   disabled={savingName}
                   autoFocus
-                  placeholder={t.mypage.guest}
+                  placeholder=""
                   style={{
                     backgroundColor: "#fdf3f5",
                     border: "1px solid #f3d1da",
@@ -1512,7 +1509,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                   </p>
                 ) : null}
               </div>
-            ) : (
+            ) : resolvedDisplayName || user ? (
               <button
                 type="button"
                 onClick={beginEditName}
@@ -1529,13 +1526,15 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                   padding: 0,
                 }}
               >
-                {resolvedDisplayName}
+                {resolvedDisplayName || (user ? t.mypage.guest : "")}
                 <span style={{ fontSize: "14px", opacity: 0.7 }}>✏️</span>
               </button>
-            )}
-            <p style={{ fontSize: "13px", color: "#4b5563", marginTop: "4px" }}>
-              {user ? t.mypage.accountDisplayNameLabel : t.mypage.guestTravelerNameLabel}
-            </p>
+            ) : null}
+            {user ? (
+              <p style={{ fontSize: "13px", color: "#4b5563", marginTop: "4px" }}>
+                {t.mypage.accountDisplayNameLabel}
+              </p>
+            ) : null}
           </div>
           </div>
 
@@ -1906,11 +1905,6 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
               );
             })}
           </div>
-          {!user && (
-            <p style={{ fontSize: "11px", color: "#6b7280", marginTop: "10px", marginBottom: 0, lineHeight: 1.5 }}>
-              {t.mypage.playerProgressGuestHint}
-            </p>
-          )}
         </div>
       </div>
 
@@ -1935,7 +1929,6 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
           </button>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <p style={{ textAlign: "center", fontSize: "13px", color: "#6b7280" }}>{t.mypage.loginGuestHint}</p>
             <button
               type="button"
               data-tutorial-id="mypage.login-cta"
@@ -2011,7 +2004,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                 justifyContent: "space-between",
               }}
             >
-              <span style={{ fontSize: "15px", color: "#374151" }}>🇯🇵 {t.mypage.japanese}</span>
+              <span style={{ fontSize: "15px", color: "#374151" }}>{LANGUAGE_PICKER_ROW_LABEL.ja}</span>
               {language === "ja" && <span style={{ color: "#e88fa3" }}>✓</span>}
             </button>
 
@@ -2033,7 +2026,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                 justifyContent: "space-between",
               }}
             >
-              <span style={{ fontSize: "15px", color: "#374151" }}>🇺🇸 {t.mypage.english}</span>
+              <span style={{ fontSize: "15px", color: "#374151" }}>{LANGUAGE_PICKER_ROW_LABEL.en}</span>
               {language === "en" && <span style={{ color: "#e88fa3" }}>✓</span>}
             </button>
 
@@ -2055,7 +2048,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                 justifyContent: "space-between",
               }}
             >
-              <span style={{ fontSize: "15px", color: "#374151" }}>🇨🇳 {t.mypage.chinese}</span>
+              <span style={{ fontSize: "15px", color: "#374151" }}>{LANGUAGE_PICKER_ROW_LABEL.zh}</span>
               {language === "zh" && <span style={{ color: "#e88fa3" }}>✓</span>}
             </button>
 
@@ -2076,7 +2069,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                 justifyContent: "space-between",
               }}
             >
-              <span style={{ fontSize: "15px", color: "#374151" }}>🇰🇷 {t.mypage.korean}</span>
+              <span style={{ fontSize: "15px", color: "#374151" }}>{LANGUAGE_PICKER_ROW_LABEL.ko}</span>
               {language === "ko" && <span style={{ color: "#e88fa3" }}>✓</span>}
             </button>
           </div>

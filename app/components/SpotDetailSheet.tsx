@@ -241,6 +241,11 @@ function getDisplayText(type: SpotInfoType, value: string): string {
   return value;
 }
 
+/** API が " / " で連結した古い形式も改行にそろえる */
+function formatOpeningHoursForDisplay(value: string): string {
+  return value.replace(/\s*\/\s*/g, "\n").trim();
+}
+
 // 概要タブ（スポット紹介 + 基本情報）
 function OverviewTab({
   spot,
@@ -338,9 +343,15 @@ function OverviewTab({
               icon={InfoIcons[info.type]}
               href={getHrefForInfo(info.type, info.value)}
               isLast={index === infosWithoutReservation.length - 1}
-              alignTop={info.type === "address" || info.type === "access"}
+              alignTop={info.type === "address" || info.type === "access" || info.type === "hours"}
             >
-              {getDisplayText(info.type, info.value)}
+              {info.type === "hours" ? (
+                <span style={{ whiteSpace: "pre-line" }}>
+                  {formatOpeningHoursForDisplay(getDisplayText(info.type, info.value))}
+                </span>
+              ) : (
+                getDisplayText(info.type, info.value)
+              )}
             </InfoListItem>
           ))
         ) : (

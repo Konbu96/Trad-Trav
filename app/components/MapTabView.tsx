@@ -82,17 +82,35 @@ interface SpotGridCardProps {
   tutorialDataId?: string;
 }
 
-function getSearchCategory(category?: string, type?: string): string {
+/** Places の primaryType / types から体験発掘のジャンル ID を推定（表示ラベルは `genreHeading`） */
+function inferTraditionalGenreFromGoogleTypes(category?: string, type?: string): GenreId {
   const source = `${category || ""} ${type || ""}`;
-  if (/festival|event/.test(source)) return "祭り・行事";
-  if (/performing_arts|dance|music/.test(source)) return "伝統芸能";
-  if (/museum|art_gallery|historical|history_museum/.test(source)) return "歴史・郷土文化";
-  if (/educational_institution|store|point_of_interest|tourist_attraction|manufacturer/.test(source)) return "工芸・手しごと";
-  return "工芸・手しごと";
+  if (/festival|event/.test(source)) return "festival";
+  if (/performing_arts|dance|music/.test(source)) return "performing";
+  if (/museum|art_gallery|historical|history_museum/.test(source)) return "history";
+  if (/educational_institution|store|point_of_interest|tourist_attraction|manufacturer/.test(source)) return "craft";
+  return "craft";
 }
 
-function searchLocationToPanelSpot(location: SearchLocation, index: number, spotDescriptionFallback: string, addressLabel: string): SearchPanelSpot {
-  const category = location.genreLabel || getSearchCategory(location.category, location.type);
+function resolveMapSpotCategoryLabel(
+  t: Translations,
+  traditionalGenre: TraditionalGenreId | undefined,
+  googleCategory?: string,
+  googleType?: string
+): string {
+  const id = traditionalGenre ?? inferTraditionalGenreFromGoogleTypes(googleCategory, googleType);
+  return genreHeading(id, t);
+}
+
+function searchLocationToPanelSpot(
+  location: SearchLocation,
+  index: number,
+  spotDescriptionFallback: string,
+  addressLabel: string,
+  t: Translations
+): SearchPanelSpot {
+  const genreId = location.traditionalGenre ?? inferTraditionalGenreFromGoogleTypes(location.category, location.type);
+  const category = genreHeading(genreId, t);
   const address = location.formattedAddress || location.name;
 
   return {
@@ -102,6 +120,7 @@ function searchLocationToPanelSpot(location: SearchLocation, index: number, spot
     lng: location.lng,
     description: location.summary || spotDescriptionFallback.replace("{category}", category),
     category,
+    traditionalGenre: genreId,
     reviews: [],
     infos: [{ type: "address", label: addressLabel, value: address }],
     photos: location.photos,
@@ -229,9 +248,10 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
   const [genreResults, setGenreResults] = useState<Partial<Record<GenreId, SearchPanelSpot[]>>>({});
   const [genreLocations, setGenreLocations] = useState<Partial<Record<GenreId, SearchLocation[]>>>({});
   const [genreLoading, setGenreLoading] = useState<Partial<Record<GenreId, boolean>>>({});
-  const [genreErrors, setGenreErrors] = useState<Partial<Record<GenreId, string>>>({});
+  /** キュレーション取得失敗（文言は表示時に t.mapTab.fetchFailed で出す＝言語切替に追随） */
+  const [genreErrors, setGenreErrors] = useState<Partial<Record<GenreId, true>>>({});
   /** 名前検索の API 失敗（再試行でクリア） */
-  const [searchFetchError, setSearchFetchError] = useState<string | null>(null);
+  const [searchFetchFailed, setSearchFetchFailed] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
@@ -300,7 +320,9 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
         return {
           ...prev,
           name: info.name || prev.name,
-          category: info.category ? getSearchCategory(info.category, info.category) : prev.category,
+          category: info.category
+            ? resolveMapSpotCategoryLabel(t, prev.traditionalGenre, info.category, info.category)
+            : prev.category,
           reviews: info.reviews?.length ? info.reviews : prev.reviews,
           photos: info.photos?.length ? info.photos : prev.photos,
           infos: [
@@ -316,7 +338,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     } finally {
       setIsFetchingSpotInfo(false);
     }
-  }, [language, t.map.googleMaps, t.spot.address, t.spot.hours, t.spot.phone, t.spot.website]);
+  }, [language, t]);
 
   useEffect(() => {
     if (!selectedSpot || !("placeId" in selectedSpot) || !selectedSpot.placeId) return;
@@ -354,7 +376,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
         setGenreResults(prev => ({ ...prev, [genreId]: [] }));
         setGenreErrors(prev => ({
           ...prev,
-          [genreId]: t.mapTab.fetchFailed,
+          [genreId]: true,
         }));
         return;
       }
@@ -364,7 +386,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
       setGenreResults((prev) => ({
         ...prev,
         [genreId]: locations.map((loc, i) =>
-          searchLocationToPanelSpot(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address)
+          searchLocationToPanelSpot(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address, t)
         ),
       }));
     } catch (error) {
@@ -373,7 +395,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
       setGenreResults(prev => ({ ...prev, [genreId]: [] }));
       setGenreErrors(prev => ({
         ...prev,
-        [genreId]: t.mapTab.fetchFailed,
+        [genreId]: true,
       }));
     } finally {
       setGenreLoading(prev => ({ ...prev, [genreId]: false }));
@@ -383,7 +405,6 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     genreErrors,
     genreLoading,
     genreResults,
-    t.mapTab.fetchFailed,
     t.mapTab.spotDescriptionFallback,
     t.spot.address,
   ]);
@@ -411,7 +432,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
         setGenreResults(prev => ({ ...prev, [genreId]: [] }));
         setGenreErrors(prev => ({
           ...prev,
-          [genreId]: t.mapTab.fetchFailed,
+          [genreId]: true,
         }));
         return;
       }
@@ -420,7 +441,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
       setGenreResults((prev) => ({
         ...prev,
         [genreId]: locations.map((loc, i) =>
-          searchLocationToPanelSpot(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address)
+          searchLocationToPanelSpot(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address, t)
         ),
       }));
     } catch (error) {
@@ -429,16 +450,16 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
       setGenreResults(prev => ({ ...prev, [genreId]: [] }));
       setGenreErrors(prev => ({
         ...prev,
-        [genreId]: t.mapTab.fetchFailed,
+        [genreId]: true,
       }));
     } finally {
       setGenreLoading(prev => ({ ...prev, [genreId]: false }));
     }
-  }, [genreErrors, genreLoading, language, t.mapTab.fetchFailed, t.mapTab.spotDescriptionFallback, t.spot.address]);
+  }, [genreErrors, genreLoading, language, t.mapTab.spotDescriptionFallback, t.spot.address]);
 
   const handleSearch = async () => {
     setHasSearched(true);
-    setSearchFetchError(null);
+    setSearchFetchFailed(false);
 
     if (!keyword.trim()) {
       setSearchResults([]);
@@ -452,14 +473,14 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
       setSearchResultLocations(locations);
       setSearchResults(
         locations.map((loc, i) =>
-          searchLocationToPanelSpot(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address)
+          searchLocationToPanelSpot(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address, t)
         )
       );
     } catch (error) {
       console.error("search panel google search error:", error);
       setSearchResultLocations([]);
       setSearchResults([]);
-      setSearchFetchError(t.mapTab.fetchFailed);
+      setSearchFetchFailed(true);
     } finally {
       setIsSearching(false);
     }
@@ -468,7 +489,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
   const handleClearAll = () => {
     setKeyword("");
     setHasSearched(false);
-    setSearchFetchError(null);
+    setSearchFetchFailed(false);
     setSearchResults([]);
     setSearchResultLocations(null);
     const params = new URLSearchParams(searchParams.toString());
@@ -502,7 +523,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     setHasSearched(false);
     setSearchResults([]);
     setSearchResultLocations(null);
-    setSearchFetchError(null);
+    setSearchFetchFailed(false);
     setGenreErrors({});
 
     const params = new URLSearchParams(searchParams.toString());
@@ -610,7 +631,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
           className="rounded-3xl bg-white px-4 py-5 shadow-sm"
           style={{ border: "1px solid #fecdd3" }}
         >
-          <p style={{ fontSize: "13px", color: "#991b1b", lineHeight: "1.8" }}>{genreError}</p>
+          <p style={{ fontSize: "13px", color: "#991b1b", lineHeight: "1.8" }}>{t.mapTab.fetchFailed}</p>
           <button
             onClick={() =>
               void (expandedRetry ? loadGenreExpanded(genreId, { retry: true }) : loadGenre(genreId, { retry: true }))
@@ -825,12 +846,12 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
                 </div>
               )}
 
-              {hasSearched && !isSearching && searchFetchError && (
+              {hasSearched && !isSearching && searchFetchFailed && (
                 <div
                   className="mb-4 rounded-2xl px-4 py-3 text-center text-sm font-semibold"
                   style={{ border: "1px solid #fecdd3", backgroundColor: "#fff1f2", color: "#991b1b" }}
                 >
-                  {searchFetchError}
+                  {t.mapTab.fetchFailed}
                 </div>
               )}
 

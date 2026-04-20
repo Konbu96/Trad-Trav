@@ -1,6 +1,11 @@
 /** アプリ UI 言語（日本語以外）で施設名を補完するときの対象 */
 export type NonJaPlaceUiLang = "en" | "zh" | "ko";
 
+/** 漢字等とラテン語が混ざった施設名（誤訳・Places の取り混ぜ対策） */
+function hasMixedLatinAndCjk(text: string): boolean {
+  return /[A-Za-z]{2,}/.test(text) && /[\u3400-\u9fff]/.test(text);
+}
+
 /** 施設名などに日本語系文字が含まれるか（簡易判定） */
 export function textLooksPrimarilyJapanese(text: string): boolean {
   if (!text.trim()) return false;
@@ -78,6 +83,13 @@ export async function maybeTranslateJapanesePlaceName(
 ): Promise<string | undefined> {
   if (!text?.trim()) return text ?? undefined;
   if (appLang !== "en" && appLang !== "zh" && appLang !== "ko") return text;
+
+  // 例: 「仙台Tansu历史博物馆」— ja→zh と英語片が混在するのを auto で一度整える
+  if ((appLang === "zh" || appLang === "ko") && hasMixedLatinAndCjk(text)) {
+    const pair = appLang === "zh" ? "auto|zh-CN" : "auto|ko";
+    const fixed = await fetchMyMemoryTranslatedText(text.trim(), pair);
+    if (fixed) return fixed;
+  }
 
   if (textLooksPrimarilyJapanese(text)) {
     const translated = await translateJapanesePlaceNameWithMyMemory(text, appLang);

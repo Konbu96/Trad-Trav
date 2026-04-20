@@ -1,6 +1,7 @@
 "use client";
 
 import { useLanguage } from "../i18n/LanguageContext";
+import { LANGUAGE_PICKER_ROW_LABEL } from "../i18n/languagePickerLabels";
 
 type PostSplashLanguageOverlayProps = {
   onDismiss: () => void;
@@ -61,22 +62,22 @@ export default function PostSplashLanguageOverlay({ onDismiss }: PostSplashLangu
         </p>
 
         <LanguageRow
-          label={`🇯🇵 ${t.mypage.japanese}`}
+          label={LANGUAGE_PICKER_ROW_LABEL.ja}
           active={language === "ja"}
           onSelect={() => select("ja")}
         />
         <LanguageRow
-          label={`🇺🇸 ${t.mypage.english}`}
+          label={LANGUAGE_PICKER_ROW_LABEL.en}
           active={language === "en"}
           onSelect={() => select("en")}
         />
         <LanguageRow
-          label={`🇨🇳 ${t.mypage.chinese}`}
+          label={LANGUAGE_PICKER_ROW_LABEL.zh}
           active={language === "zh"}
           onSelect={() => select("zh")}
         />
         <LanguageRow
-          label={`🇰🇷 ${t.mypage.korean}`}
+          label={LANGUAGE_PICKER_ROW_LABEL.ko}
           active={language === "ko"}
           onSelect={() => select("ko")}
         />

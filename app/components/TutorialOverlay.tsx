@@ -28,6 +28,9 @@ const MASK_COLOR = "rgba(15, 23, 42, 0.5)";
 /** ハイライトを対象より少し大きく見せる（外側の余白 px） */
 const SPOTLIGHT_PADDING = 20;
 const BUBBLE_WIDTH = 280;
+/** 吹き出し＋ボタン行まで含めたおおよその高さ（位置計算用） */
+const BUBBLE_EST_HEIGHT_PX = 300;
+const BUBBLE_TARGET_GAP_PX = 16;
 /** 下部固定ボタン列のためのビューポート下端の予約（px） */
 const BOTTOM_UI_RESERVE_PX = 100;
 
@@ -137,21 +140,54 @@ export default function TutorialOverlay({
       } as const;
     }
 
-    const usableH = viewport.height - BOTTOM_UI_RESERVE_PX;
-    const showAbove =
-      targetRect.bottom + 220 > usableH && targetRect.top > 220;
+    const usableBottom = viewport.height - BOTTOM_UI_RESERVE_PX;
+    const usableTop = 16;
     const left = clamp(
       targetRect.left + targetRect.width / 2 - BUBBLE_WIDTH / 2,
       16,
       Math.max(16, viewport.width - BUBBLE_WIDTH - 16)
     );
 
-    const topBelow = Math.min(usableH - 200, targetRect.bottom + 16);
-    const topAbove = Math.max(16, targetRect.top - 172);
+    const spaceBelow = usableBottom - targetRect.bottom - BUBBLE_TARGET_GAP_PX;
+    const spaceAbove = targetRect.top - usableTop - BUBBLE_TARGET_GAP_PX;
+
+    const fitsBelow = spaceBelow >= BUBBLE_EST_HEIGHT_PX;
+    const fitsAbove = spaceAbove >= BUBBLE_EST_HEIGHT_PX;
+
+    let placeAbove: boolean;
+    if (fitsAbove && !fitsBelow) {
+      placeAbove = true;
+    } else if (fitsBelow && !fitsAbove) {
+      placeAbove = false;
+    } else if (fitsAbove && fitsBelow) {
+      placeAbove = spaceAbove >= spaceBelow;
+    } else {
+      placeAbove = spaceAbove >= spaceBelow;
+    }
+
+    let topPx = placeAbove
+      ? targetRect.top - BUBBLE_TARGET_GAP_PX - BUBBLE_EST_HEIGHT_PX
+      : targetRect.bottom + BUBBLE_TARGET_GAP_PX;
+
+    topPx = clamp(topPx, usableTop, Math.max(usableTop, usableBottom - BUBBLE_EST_HEIGHT_PX));
+
+    const bubbleBottom = topPx + BUBBLE_EST_HEIGHT_PX;
+    const overlapsTargetVertically =
+      topPx < targetRect.bottom + BUBBLE_TARGET_GAP_PX && bubbleBottom > targetRect.top - BUBBLE_TARGET_GAP_PX;
+
+    if (overlapsTargetVertically) {
+      const altAboveTop = targetRect.top - BUBBLE_TARGET_GAP_PX - BUBBLE_EST_HEIGHT_PX;
+      const altBelowTop = targetRect.bottom + BUBBLE_TARGET_GAP_PX;
+      if (!placeAbove && fitsAbove) {
+        topPx = clamp(altAboveTop, usableTop, Math.max(usableTop, usableBottom - BUBBLE_EST_HEIGHT_PX));
+      } else if (placeAbove && fitsBelow) {
+        topPx = clamp(altBelowTop, usableTop, Math.max(usableTop, usableBottom - BUBBLE_EST_HEIGHT_PX));
+      }
+    }
 
     return {
       left: `${left}px`,
-      top: showAbove ? `${topAbove}px` : `${Math.max(16, topBelow)}px`,
+      top: `${topPx}px`,
     } as const;
   }, [targetRect, viewport.height, viewport.width]);
 

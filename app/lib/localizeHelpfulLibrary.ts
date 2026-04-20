@@ -69,6 +69,14 @@ export function getLocalizedTopic(topicId: string, t: Translations): TopicCopy |
 
 const TIPS_TOPIC_BY_ID = new Map(TIPS_TOPICS.map((topic) => [topic.id, topic]));
 
+/** 豆知識/旅ガイドの帯表示。シートの subtitle 文言ではなく UI 言語のバッジに統一 */
+export function helpfulTopicTabSubtitle(topicId: string, t: Translations): string {
+  const meta = TIPS_TOPIC_BY_ID.get(topicId);
+  if (meta?.tabId === "guide") return t.manner.badgeGuide;
+  if (meta?.tabId === "trivia") return t.manner.badgeTrivia;
+  return topicsMap(t)[topicId]?.subtitle ?? meta?.subtitle ?? "";
+}
+
 /**
  * 手順付きガイドのステップ。シート由来の `helpfulLibrary.topics[id].guideSteps` を優先し、なければ `TIPS_TOPICS` の本文にフォールバックする。
  */
@@ -119,7 +127,7 @@ export function localizeHelpfulCard(
   }
   return {
     title: topic.title,
-    subtitle: topic.subtitle,
+    subtitle: helpfulTopicTabSubtitle(id, t) || topic.subtitle,
     description: topic.description,
   };
 }

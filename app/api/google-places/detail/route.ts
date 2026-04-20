@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
       phone: data.nationalPhoneNumber,
       website: data.websiteUri,
       mapsUrl: data.googleMapsUri,
-      hours: data.regularOpeningHours?.weekdayDescriptions?.join(" / "),
+      hours: data.regularOpeningHours?.weekdayDescriptions?.join("\n"),
       reviews,
       photos,
     });

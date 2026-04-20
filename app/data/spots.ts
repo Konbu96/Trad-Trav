@@ -18,6 +18,8 @@ export interface SpotInfo {
   value: string;
 }
 
+import type { TraditionalGenreId } from "./traditionalGenres";
+
 // おすすめスポットの型定義
 export interface Spot {
   id: number;
@@ -26,6 +28,8 @@ export interface Spot {
   lng: number;
   description: string;
   category: string;
+  /** Google キュレーション等でジャンル棚と一致させる ID（あれば UI 言語でラベル化） */
+  traditionalGenre?: TraditionalGenreId;
   reviews: Review[];
   infos: SpotInfo[];  // 情報をリストで管理
   photos?: string[];
