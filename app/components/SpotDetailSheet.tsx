@@ -19,6 +19,7 @@ import {
 } from "./icons";
 import { MAIN_TAB_BAR_BOTTOM_INSET } from "./BottomNavigation";
 import { useLanguage } from "../i18n/LanguageContext";
+import { isPlacePhotoKnownFailed, markPlacePhotoFailed } from "../lib/placePhotoLoadCache";
 
 interface SpotDetailSheetProps {
   spot: Spot | null;
@@ -27,13 +28,16 @@ interface SpotDetailSheetProps {
   onToggleFavorite?: (spotId: number) => void;
   isLoadingInfo?: boolean;
   onOpenLanguageHelper?: (spotName: string) => void;
-  /** マップタブへ切り替えて当該スポットを表示（検索タブから開いたときなど） */
+  /** Google マップで場所を開く */
   onShowMap?: () => void;
+  /** お役立ちの豆知識・旅ガイド（体験前の流れなど）へ */
+  onOpenReservationGuide?: () => void;
   /**
    * true（既定）: メイン画面の下部タブの上端からシートを表示し、タブは常に操作可能にする。
    * false: 画面下端まで（ボトムナビのない埋め込み画面向け）
    */
   reserveMainBottomNav?: boolean;
+  onTutorialAction?: (actionId: string) => void;
 }
 
 // 星評価を表示
@@ -242,10 +246,12 @@ function OverviewTab({
   spot,
   isLoadingInfo,
   onShowMap,
+  onOpenReservationGuide,
 }: {
   spot: Spot;
   isLoadingInfo?: boolean;
   onShowMap?: () => void;
+  onOpenReservationGuide?: () => void;
 }) {
   const { t } = useLanguage();
   // 予約以外の情報をフィルタリング
@@ -280,9 +286,28 @@ function OverviewTab({
             <span className="flex min-w-0 justify-end" aria-hidden>
               <LocationIcon size={20} color="#ffffff" />
             </span>
-            <span className="whitespace-nowrap text-center">{t.spotDetail.viewOnMap}</span>
+            <span className="whitespace-nowrap text-center">{t.spotDetail.openInGoogleMaps}</span>
             <span className="min-w-0" aria-hidden />
           </button>
+        )}
+        {onOpenReservationGuide && (
+          <div style={{ marginTop: "12px" }}>
+            <button
+              type="button"
+              onClick={onOpenReservationGuide}
+              className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-x-2 rounded-xl border-2 px-3 py-3 text-sm font-semibold"
+              style={{ borderColor: "#f3b6c3", color: "#c95f78", backgroundColor: "#fffafb" }}
+            >
+              <span className="flex min-w-0 justify-end" aria-hidden>
+                <ReservationIcon size={20} color="#e88fa3" />
+              </span>
+              <span className="whitespace-nowrap text-center">{t.spotDetail.openReservationGuide}</span>
+              <span className="min-w-0" aria-hidden />
+            </button>
+            <p style={{ marginTop: "8px", fontSize: "12px", color: "#9ca3af", lineHeight: 1.5, textAlign: "center" }}>
+              {t.spotDetail.openReservationGuideHint}
+            </p>
+          </div>
         )}
       </div>
 
@@ -324,99 +349,6 @@ function OverviewTab({
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-// 予約タブ
-function ReservationTab({ spot }: { spot: Spot }) {
-  const { t } = useLanguage();
-  const reservationInfos = spot.infos.filter(info => info.type === "reservation");
-
-  if (reservationInfos.length === 0) {
-    return (
-      <div style={{ backgroundColor: "#f3f4f6", borderRadius: "12px", padding: "16px" }}>
-        <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#374151", marginBottom: "8px" }}>
-          {t.spotDetail.reservationHeading}
-        </h3>
-        <p style={{ color: "#9ca3af", fontSize: "14px", lineHeight: "1.8" }}>
-          {t.spotDetail.reservationNone}
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      {reservationInfos.map((info, i) => {
-        const isPdf = info.value.endsWith(".pdf");
-        const isUrl = info.value.startsWith("http") && !isPdf;
-        const isText = !isPdf && !isUrl;
-
-        return (
-          <div key={i} style={{ backgroundColor: "#f3f4f6", borderRadius: "12px", padding: "16px" }}>
-            <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#374151", marginBottom: "10px" }}>
-              🎫 {info.label}
-            </h3>
-
-            {isText && (
-              <p style={{ color: "#4b5563", fontSize: "14px", lineHeight: "1.9", whiteSpace: "pre-line" }}>
-                {info.value}
-              </p>
-            )}
-
-            {isUrl && (
-              <a
-                href={info.value}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "block",
-                  backgroundColor: "#e88fa3",
-                  color: "white",
-                  textAlign: "center",
-                  padding: "14px 20px",
-                  borderRadius: "10px",
-                  fontSize: "15px",
-                  fontWeight: "bold",
-                  textDecoration: "none",
-                }}
-              >
-                {t.spotDetail.reservationSiteCta}
-              </a>
-            )}
-
-            {isPdf && (
-              <div>
-                <p style={{ color: "#4b5563", fontSize: "13px", lineHeight: "1.8", marginBottom: "12px" }}>
-                  {t.spotDetail.reservationPdfNote}
-                </p>
-                <a
-                  href={info.value}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                    backgroundColor: "#f97316",
-                    color: "white",
-                    textAlign: "center",
-                    padding: "14px 20px",
-                    borderRadius: "10px",
-                    fontSize: "15px",
-                    fontWeight: "bold",
-                    textDecoration: "none",
-                  }}
-                >
-                  {t.spotDetail.reservationPdfDownload}
-                </a>
-              </div>
-            )}
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -482,6 +414,26 @@ function ReviewsTab({ spot }: { spot: Spot }) {
   );
 }
 
+function DetailPhotoCell({ url, alt }: { url: string; alt: string }) {
+  const [failed, setFailed] = useState(() => isPlacePhotoKnownFailed(url));
+  if (failed) {
+    return <div className="flex h-full w-full items-center justify-center text-xs text-gray-400">—</div>;
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt={alt}
+      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+      loading="lazy"
+      onError={() => {
+        markPlacePhotoFailed(url);
+        setFailed(true);
+      }}
+    />
+  );
+}
+
 // 写真タブ
 function PhotosTab({ spot }: { spot: Spot }) {
   const { t } = useLanguage();
@@ -537,7 +489,7 @@ function PhotosTab({ spot }: { spot: Spot }) {
           <div className="grid grid-cols-2 gap-3">
             {spot.photos!.map((url, i) => (
               <div
-                key={i}
+                key={url}
                 style={{
                   aspectRatio: "1",
                   borderRadius: "12px",
@@ -545,10 +497,9 @@ function PhotosTab({ spot }: { spot: Spot }) {
                   backgroundColor: "#f3f4f6",
                 }}
               >
-                <img
-                  src={url}
+                <DetailPhotoCell
+                  url={url}
                   alt={t.spotDetail.photoAlt.replace("{name}", spot.name).replace("{n}", String(i + 1))}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 />
               </div>
             ))}
@@ -566,7 +517,6 @@ function PhotosTab({ spot }: { spot: Spot }) {
   );
 }
 
-const MAP_TUTORIAL_KEY = "trad-trav-map-tutorial-done"; // MapView と同じキー
 const TAB_TUTORIAL_KEY = "trad-trav-tab-tutorial-done";
 
 export default function SpotDetailSheet({
@@ -577,11 +527,13 @@ export default function SpotDetailSheet({
   isLoadingInfo = false,
   onOpenLanguageHelper,
   onShowMap,
+  onOpenReservationGuide,
   reserveMainBottomNav = true,
+  onTutorialAction,
 }: SpotDetailSheetProps) {
   const { t } = useLanguage();
   const [isVisible, setIsVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "photos" | "reservation">("photos");
+  const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "photos">("photos");
   const [showTabTutorial, setShowTabTutorial] = useState(false);
 
   const sheetBottomInset = reserveMainBottomNav ? MAIN_TAB_BAR_BOTTOM_INSET : "0px";
@@ -589,15 +541,8 @@ export default function SpotDetailSheet({
     ? "min(92vh, calc(100dvh - 84px - env(safe-area-inset-bottom, 0px)))"
     : "92vh";
 
-  // 初回シートオープン時のみチュートリアルを表示（spotが変化したときに判定）
   useEffect(() => {
-    // チュートリアル1（マップピン）完了後にのみチュートリアル2（タブ）を表示
-    if (
-      spot &&
-      typeof window !== "undefined" &&
-      localStorage.getItem(MAP_TUTORIAL_KEY) &&   // チュートリアル1完了済み
-      !localStorage.getItem(TAB_TUTORIAL_KEY)      // チュートリアル2はまだ
-    ) {
+    if (spot && typeof window !== "undefined" && !localStorage.getItem(TAB_TUTORIAL_KEY)) {
       setShowTabTutorial(true);
     }
   }, [spot]);
@@ -609,7 +554,7 @@ export default function SpotDetailSheet({
     }
   };
 
-  const handleTabChange = (tab: "overview" | "reviews" | "photos" | "reservation") => {
+  const handleTabChange = (tab: "overview" | "reviews" | "photos") => {
     setActiveTab(tab);
     if (showTabTutorial) handleCloseTutorial();
   };
@@ -707,7 +652,11 @@ export default function SpotDetailSheet({
           )}
           <button
             type="button"
-            onClick={handleClose}
+            data-tutorial-id="map.spot-detail.close"
+            onClick={() => {
+              onTutorialAction?.("map.spot-detail.close");
+              handleClose();
+            }}
             style={{
               padding: "8px",
               borderRadius: "9999px",
@@ -827,11 +776,6 @@ export default function SpotDetailSheet({
                 isActive={activeTab === "reviews"}
                 onClick={() => handleTabChange("reviews")}
               />
-              <TabButton
-                label={t.spotDetail.tabReservation}
-                isActive={activeTab === "reservation"}
-                onClick={() => handleTabChange("reservation")}
-              />
             </div>
           </div>
         </div>
@@ -849,10 +793,14 @@ export default function SpotDetailSheet({
         >
           {activeTab === "photos" && <PhotosTab spot={spot} />}
           {activeTab === "overview" && (
-            <OverviewTab spot={spot} isLoadingInfo={isLoadingInfo} onShowMap={onShowMap} />
+            <OverviewTab
+              spot={spot}
+              isLoadingInfo={isLoadingInfo}
+              onShowMap={onShowMap}
+              onOpenReservationGuide={onOpenReservationGuide}
+            />
           )}
           {activeTab === "reviews" && <ReviewsTab spot={spot} />}
-          {activeTab === "reservation" && <ReservationTab spot={spot} />}
         </div>
       </div>
     </>

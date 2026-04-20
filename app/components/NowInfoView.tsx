@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { TraditionalGenreId } from "../data/traditionalGenres";
-import { getRecommendedMannerItemsByScenes, type MannerItem } from "../data/manners";
 import { getRecommendedHelpfulTopicsByScenes } from "../data/helpfulInfo";
 import { useLanguage } from "../i18n/LanguageContext";
 import type { Translations } from "../i18n/translations";
@@ -12,8 +11,9 @@ import type { CurrentAddress, LocationPermissionState } from "../page";
 import type { SearchLocation } from "./SearchBar";
 import { locationIssueMessage } from "../lib/locationIssue";
 import type { LocationIssueCode } from "../lib/locationIssue";
-import { getLocalizedMannerItem, getLocalizedTopic } from "../lib/localizeHelpfulLibrary";
-import { resolveNearbyMannerIntro, type NearbyContextPayload } from "../lib/nearbyContextCopy";
+import { getLocalizedTopic } from "../lib/localizeHelpfulLibrary";
+import type { NearbyContextPayload } from "../lib/nearbyContextCopy";
+import { isPlacePhotoKnownFailed, markPlacePhotoFailed } from "../lib/placePhotoLoadCache";
 
 interface NowInfoViewProps {
   locationPermissionState?: LocationPermissionState;
@@ -35,6 +35,7 @@ type NearbyResponse = {
 };
 
 const NEARBY_MIN_REFETCH_INTERVAL_MS = 20_000;
+
 const WALKING_REFETCH_DISTANCE_METERS = 150;
 const CYCLING_REFETCH_DISTANCE_METERS = 500;
 const VEHICLE_REFETCH_DISTANCE_METERS = 800;
@@ -66,6 +67,12 @@ function NearbySpotCard({
   t: Translations;
 }) {
   const photo = location.photos?.[0];
+  const [photoFailed, setPhotoFailed] = useState(false);
+  useEffect(() => {
+    setPhotoFailed(false);
+  }, [photo]);
+  const knownBad = Boolean(photo && isPlacePhotoKnownFailed(photo));
+  const showPhoto = Boolean(photo) && !photoFailed && !knownBad;
   const meters =
     origin != null
       ? getDistanceMeters(origin.latitude, origin.longitude, location.lat, location.lng)
@@ -94,13 +101,18 @@ function NearbySpotCard({
             background: "linear-gradient(135deg, #f6d7b8, #f3b6c3)",
           }}
         >
-          {photo ? (
+          {showPhoto ? (
             // Google Places photo URLs are resolved at runtime and are not preconfigured for next/image.
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={photo}
+              src={photo!}
               alt={location.name}
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              loading="lazy"
+              onError={() => {
+                markPlacePhotoFailed(photo!);
+                setPhotoFailed(true);
+              }}
             />
           ) : (
             <div
@@ -134,53 +146,6 @@ function NearbySpotCard({
             </p>
           ) : null}
         </div>
-      </div>
-    </article>
-  );
-}
-
-function RecommendedMannerCard({
-  item,
-  mannerBadge,
-  t,
-}: {
-  item: MannerItem;
-  mannerBadge: string;
-  t: Translations;
-}) {
-  const loc = getLocalizedMannerItem(item.id, t);
-  const title = loc?.title ?? item.title;
-  const shortDescription = loc?.shortDescription ?? item.shortDescription;
-  const details = loc?.details ?? item.details;
-  return (
-    <article
-      style={{
-        backgroundColor: "white",
-        borderRadius: "20px",
-        padding: "16px",
-        border: "1px solid #f7dfe5",
-        boxShadow: "0 2px 12px rgba(236,72,153,0.08)",
-      }}
-    >
-      <p style={{ fontSize: "11px", fontWeight: 700, color: "#b85f74", marginBottom: "6px" }}>{mannerBadge}</p>
-      <p style={{ fontSize: "15px", fontWeight: "800", color: "#111827", lineHeight: "1.4" }}>{title}</p>
-      <p style={{ fontSize: "13px", color: "#374151", lineHeight: "1.8", marginTop: "8px" }}>{shortDescription}</p>
-      <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
-        {details.slice(0, 2).map((detail, index) => (
-          <div key={`${item.id}-${index}`} style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
-            <div
-              style={{
-                width: "10px",
-                height: "10px",
-                borderRadius: "999px",
-                backgroundColor: "#e88fa3",
-                flexShrink: 0,
-                marginTop: "5px",
-              }}
-            />
-            <p style={{ fontSize: "12px", color: "#374151", lineHeight: "1.7" }}>{detail}</p>
-          </div>
-        ))}
       </div>
     </article>
   );
@@ -374,19 +339,20 @@ export default function NowInfoView({
     };
   }, [nearbyFetchKey, nearbyFetchPosition, language, t.nowInfo.nearbyFetchFailed]);
 
-  const recommendedItems = useMemo(
-    () => getRecommendedMannerItemsByScenes(nearbyContext?.scenes || [], 3),
-    [nearbyContext]
-  );
-  const recommendedGuideTopics = useMemo(
-    () => getRecommendedHelpfulTopicsByScenes(nearbyContext?.scenes || [], 3),
+  const rankedHelpfulTopics = useMemo(
+    () => getRecommendedHelpfulTopicsByScenes(nearbyContext?.scenes || [], 24),
     [nearbyContext]
   );
 
-  const nearbyMannerLines = useMemo(() => {
-    if (!nearbyContext) return null;
-    return resolveNearbyMannerIntro(nearbyContext.kind, nearbyContext.placeName, t);
-  }, [nearbyContext, t]);
+  const nowGuideTopics = useMemo(
+    () => rankedHelpfulTopics.filter((topic) => topic.tabId === "guide"),
+    [rankedHelpfulTopics]
+  );
+
+  const nowTriviaTopics = useMemo(
+    () => rankedHelpfulTopics.filter((topic) => topic.tabId === "trivia").slice(0, 3),
+    [rankedHelpfulTopics]
+  );
 
   const hasLocation = Boolean(currentPosition);
 
@@ -605,28 +571,6 @@ export default function NowInfoView({
         {hasLocation && (
           <>
             <section>
-              <div style={{ marginBottom: "10px" }}>
-                <p style={{ fontSize: "17px", fontWeight: "800", color: "#111827" }}>{t.nowInfo.mannerSectionTitle}</p>
-                {nearbyMannerLines && (
-                  <>
-                    <p style={{ fontSize: "12px", color: "#b85f74", fontWeight: "700", marginTop: "6px" }}>
-                      {nearbyMannerLines.title}
-                    </p>
-                    <p style={{ fontSize: "13px", color: "#374151", lineHeight: "1.8", marginTop: "4px" }}>
-                      {nearbyMannerLines.summary}
-                    </p>
-                  </>
-                )}
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                {recommendedItems.map((item) => (
-                  <RecommendedMannerCard key={item.id} item={item} mannerBadge={t.nowInfo.mannerBadge} t={t} />
-                ))}
-              </div>
-            </section>
-
-            <section>
               <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", marginBottom: "10px" }}>
                 <div>
                   <p style={{ fontSize: "17px", fontWeight: "800", color: "#111827" }}>{t.nowInfo.facilitiesSectionTitle}</p>
@@ -691,29 +635,57 @@ export default function NowInfoView({
               )}
             </section>
 
-            <section>
-              <div style={{ marginBottom: "10px" }}>
-                <p style={{ fontSize: "17px", fontWeight: "800", color: "#111827" }}>{t.nowInfo.guideSectionTitle}</p>
-                <p style={{ fontSize: "12px", color: "#374151", lineHeight: "1.7", marginTop: "4px" }}>
-                  {t.nowInfo.guideSectionLead}
-                </p>
-              </div>
+            {nowGuideTopics.length > 0 ? (
+              <section>
+                <div style={{ marginBottom: "10px" }}>
+                  <p style={{ fontSize: "17px", fontWeight: "800", color: "#111827" }}>{t.nowInfo.nowGuideTitle}</p>
+                  <p style={{ fontSize: "12px", color: "#374151", lineHeight: "1.7", marginTop: "4px" }}>
+                    {t.nowInfo.nowGuideLead}
+                  </p>
+                </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                {recommendedGuideTopics.map((topic) => {
-                  const loc = getLocalizedTopic(topic.id, t);
-                  return (
-                    <HelpfulTopicCard
-                      key={topic.id}
-                      title={loc?.title ?? topic.title}
-                      subtitle={loc?.subtitle ?? topic.subtitle}
-                      description={loc?.description ?? topic.description}
-                      emoji={topic.emoji}
-                    />
-                  );
-                })}
-              </div>
-            </section>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {nowGuideTopics.map((topic) => {
+                    const loc = getLocalizedTopic(topic.id, t);
+                    return (
+                      <HelpfulTopicCard
+                        key={topic.id}
+                        title={loc?.title ?? topic.title}
+                        subtitle={loc?.subtitle ?? topic.subtitle}
+                        description={loc?.description ?? topic.description}
+                        emoji={topic.emoji}
+                      />
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
+            {nowTriviaTopics.length > 0 ? (
+              <section>
+                <div style={{ marginBottom: "10px" }}>
+                  <p style={{ fontSize: "17px", fontWeight: "800", color: "#111827" }}>{t.nowInfo.nowTriviaTitle}</p>
+                  <p style={{ fontSize: "12px", color: "#374151", lineHeight: "1.7", marginTop: "4px" }}>
+                    {t.nowInfo.nowTriviaLead}
+                  </p>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {nowTriviaTopics.map((topic) => {
+                    const loc = getLocalizedTopic(topic.id, t);
+                    return (
+                      <HelpfulTopicCard
+                        key={topic.id}
+                        title={loc?.title ?? topic.title}
+                        subtitle={loc?.subtitle ?? topic.subtitle}
+                        description={loc?.description ?? topic.description}
+                        emoji={topic.emoji}
+                      />
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
           </>
         )}
       </div>

@@ -48,11 +48,6 @@ function formatJa(s: string) {
   const dow = ["日","月","火","水","木","金","土"][d.getDay()];
   return `${d.getMonth() + 1}月${d.getDate()}日（${dow}）`;
 }
-function addDays(s: string, n: number) {
-  const d = parseDate(s);
-  d.setDate(d.getDate() + n);
-  return toStr(d);
-}
 function dateInRange(date: string, start: string, end: string) {
   return date >= start && date <= end;
 }

@@ -233,7 +233,7 @@ async function mergeExpansionPlaces(
 }
 
 /**
- * Place Details では photos が空のことがある。体験予約の棚だけ写真が欠けるため、
+ * Place Details では photos が空のことがある。体験発掘タブの棚だけ写真が欠けるため、
  * 施設名で Text Search し、写真がある候補から 1 件だけ photo リソース名を取る（座標・名前は既存 detail のまま）。
  */
 async function fetchPhotoNameByTextSearch(

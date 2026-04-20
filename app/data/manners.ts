@@ -1,4 +1,4 @@
-export type MannerCategoryId = "transit" | "facility" | "experience" | "community";
+export type MannerCategoryId = "meal" | "sightseeing" | "mobility" | "daily" | "rules";
 
 export interface MannerCategory {
   id: MannerCategoryId;
@@ -19,151 +19,384 @@ export interface MannerItem {
 
 /** AI 検索用の定型クエリ（データ側キーワードは日本語のまま） */
 export const MANNER_CATEGORY_AI_QUERY: Record<MannerCategoryId, string> = {
-  transit: "移動中で気を付けることは？",
-  facility: "施設内で気を付けることは？",
-  experience: "体験中で気を付けることは？",
-  community: "地域文化で気を付けることは？",
+  meal: "食事のマナーで気を付けることは？",
+  sightseeing: "観光のマナーで気を付けることは？",
+  mobility: "移動中のマナーで気を付けることは？",
+  daily: "暮らし・公共の場のマナーで気を付けることは？",
+  rules: "ルールや法律で気を付けることは？",
 };
 
+/** 原稿シートの区分（食事・観光・移動・生活・ルール）に合わせたカテゴリ */
 export const MANNER_CATEGORIES: MannerCategory[] = [
   {
-    id: "transit",
-    label: "移動中",
+    id: "meal",
+    label: "食事",
+    emoji: "🍽️",
+    description: "いただきます・箸使いなど、食卓や外食のときのマナーです。",
+  },
+  {
+    id: "sightseeing",
+    label: "観光",
+    emoji: "⛩️",
+    description: "神社・温泉・着物など、観光の場面でのマナーです。",
+  },
+  {
+    id: "mobility",
+    label: "移動",
     emoji: "🚃",
-    description: "電車やバス、徒歩での移動中に気を付けたいマナーです。",
+    description: "電車・エスカレーターなど、移動中のマナーです。",
   },
   {
-    id: "facility",
-    label: "施設内",
-    emoji: "🏛️",
-    description: "展示施設や観光施設の中で守りたい基本のふるまいです。",
+    id: "daily",
+    label: "生活",
+    emoji: "🏙️",
+    description: "買い物・公共の場・ゴミなど、日常の場面のマナーです。",
   },
   {
-    id: "experience",
-    label: "体験中",
-    emoji: "🛠️",
-    description: "工芸体験やワークショップに参加するときのマナーです。",
+    id: "rules",
+    label: "ルール",
+    emoji: "📋",
+    description: "撮影・喫煙・私有地など、ルールや法律に関する注意です。",
   },
-  {
-    id: "community",
-    label: "地域文化",
-    emoji: "🌸",
-    description: "祭りや地域の方と接するときに意識したい配慮です。",
-  },
-] as const;
+];
 
+/** 原稿: `docs/content-sheets/マナー情報 - マナー情報.csv` から取り込み */
 export const MANNER_ITEMS: MannerItem[] = [
   {
-    id: "transit-phone",
-    categoryId: "transit",
-    title: "車内では通話を控える",
-    shortDescription: "日本の電車やバスでは、車内通話を控えるのが一般的です。",
+    id: "meal-before-greeting",
+    categoryId: "meal",
+    title: "食事の前のあいさつ",
+    shortDescription: "食事の前後に感謝の言葉を伝える文化があります。食べ物や作ってくれた人への気持ちを表すものです。",
     details: [
-      "着信に出るときは短く済ませ、すぐに切るようにします。",
-      "周囲の人との距離が近いときは、音量や話し声に特に気を付けます。",
-      "混雑時はスマートフォンの操作も最小限にすると安心です。",
+      "食前は「いただきます」と言いましょう 。",
+      "食後は「ごちそうさまでした」と言いましょう。",
     ],
-    keywords: ["電車", "バス", "通話", "電話", "移動", "車内"],
+    keywords: ["挨拶", "文化"],
+    scenes: ["facility"],
+  },
+  {
+    id: "meal-quiet-eating",
+    categoryId: "meal",
+    title: "音を立てすぎない",
+    shortDescription: "日本では静かに食事をする人が多く、周囲への配慮が大切にされています。",
+    details: [
+      "麺以外は音を立てないようにしましょう。",
+      "できる限り静かに食べると安心です 。",
+      "周囲の雰囲気に合わせましょう。",
+    ],
+    keywords: ["食事", "音", "マナー"],
+    scenes: ["facility"],
+  },
+  {
+    id: "meal-chopsticks-no-rice-plant",
+    categoryId: "meal",
+    title: "箸を食べ物に刺さない",
+    shortDescription: "ご飯に箸を立てる行為は、お葬式などを連想させるため避けられています。",
+    details: [
+      "箸はご飯に立てないようにしましょう。",
+      "使わないときは皿や箸置きに置きましょう。",
+    ],
+    keywords: ["箸", "マナー"],
+    scenes: ["facility"],
+  },
+  {
+    id: "meal-chopsticks-no-pass",
+    categoryId: "meal",
+    title: "箸で渡さない",
+    shortDescription: "箸から箸へ食べ物を渡す行為は、お葬式などの場面を連想させるため避けられています。",
+    details: [
+      "箸から箸へ渡さないようにしましょう。",
+      "取り分けるときは一度他のお皿に移すと安心です。",
+    ],
+    keywords: ["箸", "マナー"],
+    scenes: ["facility"],
+  },
+  {
+    id: "meal-restaurant-voice-level",
+    categoryId: "meal",
+    title: "店内では大声で話さない",
+    shortDescription: "日本の飲食店では落ち着いた雰囲気が好まれますが、居酒屋などではにぎやかに過ごすこともあります。",
+    details: [
+      "店の雰囲気に合わせて声の大きさを調整しましょう。",
+      "周囲の人の様子を見ると判断しやすいです。",
+    ],
+    keywords: ["会話", "レストラン"],
+    scenes: ["facility"],
+  },
+  {
+    id: "sightseeing-torii-bow",
+    categoryId: "sightseeing",
+    title: "鳥居の前で一礼",
+    shortDescription: "鳥居は神聖な場所への入口とされており、敬意を表す行動が大切にされています。",
+    details: [
+      "鳥居の前後で軽くお辞儀をしましょう。",
+    ],
+    keywords: ["神社", "礼儀", "文化"],
+    scenes: ["facility", "museum"],
+  },
+  {
+    id: "sightseeing-quiet-shrine",
+    categoryId: "sightseeing",
+    title: "静かに行動する",
+    shortDescription: "神社やお寺は静かな空間が大切にされており、落ち着いた行動が求められます。",
+    details: [
+      "大声を出さず静かに過ごしましょう。",
+      "写真を撮るときも周囲に配慮しましょう。",
+    ],
+    keywords: ["寺", "マナー"],
+    scenes: ["facility", "museum"],
+  },
+  {
+    id: "sightseeing-sando-center",
+    categoryId: "sightseeing",
+    title: "参道の中央はなるべく避ける",
+    shortDescription: "参道の中央は神様の通り道と考えられており、端を歩く人が多いです。",
+    details: [
+      "参道の中央はなるべく避けて歩きましょう。",
+      "混雑時は無理に避けなくても大丈夫です。 ・周囲の人の動きに合わせると安心です。",
+    ],
+    keywords: ["神社", "文化"],
+    scenes: ["facility", "museum"],
+  },
+  {
+    id: "sightseeing-onsen-wash-first",
+    categoryId: "sightseeing",
+    title: "入る前に体を洗う",
+    shortDescription: "温泉は多くの人が共有して使うため、清潔に保つことがとても大切です。",
+    details: [
+      "入る前に体をしっかり洗いましょう。",
+      "シャンプーや石けんは湯船に入る前に済ませましょう。",
+      "洗い場は次の人のために軽く流しておきましょう。",
+    ],
+    keywords: ["温泉", "清潔", "入浴"],
+    scenes: ["facility"],
+  },
+  {
+    id: "sightseeing-onsen-no-towel-in-bath",
+    categoryId: "sightseeing",
+    title: "タオルを湯船に入れない",
+    shortDescription: "湯船の水を清潔に保つため、タオルを入れない習慣があります。",
+    details: [
+      "タオルは湯船に入れないようにしましょう。",
+      "タオル置き場がある場合はそこを使いましょう。",
+      "ない場合は濡れないようにし、人の邪魔にならない場所に置きましょう。",
+    ],
+    keywords: ["温泉", "タオル", "マナー"],
+    scenes: ["facility"],
+  },
+  {
+    id: "sightseeing-kimono-hem-walk",
+    categoryId: "sightseeing",
+    title: "裾を踏まないように歩く",
+    shortDescription: "着物は裾が長く動きにくいため、歩き方に少し注意が必要です。",
+    details: [
+      "裾を少し持って汚さないように歩きましょう。",
+      "階段や段差では特に注意しましょう。",
+    ],
+    keywords: ["着物", "歩き方"],
+    scenes: ["facility", "walking"],
+  },
+  {
+    id: "transit-escalator-stand-aside",
+    categoryId: "mobility",
+    title: "片側に寄る",
+    shortDescription: "エスカレーターでは急ぐ人のために通路を空ける習慣があります。",
+    details: [
+      "片側に寄って立ちましょう。",
+      "地域によって違うので周囲に合わせましょう。",
+    ],
+    keywords: ["エスカレーター", "マナー"],
+    scenes: ["train", "walking"],
+  },
+  {
+    id: "transit-elevator-yield-exit",
+    categoryId: "mobility",
+    title: "降りる人を優先",
+    shortDescription: "電車やエレベーターではスムーズに移動するため、降りる人を優先するのが一般的です。",
+    details: [
+      "降りる人を先に通しましょう。",
+      "ドア付近では少しよけるとスムーズです。",
+    ],
+    keywords: ["エレベーター", "マナー"],
+    scenes: ["train", "walking"],
+  },
+  {
+    id: "transit-backpack-front-when-crowded",
+    categoryId: "mobility",
+    title: "リュックは前に持つ",
+    shortDescription: "混雑時は周囲との距離が近くなるため、荷物の持ち方に配慮が必要です。",
+    details: [
+      "混雑時はリュックを前に持ちましょう。",
+      "周囲のスペースに気をつけましょう。",
+    ],
+    keywords: ["電車", "混雑", "荷物"],
     scenes: ["train", "bus"],
   },
   {
-    id: "transit-bag",
-    categoryId: "transit",
-    title: "荷物は小さくまとめる",
-    shortDescription: "混雑した車内では、荷物の持ち方が周囲への印象を大きく左右します。",
+    id: "transit-quiet-on-public-transport",
+    categoryId: "mobility",
+    title: "公共の乗り物では静かにする",
+    shortDescription: "電車やバスでは静かな環境が保たれており、周囲への配慮が重視されています。",
     details: [
-      "通路やドア付近では、荷物が人に当たりやすいので位置に注意します。",
-      "濡れた傘や大きな買い物袋は足元に寄せると安心です。",
+      "音や声は控えめにしましょう。",
+      "イヤホンの音漏れにも注意しましょう。",
     ],
-    keywords: ["荷物", "リュック", "傘", "移動", "混雑"],
-    scenes: ["train", "bus", "walking"],
+    keywords: ["電車", "静か", "マナー"],
+    scenes: ["train", "bus"],
   },
   {
-    id: "facility-photo",
-    categoryId: "facility",
-    title: "撮影可否を最初に確認する",
-    shortDescription: "日本では撮影できそうに見える場所でも、展示や人の写り込みに配慮が求められます。",
+    id: "life-no-open-before-payment",
+    categoryId: "daily",
+    title: "会計前の商品は使わない",
+    shortDescription: "商品は購入するまで店のものであり、勝手に開封することはできません。",
     details: [
-      "フラッシュ禁止や動画禁止の表示がある場合は必ず従います。",
-      "他のお客さんが写るときは、撮影場所や角度を配慮します。",
-      "わからないときはスタッフに一言確認するのが安全です。",
+      "商品は会計前に開けないようにしましょう。",
     ],
-    keywords: ["写真", "撮影", "動画", "展示", "施設"],
-    scenes: ["museum", "facility"],
+    keywords: ["買い物", "ルール", "商品"],
+    scenes: ["facility"],
   },
   {
-    id: "facility-voice",
-    categoryId: "facility",
-    title: "解説中や展示前では私語を控える",
-    shortDescription: "静かな展示空間では、周囲も落ち着いて見学できるよう声量に気を配ります。",
+    id: "life-queue-in-line",
+    categoryId: "daily",
+    title: "列に並ぶ",
+    shortDescription: "日本では順番を守ることが大切にされており、列に並ぶ文化があります。",
     details: [
-      "展示の前で長時間立ち止まるときは、後ろの人の視界も意識します。",
-      "飲食禁止エリアでは、ペットボトルやガムも控えると安心です。",
+      "列に並んで順番を待ちましょう。",
+      "最後尾の位置を確認すると安心です。",
     ],
-    keywords: ["声", "静か", "展示", "博物館", "資料館", "飲食"],
-    scenes: ["museum", "facility"],
+    keywords: ["列", "順番", "マナー"],
+    scenes: ["facility"],
   },
   {
-    id: "facility-ask-staff",
-    categoryId: "facility",
-    title: "困ったときはスタッフに確認する",
-    shortDescription: "資料館や展示施設は場所ごとにルールが違うため、迷ったらスタッフに聞くのがいちばん安全です。",
+    id: "life-quiet-in-public",
+    categoryId: "daily",
+    title: "公共の場では静かに話す",
+    shortDescription: "公共の場では周囲に配慮した行動が求められ、静かに過ごす人が多いです。",
     details: [
-      "撮影、見学ルート、立入可否などは自己判断せずに確認します。",
-      "展示の近くで不安なことがあるときは、小さな声でスタッフに相談します。",
+      "声を抑えて話しましょう。",
+      "周囲の人の様子を参考にすると安心です。",
     ],
-    keywords: ["スタッフ", "確認", "質問", "資料館", "博物館", "案内"],
-    scenes: ["museum", "facility"],
+    keywords: ["会話", "静か", "公共"],
+    scenes: ["walking", "facility"],
   },
   {
-    id: "experience-instruction",
-    categoryId: "experience",
-    title: "最初の説明をよく聞く",
-    shortDescription: "体験施設では最初の説明が安全面や進行の基準になることが多いです。",
+    id: "life-phone-avoid-on-train",
+    categoryId: "daily",
+    title: "電車では通話を控える",
+    shortDescription: "電車内では静かな環境を保つため、通話は控えることが一般的です。",
     details: [
-      "わからないまま進めず、スタッフに早めに確認します。",
-      "作業スペースの外に道具を持ち出さないようにします。",
-      "完成品の持ち帰り方法や乾燥時間も最後に確認すると安心です。",
+      "通話は控えましょう。",
+      "必要な場合は車外やデッキで話しましょう。",
     ],
-    keywords: ["体験", "工芸", "説明", "道具", "ワークショップ"],
-    scenes: ["workshop", "craft"],
+    keywords: ["電車", "電話", "マナー"],
+    scenes: ["train"],
   },
   {
-    id: "experience-time",
-    categoryId: "experience",
-    title: "遅刻やキャンセルは早めに連絡する",
-    shortDescription: "日本の体験予約は事前準備で動いていることが多く、遅刻連絡が特に大切です。",
+    id: "life-trash-take-home",
+    categoryId: "daily",
+    title: "ゴミは持ち帰る",
+    shortDescription: "日本ではゴミ箱が少ないため、自分で持ち帰ることが一般的です。",
     details: [
-      "到着が遅れそうなときは、開始前に電話や予約先へ連絡します。",
-      "キャンセル規定がある場合は、事前に確認しておきます。",
+      "ゴミは持ち帰るようにしましょう。",
+      "小さな袋を用意しておくと便利です。",
     ],
-    keywords: ["予約", "遅刻", "キャンセル", "体験", "連絡"],
-    scenes: ["workshop", "reservation"],
+    keywords: ["ゴミ", "持ち帰り", "外出"],
+    scenes: ["walking", "facility"],
   },
   {
-    id: "community-respect",
-    categoryId: "community",
-    title: "地域の人や参加者の流れを優先する",
-    shortDescription: "祭りでは観光客よりも地域の進行が優先されるため、流れを止めない配慮が大切です。",
+    id: "life-trash-sort",
+    categoryId: "daily",
+    title: "分別する",
+    shortDescription: "ゴミは種類ごとに分けて処理されるため、分別が重要とされています。",
     details: [
-      "進行ルートや規制線の中には入らないようにします。",
-      "参加したいときは、主催やスタッフの案内に従います。",
-      "衣装や道具に無断で触れないようにします。",
+      "ゴミは分別して捨てましょう。",
+      "表示や案内を確認すると分かりやすいです。",
     ],
-    keywords: ["祭り", "行事", "地域", "参加", "進行", "見学"],
-    scenes: ["festival", "community"],
+    keywords: ["ゴミ", "分別", "ルール"],
+    scenes: ["walking", "facility"],
   },
   {
-    id: "community-trash",
-    categoryId: "community",
-    title: "ゴミは持ち帰るか指定場所へ",
-    shortDescription: "日本は街中のゴミ箱が少ないため、イベント会場でも持ち帰り前提の場面があります。",
+    id: "life-discreet-pda",
+    categoryId: "daily",
+    title: "人前でのスキンシップは控えめにする",
+    shortDescription: "公共の場では控えめな行動が好まれ、スキンシップも控えめな傾向があります。",
     details: [
-      "屋台やイベント会場で出たゴミは分別ルールを確認します。",
-      "地域の方の生活道路をふさがないように移動します。",
+      "スキンシップは控えめにしましょう。",
     ],
-    keywords: ["ゴミ", "屋台", "祭り", "会場", "地域"],
-    scenes: ["festival", "walking", "community"],
+    keywords: ["愛情", "公共", "文化差"],
+    scenes: ["walking", "facility"],
+  },
+  {
+    id: "rule-smoking-designated-only",
+    categoryId: "rules",
+    title: "タバコは指定場所で吸う",
+    shortDescription: "喫煙場所は決められていることが多く、ルールを守ることが求められます。",
+    details: [
+      "タバコは決められた場所で吸いましょう。",
+      "事前に喫煙所を確認しておくと安心です。",
+    ],
+    keywords: ["喫煙", "ルール", "場所"],
+    scenes: ["walking", "facility"],
+  },
+  {
+    id: "rule-photo-consent",
+    categoryId: "rules",
+    title: "無断撮影に注意",
+    shortDescription: "日本ではプライバシーが重視されており、無断撮影はトラブルになることがあります。",
+    details: [
+      "人物を撮影する前は一声かけましょう。",
+      "店内では周囲のお客さんが写らないように配慮しましょう。 ・料理等の写真は基本的に問題ないことが多いですが、迷ったら店の案内を確認しましょう。",
+    ],
+    keywords: ["撮影", "注意", "ルール"],
+    scenes: ["walking", "facility"],
+  },
+  {
+    id: "rule-no-trespassing",
+    categoryId: "rules",
+    title: "私有地に入らない",
+    shortDescription: "土地には所有者がいるため、無断で立ち入ることはできません。",
+    details: [
+      "許可なく立ち入らないようにしましょう。",
+      "標識や表示を確認しましょう。",
+    ],
+    keywords: ["立入禁止", "ルール", "土地"],
+    scenes: ["walking"],
+  },
+  {
+    id: "rule-drinking-age-20",
+    categoryId: "rules",
+    title: "飲酒は年齢制限がある",
+    shortDescription: "日本では法律で飲酒できる年齢が定められています。",
+    details: [
+      "20歳以上で飲みましょう。",
+      "年齢確認を求められることがあります。",
+    ],
+    keywords: ["飲酒", "ルール", "年齢", "法律"],
+    scenes: ["facility"],
+  },
+  {
+    id: "rule-traffic-signals",
+    categoryId: "rules",
+    title: "信号を守る",
+    shortDescription: "交通の安全を守るため、信号を守ることが重要です。",
+    details: [
+      "信号を守りましょう。",
+      "徒歩の場合、横断歩道を使うと安全です。",
+    ],
+    keywords: ["信号", "交通", "安全"],
+    scenes: ["walking"],
+  },
+  {
+    id: "rule-no-graffiti",
+    categoryId: "rules",
+    title: "落書きをしない",
+    shortDescription: "公共物はみんなで使うものであり、きれいに保つ意識が大切です。",
+    details: [
+      "落書きはしないようにしましょう。",
+      "公共のものは大切に使いましょう。",
+    ],
+    keywords: ["落書き", "ルール", "公共"],
+    scenes: ["walking", "facility"],
   },
 ];
 
@@ -191,14 +424,15 @@ export function searchMannerItems(query: string) {
 }
 
 const DEFAULT_MANNER_ITEM_IDS = [
-  "facility-photo",
-  "facility-voice",
-  "experience-instruction",
+  "sightseeing-quiet-shrine",
+  "transit-quiet-on-public-transport",
+  "meal-before-greeting",
 ] as const;
 
 function getDefaultMannerItems(limit: number) {
-  return MANNER_ITEMS.filter((item) => DEFAULT_MANNER_ITEM_IDS.includes(item.id as (typeof DEFAULT_MANNER_ITEM_IDS)[number]))
-    .slice(0, limit);
+  return MANNER_ITEMS.filter((item) =>
+    DEFAULT_MANNER_ITEM_IDS.includes(item.id as (typeof DEFAULT_MANNER_ITEM_IDS)[number])
+  ).slice(0, limit);
 }
 
 export function getRecommendedMannerItemsByScenes(scenes: string[], limit: number = 3) {
@@ -211,12 +445,13 @@ export function getRecommendedMannerItemsByScenes(scenes: string[], limit: numbe
     const matchedScenes = item.scenes.filter((scene) => normalizedScenes.includes(scene)).length;
     let score = matchedScenes * 100;
 
-    if (normalizedScenes.includes("museum") && item.categoryId === "facility") score += 18;
-    if (normalizedScenes.includes("workshop") && item.categoryId === "experience") score += 18;
-    if (normalizedScenes.includes("craft") && item.categoryId === "experience") score += 14;
-    if (normalizedScenes.includes("festival") && item.categoryId === "community") score += 18;
-    if ((normalizedScenes.includes("train") || normalizedScenes.includes("bus")) && item.categoryId === "transit") score += 18;
-    if (normalizedScenes.includes("walking") && item.categoryId === "community") score += 8;
+    if (normalizedScenes.includes("museum") && item.categoryId === "sightseeing") score += 18;
+    if (normalizedScenes.includes("workshop") && item.categoryId === "sightseeing") score += 18;
+    if (normalizedScenes.includes("craft") && item.categoryId === "sightseeing") score += 14;
+    if (normalizedScenes.includes("festival") && item.categoryId === "daily") score += 18;
+    if (normalizedScenes.includes("festival") && item.categoryId === "rules") score += 12;
+    if ((normalizedScenes.includes("train") || normalizedScenes.includes("bus")) && item.categoryId === "mobility") score += 18;
+    if (normalizedScenes.includes("walking") && item.categoryId === "daily") score += 8;
 
     return { item, score };
   })

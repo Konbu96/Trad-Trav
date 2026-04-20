@@ -2,6 +2,7 @@ import { initializeApp, getApps } from "firebase/app";
 import { getAuth, updateProfile } from "firebase/auth";
 import { getFirestore, doc, setDoc, getDoc, updateDoc, runTransaction } from "firebase/firestore";
 import type { DiagnosisResult } from "../components/DiagnosisView";
+import { normalizeHelpfulFavoriteKey } from "../data/helpfulInfo";
 import {
   applyPlayerEvent,
   defaultPlayerProgress,
@@ -96,6 +97,33 @@ export async function toggleFavorite(userId: string, spotId: number): Promise<nu
     ? current.filter(id => id !== spotId)
     : [...current, spotId];
   await setDoc(docRef, { favorites: updated }, { merge: true });
+  return updated;
+}
+
+export async function getHelpfulFavorites(userId: string): Promise<string[]> {
+  const docRef = doc(db, "users", userId);
+  const docSnap = await getDoc(docRef);
+  if (!docSnap.exists()) return [];
+  const raw = docSnap.data().helpfulFavorites;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((x): x is string => typeof x === "string");
+}
+
+export async function saveHelpfulFavorites(userId: string, keys: string[]): Promise<void> {
+  const docRef = doc(db, "users", userId);
+  await setDoc(docRef, { helpfulFavorites: keys }, { merge: true });
+}
+
+export async function toggleHelpfulFavorite(userId: string, favoriteKey: string): Promise<string[]> {
+  const normalized = normalizeHelpfulFavoriteKey(favoriteKey);
+  const docRef = doc(db, "users", userId);
+  const docSnap = await getDoc(docRef);
+  const raw = docSnap.exists() ? docSnap.data().helpfulFavorites : undefined;
+  const current: string[] = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string") : [];
+  const deduped = Array.from(new Set(current.map((k) => normalizeHelpfulFavoriteKey(k))));
+  const has = deduped.includes(normalized);
+  const updated = has ? deduped.filter((k) => k !== normalized) : [...deduped, normalized];
+  await setDoc(docRef, { helpfulFavorites: updated }, { merge: true });
   return updated;
 }
 

@@ -1,14 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import BottomNavigation from "./components/BottomNavigation";
 import SplashScreen from "./components/SplashScreen";
 import PostSplashLanguageOverlay from "./components/PostSplashLanguageOverlay";
 import DiagnosisView, { type DiagnosisResult } from "./components/DiagnosisView";
-import MyPageView from "./components/MyPageView";
+import MyPageView, { type MyPageTutorialHandle } from "./components/MyPageView";
 import AuthView from "./components/AuthView";
-import MapTabView from "./components/MapTabView";
-import MannerView from "./components/MannerView";
+import MapTabView, { type MapTabTutorialHandle } from "./components/MapTabView";
+import MannerView, { type MannerTutorialHandle } from "./components/MannerView";
 import NowInfoView from "./components/NowInfoView";
 import TutorialOverlay from "./components/TutorialOverlay";
 import AppOnboardingWalkthrough from "./components/AppOnboardingWalkthrough";
@@ -21,6 +22,9 @@ import {
   addViewHistory,
   getFavorites,
   toggleFavorite,
+  getHelpfulFavorites,
+  saveHelpfulFavorites,
+  toggleHelpfulFavorite,
   getTravelerDisplayName,
   saveTravelerDisplayName,
   getPlayerProgress,
@@ -30,6 +34,7 @@ import {
   type ViewHistoryItem,
   auth,
 } from "./lib/firebase";
+import { loadGuestHelpfulFavorites, saveGuestHelpfulFavorites } from "./lib/helpfulFavoritesGuest";
 import { makeLocationKey } from "./lib/location";
 import {
   DEFAULT_TUTORIAL_PROGRESS,
@@ -51,8 +56,13 @@ import {
   type PlayerEvent,
   type PlayerProgress,
 } from "./lib/playerProgress";
-import { getRecommendedSpotIds } from "./data/spots";
-import type { HelpfulTabId } from "./data/helpfulInfo";
+import { recommendedSpots } from "./data/spots";
+import {
+  EXPERIENCE_RESERVATION_GUIDE_DETAIL_KEY,
+  TIPS_TOPICS,
+  normalizeHelpfulFavoriteKey,
+  type HelpfulTabId,
+} from "./data/helpfulInfo";
 import { signOut } from "firebase/auth";
 import {
   readFirstAppWalkthroughDone,
@@ -60,6 +70,7 @@ import {
   writeFirstAppWalkthroughDone,
   writePostSplashLanguageSeen,
 } from "./lib/firstLaunchFlow";
+import { buildGoogleMapsUrl, openGoogleMapsUrl } from "./lib/googleMapsUrl";
 
 const FIRST_APP_ONBOARDING_SLIDE_COUNT = 3;
 
@@ -105,6 +116,8 @@ const GUEST_DISPLAY_NAME_KEY = "trad-trav-guest-display-name";
 
 function AppContent() {
   const { t, language } = useLanguage();
+  const router = useRouter();
+  const pathname = usePathname();
   const [showSplash, setShowSplash] = useState(true);
   const [showPostSplashLanguage, setShowPostSplashLanguage] = useState(false);
   const [showFirstAppWalkthrough, setShowFirstAppWalkthrough] = useState(false);
@@ -112,12 +125,18 @@ function AppContent() {
   const [showAuth, setShowAuth] = useState(false);
   const [showDiagnosis, setShowDiagnosis] = useState(false);
   const [user, setUser] = useState<User | null>(null);
-  const [diagnosisResult, setDiagnosisResult] = useState<DiagnosisResult | null>(null);
+  const [, setDiagnosisResult] = useState<DiagnosisResult | null>(null);
   const [viewHistory, setViewHistory] = useState<ViewHistoryItem[]>([]);
   const [favoriteSpotIds, setFavoriteSpotIds] = useState<number[]>([]);
+  const [helpfulFavoriteKeys, setHelpfulFavoriteKeys] = useState<string[]>([]);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>("map");
-  const [jumpToSpotId, setJumpToSpotId] = useState<number | null>(null);
-  const [mapResetKey, setMapResetKey] = useState(0);
+  /** 一度開いたタブはアンマウントしない（戻ったときの再フェッチを防ぐ） */
+  const [tabsEverMounted, setTabsEverMounted] = useState<Record<ScreenType, boolean>>({
+    map: true,
+    now: false,
+    manner: false,
+    mypage: false,
+  });
   const [mannerHelperSpot, setMannerHelperSpot] = useState<string | null>(null);
   const [preferredHelpfulTab, setPreferredHelpfulTab] = useState<HelpfulTabId | null>(null);
   const [locationPermissionState, setLocationPermissionState] = useState<LocationPermissionState>("idle");
@@ -129,6 +148,9 @@ function AppContent() {
   const [tutorialProgress, setTutorialProgress] = useState<TutorialProgress | null>(null);
   const [activeTutorialScreen, setActiveTutorialScreen] = useState<TutorialTabId | null>(null);
   const [activeTutorialStepIndex, setActiveTutorialStepIndex] = useState(0);
+  const mapTabTutorialRef = useRef<MapTabTutorialHandle | null>(null);
+  const mannerTutorialRef = useRef<MannerTutorialHandle | null>(null);
+  const mypageTutorialRef = useRef<MyPageTutorialHandle | null>(null);
   const [guestDisplayName, setGuestDisplayName] = useState("");
   const [playerProgress, setPlayerProgress] = useState<PlayerProgress>(() => defaultPlayerProgress());
   const locationWatchIdRef = useRef<number | null>(null);
@@ -138,9 +160,6 @@ function AppContent() {
   const hasLocation = Boolean(currentPosition);
 
   // 診断結果からおすすめスポットIDを計算
-  const recommendedSpotIds = diagnosisResult
-    ? getRecommendedSpotIds(diagnosisResult.interests)
-    : null;
   const activeTutorialSteps = useMemo(
     () =>
       activeTutorialScreen ? getTutorialSteps(activeTutorialScreen, { hasNowLocation: hasLocation }, t.tutorial) : [],
@@ -197,8 +216,16 @@ function AppContent() {
     });
   }, []);
 
+  const handleFirstWalkthroughBack = useCallback(() => {
+    setFirstAppWalkthroughStepIndex((idx) => Math.max(0, idx - 1));
+  }, []);
+
   useEffect(() => {
     setTutorialProgress(loadTutorialProgress());
+  }, []);
+
+  useEffect(() => {
+    setHelpfulFavoriteKeys(loadGuestHelpfulFavorites());
   }, []);
 
   useEffect(() => {
@@ -238,6 +265,12 @@ function AppContent() {
         const merged = await mergeAndSavePlayerProgress(loggedInUser.id, defaultPlayerProgress(), guestProg);
         clearGuestPlayerProgress();
         setPlayerProgress(merged);
+        const guestHelpful = loadGuestHelpfulFavorites();
+        setHelpfulFavoriteKeys(guestHelpful);
+        saveGuestHelpfulFavorites(guestHelpful);
+        if (guestHelpful.length > 0) {
+          await saveHelpfulFavorites(loggedInUser.id, guestHelpful);
+        }
       } catch (error) {
         console.error("進捗の同期に失敗:", error);
         setPlayerProgress(defaultPlayerProgress());
@@ -246,13 +279,15 @@ function AppContent() {
     } else {
       try {
         const guestProg = loadGuestPlayerProgress();
-        const [savedResult, savedHistory, savedFavorites, travelerName, serverProg] = await Promise.all([
-          getDiagnosisResult(loggedInUser.id),
-          getViewHistory(loggedInUser.id),
-          getFavorites(loggedInUser.id),
-          getTravelerDisplayName(loggedInUser.id),
-          getPlayerProgress(loggedInUser.id),
-        ]);
+        const [savedResult, savedHistory, savedFavorites, savedHelpfulFavorites, travelerName, serverProg] =
+          await Promise.all([
+            getDiagnosisResult(loggedInUser.id),
+            getViewHistory(loggedInUser.id),
+            getFavorites(loggedInUser.id),
+            getHelpfulFavorites(loggedInUser.id),
+            getTravelerDisplayName(loggedInUser.id),
+            getPlayerProgress(loggedInUser.id),
+          ]);
         if (savedResult) setDiagnosisResult(savedResult);
         if (savedHistory.length > 0) setViewHistory(savedHistory);
         if (savedFavorites.length > 0) setFavoriteSpotIds(savedFavorites);
@@ -264,6 +299,13 @@ function AppContent() {
         const merged = await mergeAndSavePlayerProgress(loggedInUser.id, serverProg, guestProg);
         clearGuestPlayerProgress();
         setPlayerProgress(merged);
+        const guestHelpful = loadGuestHelpfulFavorites();
+        const mergedHelpful = Array.from(new Set([...savedHelpfulFavorites, ...guestHelpful])).sort((a, b) =>
+          a.localeCompare(b, "ja")
+        );
+        setHelpfulFavoriteKeys(mergedHelpful);
+        saveGuestHelpfulFavorites(mergedHelpful);
+        await saveHelpfulFavorites(loggedInUser.id, mergedHelpful);
       } catch (error) {
         console.error("ユーザーデータの取得に失敗:", error);
       }
@@ -337,6 +379,10 @@ function AppContent() {
     }
   };
 
+  useEffect(() => {
+    setTabsEverMounted((prev) => (prev[currentScreen] ? prev : { ...prev, [currentScreen]: true }));
+  }, [currentScreen]);
+
   const completeTutorial = useCallback(
     (screen: TutorialTabId) => {
       setTutorialProgress((prev) => {
@@ -356,6 +402,10 @@ function AppContent() {
     completeTutorial(activeTutorialScreen);
   }, [activeTutorialScreen, completeTutorial]);
 
+  const handleTutorialBack = useCallback(() => {
+    setActiveTutorialStepIndex((prev) => Math.max(0, prev - 1));
+  }, []);
+
   const handleTutorialAction = useCallback((actionId: string) => {
     if (!activeTutorialScreen || !activeTutorialStep) return;
     if (actionId !== activeTutorialStep.targetId) return;
@@ -372,8 +422,9 @@ function AppContent() {
   const handleReplayTutorials = useCallback(() => {
     resetTutorialProgress();
     setTutorialProgress(DEFAULT_TUTORIAL_PROGRESS);
-    setActiveTutorialScreen("mypage");
     setActiveTutorialStepIndex(0);
+    setCurrentScreen("map");
+    setActiveTutorialScreen("map");
   }, []);
 
   useEffect(() => {
@@ -574,6 +625,35 @@ function AppContent() {
     startLocationTracking();
   }, [startLocationTracking]);
 
+  const handleTutorialNext = useCallback(() => {
+    if (!activeTutorialScreen || !activeTutorialStep) return;
+    const isLast = activeTutorialStepIndex >= activeTutorialSteps.length - 1;
+    if (isLast) {
+      completeTutorial(activeTutorialScreen);
+      return;
+    }
+    const tid = activeTutorialStep.targetId;
+    if (activeTutorialScreen === "now") {
+      if (tid === "now.location-update-button") {
+        handleRequestLocationPermission();
+      }
+    } else if (activeTutorialScreen === "map") {
+      mapTabTutorialRef.current?.applyTutorialAutomation(tid);
+    } else if (activeTutorialScreen === "manner") {
+      mannerTutorialRef.current?.applyTutorialAutomation(tid);
+    } else if (activeTutorialScreen === "mypage") {
+      mypageTutorialRef.current?.applyTutorialAutomation(tid);
+    }
+    setActiveTutorialStepIndex((prev) => prev + 1);
+  }, [
+    activeTutorialScreen,
+    activeTutorialStep,
+    activeTutorialStepIndex,
+    activeTutorialSteps.length,
+    completeTutorial,
+    handleRequestLocationPermission,
+  ]);
+
   // 画面を離れたら watchPosition を必ず停止する
   useEffect(() => () => {
     if (locationWatchIdRef.current !== null && navigator.geolocation) {
@@ -594,17 +674,68 @@ function AppContent() {
     setCurrentScreen("manner");
   };
 
-  const handleOpenHelpfulTab = (tabId: HelpfulTabId) => {
-    setPreferredHelpfulTab(tabId);
-    setMannerHelperSpot(null);
+  const handleOpenReservationGuide = useCallback(() => {
+    const params = new URLSearchParams();
+        params.set("guideTab", "guide");
+    params.set("guideDetail", EXPERIENCE_RESERVATION_GUIDE_DETAIL_KEY);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
     setCurrentScreen("manner");
-  };
+  }, [pathname, router]);
 
-  // マップタブへジャンプ（プランビューや閲覧履歴から）
-  const handleJumpToSpot = (spotId: number) => {
-    setJumpToSpotId(spotId);
-    setCurrentScreen("map");
-  };
+  const handleOpenHelpfulFavorite = useCallback(
+    (favoriteKey: string) => {
+      const normalized = normalizeHelpfulFavoriteKey(favoriteKey);
+      const [kind, id] = normalized.split(":");
+      let guideTab: HelpfulTabId = "manner";
+      if (kind === "tips" && id) {
+        const topic = TIPS_TOPICS.find((t) => t.id === id);
+        guideTab = topic?.tabId === "guide" ? "guide" : "trivia";
+      }
+      const params = new URLSearchParams();
+      params.set("guideTab", guideTab);
+      params.set("guideDetail", normalized);
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+      setMannerHelperSpot(null);
+      setPreferredHelpfulTab(null);
+      setCurrentScreen("manner");
+    },
+    [pathname, router]
+  );
+
+  const handleToggleHelpfulFavoriteKey = useCallback(
+    async (key: string) => {
+      const normalized = normalizeHelpfulFavoriteKey(key);
+      const wasFavorite = helpfulFavoriteKeys.includes(normalized);
+      if (user?.id) {
+        try {
+          const next = await toggleHelpfulFavorite(user.id, normalized);
+          setHelpfulFavoriteKeys(next);
+          saveGuestHelpfulFavorites(next);
+          if (!wasFavorite) void bumpPlayerProgress({ type: "favorite_add" });
+        } catch (error) {
+          console.error("お役立ちお気に入りの更新に失敗:", error);
+        }
+        return;
+      }
+      setHelpfulFavoriteKeys((prev) => {
+        const next = prev.includes(normalized) ? prev.filter((k) => k !== normalized) : [...prev, normalized];
+        saveGuestHelpfulFavorites(next);
+        return next;
+      });
+      if (!wasFavorite) void bumpPlayerProgress({ type: "favorite_add" });
+    },
+    [user?.id, helpfulFavoriteKeys, bumpPlayerProgress]
+  );
+
+  const handleJumpToSpot = useCallback((spotId: number, spotNameHint?: string) => {
+    const spot = recommendedSpots.find((s) => s.id === spotId);
+    const url = spot
+      ? buildGoogleMapsUrl({ lat: spot.lat, lng: spot.lng, label: spot.name })
+      : buildGoogleMapsUrl({
+          query: spotNameHint?.trim() ? `${spotNameHint.trim()} 宮城県` : undefined,
+        });
+    openGoogleMapsUrl(url);
+  }, []);
 
   const handleToggleFavorite = async (spotId: number) => {
     const wasFavorite = favoriteSpotIds.includes(spotId);
@@ -677,6 +808,7 @@ function AppContent() {
         <AppOnboardingWalkthrough
           slideIndex={firstAppWalkthroughStepIndex}
           onPrimary={handleFirstWalkthroughNext}
+          onBack={handleFirstWalkthroughBack}
           onSkip={handleFirstWalkthroughSkip}
         />
       )}
@@ -691,83 +823,103 @@ function AppContent() {
 
       {/* メインコンテンツ */}
       {!showSplash && !showDiagnosis && (
-        <>
-          {/* マップ（サブタブ: マップ / 検索） */}
-          {currentScreen === "map" && (
-            <MapTabView
-              onSpotView={handleSpotView}
-              jumpToSpotId={jumpToSpotId}
-              onJumpComplete={() => setJumpToSpotId(null)}
-              favoriteSpotIds={favoriteSpotIds}
-              onToggleFavorite={handleToggleFavorite}
-              recommendedSpotIds={recommendedSpotIds}
-              onOpenLanguageHelper={handleOpenLanguageHelper}
-              onOpenTravelGuide={() => handleOpenHelpfulTab("travel")}
-              resetToSearchKey={mapResetKey}
-              onTutorialAction={handleTutorialAction}
-              viewerPosition={currentPosition}
-            />
-          )}
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="relative min-h-0 flex-1">
+            {tabsEverMounted.map && (
+              <div
+                className={currentScreen === "map" ? "absolute inset-0 min-h-0 overflow-hidden" : "hidden"}
+                aria-hidden={currentScreen !== "map"}
+              >
+                <MapTabView
+                  ref={mapTabTutorialRef}
+                  onSpotView={handleSpotView}
+                  favoriteSpotIds={favoriteSpotIds}
+                  onToggleFavorite={handleToggleFavorite}
+                  onOpenLanguageHelper={handleOpenLanguageHelper}
+                  onOpenReservationGuide={handleOpenReservationGuide}
+                  onTutorialAction={handleTutorialAction}
+                />
+              </div>
+            )}
 
-          {/* マナー */}
-          {currentScreen === "manner" && (
-            <MannerView
-              spotName={mannerHelperSpot}
-              locationPermissionState={locationPermissionState}
-              isUsingMockLocation={isUsingMockLocation}
-              onOpenLocationSettings={handleOpenLocationSettings}
-              preferredTab={preferredHelpfulTab}
-              onPreferredTabApplied={() => setPreferredHelpfulTab(null)}
-              onTutorialAction={handleTutorialAction}
-            />
-          )}
+            {tabsEverMounted.manner && (
+              <div
+                className={currentScreen === "manner" ? "absolute inset-0 min-h-0 overflow-hidden" : "hidden"}
+                aria-hidden={currentScreen !== "manner"}
+              >
+                <MannerView
+                  ref={mannerTutorialRef}
+                  spotName={mannerHelperSpot}
+                  locationPermissionState={locationPermissionState}
+                  isUsingMockLocation={isUsingMockLocation}
+                  preferredTab={preferredHelpfulTab}
+                  onPreferredTabApplied={() => setPreferredHelpfulTab(null)}
+                  onTutorialAction={handleTutorialAction}
+                  helpfulFavoriteKeys={helpfulFavoriteKeys}
+                  onToggleHelpfulFavorite={handleToggleHelpfulFavoriteKey}
+                />
+              </div>
+            )}
 
-          {/* なう情報 */}
-          {currentScreen === "now" && (
-            <NowInfoView
-              locationPermissionState={locationPermissionState}
-              locationIssueCode={locationIssueCode}
-              currentPosition={currentPosition}
-              currentAddress={currentAddress}
-              isUsingMockLocation={isUsingMockLocation}
-              onRequestLocationPermission={handleRequestLocationPermission}
-              onOpenLocationSettings={handleOpenLocationSettings}
-              onTutorialAction={handleTutorialAction}
-              onUseDeveloperKuriharaLocation={
-                process.env.NODE_ENV === "development" ? handleUseDeveloperKuriharaLocation : undefined
-              }
-            />
-          )}
+            {tabsEverMounted.now && (
+              <div
+                className={currentScreen === "now" ? "absolute inset-0 min-h-0 overflow-hidden" : "hidden"}
+                aria-hidden={currentScreen !== "now"}
+              >
+                <NowInfoView
+                  locationPermissionState={locationPermissionState}
+                  locationIssueCode={locationIssueCode}
+                  currentPosition={currentPosition}
+                  currentAddress={currentAddress}
+                  isUsingMockLocation={isUsingMockLocation}
+                  onRequestLocationPermission={handleRequestLocationPermission}
+                  onOpenLocationSettings={handleOpenLocationSettings}
+                  onTutorialAction={handleTutorialAction}
+                  onUseDeveloperKuriharaLocation={
+                    process.env.NODE_ENV === "development" ? handleUseDeveloperKuriharaLocation : undefined
+                  }
+                />
+              </div>
+            )}
 
-          {/* マイページ */}
-          {currentScreen === "mypage" && (
-            <MyPageView
-              user={user}
-              guestDisplayName={guestDisplayName}
-              onSaveDisplayName={handleSaveDisplayName}
-              viewHistory={viewHistory}
-              onLogout={handleLogout}
-              onJumpToSpot={handleJumpToSpot}
-              onStartDiagnosis={() => setShowDiagnosis(true)}
-              onLoginRequest={() => setShowAuth(true)}
-              locationPermissionState={locationPermissionState}
-              locationIssueCode={locationIssueCode}
-              currentPosition={currentPosition}
-              currentAddress={currentAddress}
-              isUsingMockLocation={isUsingMockLocation}
-              onRequestLocationPermission={handleRequestLocationPermission}
-              settingsOpenKey={settingsOpenKey}
-              onTutorialAction={handleTutorialAction}
-              onReplayTutorials={handleReplayTutorials}
-              favoriteSpotIds={favoriteSpotIds}
-              onToggleFavorite={handleToggleFavorite}
-              playerProgress={playerProgress}
-              onClaimQuest={(questId) => void bumpPlayerProgress({ type: "quest_claim", questId })}
-              onResetPlayerProgressDev={
-                process.env.NODE_ENV === "development" ? handleResetPlayerProgressDev : undefined
-              }
-            />
-          )}
+            {tabsEverMounted.mypage && (
+              <div
+                className={currentScreen === "mypage" ? "absolute inset-0 min-h-0 overflow-hidden" : "hidden"}
+                aria-hidden={currentScreen !== "mypage"}
+              >
+                <MyPageView
+                  ref={mypageTutorialRef}
+                  user={user}
+                  guestDisplayName={guestDisplayName}
+                  onSaveDisplayName={handleSaveDisplayName}
+                  viewHistory={viewHistory}
+                  onLogout={handleLogout}
+                  onJumpToSpot={handleJumpToSpot}
+                  onStartDiagnosis={() => setShowDiagnosis(true)}
+                  onLoginRequest={() => setShowAuth(true)}
+                  locationPermissionState={locationPermissionState}
+                  locationIssueCode={locationIssueCode}
+                  currentPosition={currentPosition}
+                  currentAddress={currentAddress}
+                  isUsingMockLocation={isUsingMockLocation}
+                  onRequestLocationPermission={handleRequestLocationPermission}
+                  settingsOpenKey={settingsOpenKey}
+                  onTutorialAction={handleTutorialAction}
+                  onReplayTutorials={handleReplayTutorials}
+                  favoriteSpotIds={favoriteSpotIds}
+                  onToggleFavorite={handleToggleFavorite}
+                  helpfulFavoriteKeys={helpfulFavoriteKeys}
+                  onToggleHelpfulFavorite={handleToggleHelpfulFavoriteKey}
+                  onOpenHelpfulFavorite={handleOpenHelpfulFavorite}
+                  playerProgress={playerProgress}
+                  onClaimQuest={(questId) => void bumpPlayerProgress({ type: "quest_claim", questId })}
+                  onResetPlayerProgressDev={
+                    process.env.NODE_ENV === "development" ? handleResetPlayerProgressDev : undefined
+                  }
+                />
+              </div>
+            )}
+          </div>
 
           {/* ボトムナビゲーション */}
           <BottomNavigation
@@ -783,11 +935,12 @@ function AppContent() {
               description={activeTutorialStep.description}
               stepIndex={activeTutorialStepIndex}
               totalSteps={activeTutorialSteps.length}
+              onBack={handleTutorialBack}
               onSkip={handleSkipTutorial}
+              onNext={handleTutorialNext}
             />
           )}
-
-        </>
+        </div>
       )}
 
       {/* 認証画面（マイページからのオーバーレイ） */}

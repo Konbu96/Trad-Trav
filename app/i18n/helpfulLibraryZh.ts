@@ -1,191 +1,176 @@
+import { sheetTipsTopicsZh } from "./sheetTipsTopics";
+
 /** 实用信息库（礼仪分类与正文）— 简体中文 */
 export const helpfulLibraryZh = {
   mannerCategories: {
-    transit: {
-      label: "移动途中",
-      description: "在电车、巴士或步行移动时需要注意的礼仪。",
+    meal: {
+      label: "饮食",
+      description: "用餐前后问候、筷子用法等餐桌与外出就餐礼仪。",
     },
-    facility: {
-      label: "设施内",
-      description: "在展馆、观光设施内希望遵守的基本举止。",
+    sightseeing: {
+      label: "观光",
+      description: "神社、温泉、和服等观光场景中的礼仪。",
     },
-    experience: {
-      label: "体验中",
-      description: "参加工艺体验或工作坊时的礼仪。",
+    mobility: {
+      label: "移动",
+      description: "电车、扶梯等移动途中的礼仪。",
     },
-    community: {
-      label: "地域文化",
-      description: "在祭典或与当地人接触时需要留意的体谅。",
+    daily: {
+      label: "生活",
+      description: "购物排队、公共场所、垃圾处理等日常礼仪。",
+    },
+    rules: {
+      label: "规则",
+      description: "拍摄、吸烟、私有地等与规定和法律相关的注意。",
     },
   },
   mannerItems: {
-    "transit-phone": {
-      title: "车内尽量避免长时间通话",
-      shortDescription: "在日本电车与巴士上，车厢内长时间打电话并不常见。",
+    "meal-before-greeting": {
+      title: "用餐前后的问候",
+      shortDescription: "用餐前后用简短话语表达感谢，是对食物与制作者的尊重。",
+      details: ["用餐前说「いただきます」。", "用餐后说「ごちそうさまでした」。"],
+    },
+    "meal-quiet-eating": {
+      title: "吃饭尽量小声",
+      shortDescription: "在日本，许多人会安静进食以顾及周围。",
+      details: ["除面条外尽量避免发出咀嚼声。", "尽量安静地进食。", "配合店内氛围调整音量。"],
+    },
+    "meal-chopsticks-no-rice-plant": {
+      title: "筷子不要直立插在饭里",
+      shortDescription: "饭上直立插筷容易让人联想到丧礼相关习俗，应避免。",
+      details: ["不要把筷子垂直插在米饭上。", "不用时放在筷架或盘子边缘。"],
+    },
+    "meal-chopsticks-no-pass": {
+      title: "不要用筷子互相递菜",
+      shortDescription: "筷子对筷子递菜也容易联想到丧礼场景，应避免。",
+      details: ["不要用筷子夹着食物直接传给另一双筷子。", "先放到小碟上再取食更稳妥。"],
+    },
+    "meal-restaurant-voice-level": {
+      title: "餐厅里控制说话音量",
+      shortDescription: "许多店重视安静氛围，居酒屋等也可能较热闹，请察言观色。",
+      details: ["根据店内气氛调节音量。", "参考周围客人的状态更容易判断。"],
+    },
+    "sightseeing-torii-bow": {
+      title: "鸟居前轻鞠躬",
+      shortDescription: "鸟居被视为神圣空间的入口，轻鞠躬表示敬意。",
+      details: ["穿过鸟居前后可轻轻鞠躬一次。"],
+    },
+    "sightseeing-quiet-shrine": {
+      title: "神社与寺院保持安静",
+      shortDescription: "神社与寺院重视安静空间，请保持从容举止。",
+      details: ["不要大声喧哗。", "拍照时也请顾及参拜者。"],
+    },
+    "sightseeing-sando-center": {
+      title: "参道尽量不走正中央",
+      shortDescription: "参道中央常被视为神明通道，许多人靠两侧行走。",
+      details: ["尽量避开参道正中央行走。", "人多时不必过于勉强。", "跟随人流更安全。"],
+    },
+    "sightseeing-onsen-wash-first": {
+      title: "入浴前先洗净身体",
+      shortDescription: "温泉为共用设施，入池前洗净身体十分重要。",
+      details: ["入池前把身体冲洗干净。", "洗发沐浴请在进入浴池前完成。", "冲洗区使用后略冲一下方便下一位。"],
+    },
+    "sightseeing-onsen-no-towel-in-bath": {
+      title: "不要把毛巾放进浴池",
+      shortDescription: "为保持池水清洁，习惯上不把毛巾浸入池中。",
+      details: ["毛巾不要浸入浴池。", "有毛巾架请使用。", "没有时请保持毛巾干燥并放在不妨碍他人的位置。"],
+    },
+    "sightseeing-kimono-hem-walk": {
+      title: "穿和服时注意下摆",
+      shortDescription: "和服下摆较长，行走时需稍加注意。",
+      details: ["可轻提下摆以免拖地弄脏。", "楼梯与台阶处尤需注意。"],
+    },
+    "transit-escalator-stand-aside": {
+      title: "扶梯靠一侧站立",
+      shortDescription: "许多地方会空出一侧给赶时间的人通行。",
+      details: ["靠一侧站立留出通道。", "各地习惯不同，可参考当地人做法。"],
+    },
+    "transit-elevator-yield-exit": {
+      title: "先让里面的人出来",
+      shortDescription: "先下后上能让电梯与门口通行更顺畅。",
+      details: ["等里面的人走出后再进入。", "在门边略侧身让出空间。"],
+    },
+    "transit-backpack-front-when-crowded": {
+      title: "拥挤时把背包背到胸前",
+      shortDescription: "人多时背包背在前面可减少碰撞身后的人。",
+      details: ["拥挤电车上可把双肩包转到胸前。", "留意周围空间。"],
+    },
+    "transit-quiet-on-public-transport": {
+      title: "公共交通保持安静",
+      shortDescription: "电车与巴士上通常保持低声，以尊重他人。",
+      details: ["说话与设备音量尽量放低。", "注意耳机漏音。"],
+    },
+    "life-no-open-before-payment": {
+      title: "付款前不要拆开商品",
+      shortDescription: "付款前商品仍属店家，不可擅自开封。",
+      details: ["结账前请不要拆开包装（除非店员同意）。"],
+    },
+    "life-queue-in-line": {
+      title: "排队守秩序",
+      shortDescription: "在日本排队守秩序是常见礼仪。",
+      details: ["在队尾排队依序前进。", "不确定队尾时可观察标识或小声询问。"],
+    },
+    "life-quiet-in-public": {
+      title: "公共空间轻声交谈",
+      shortDescription: "在公共场所许多人会压低声音以顾及周围。",
+      details: ["交谈时降低音量。", "可参考周围人的说话方式。"],
+    },
+    "life-phone-avoid-on-train": {
+      title: "电车内尽量避免打电话",
+      shortDescription: "车厢内通常保持安静，语音通话较少见。",
+      details: ["尽量避免在车厢内通话。", "必要时可到车外或连接处再打。"],
+    },
+    "life-trash-take-home": {
+      title: "垃圾自行带走",
+      shortDescription: "日本街头垃圾桶较少，随身带小袋更方便。",
+      details: ["垃圾尽量自行带回住宿或找到分类桶再丢。", "随身备小塑料袋很实用。"],
+    },
+    "life-trash-sort": {
+      title: "垃圾分类丢弃",
+      shortDescription: "垃圾常需按类别分开处理。",
+      details: ["按标识分类丢弃。", "不确定时查看图示或询问工作人员。"],
+    },
+    "life-discreet-pda": {
+      title: "公开场合亲密举止低调",
+      shortDescription: "在公共场所过于亲密的举止相对少见。",
+      details: ["亲密举动尽量低调，留给私人场合。"],
+    },
+    "rule-smoking-designated-only": {
+      title: "在指定区域吸烟",
+      shortDescription: "许多地区与建筑只能在规定场所吸烟。",
+      details: ["在指定吸烟室或户外吸烟区吸烟。", "出发前可先查吸烟点。"],
+    },
+    "rule-photo-consent": {
+      title: "拍人前先征得同意",
+      shortDescription: "日本重视隐私，随意拍人可能引发纠纷。",
       details: [
-        "接听时请尽量简短并尽快挂断。",
-        "与他人距离较近时，尤其注意音量与通话时长。",
-        "拥挤时尽量减少手机操作与扬声器使用。",
+        "拍摄他人面部前先征得同意。",
+        "店内注意不要把其他客人拍进画面。",
+        "拍食物多半问题不大，不确定时请看店内说明。",
       ],
     },
-    "transit-bag": {
-      title: "行李尽量收拢",
-      shortDescription: "拥挤车厢里，拿行李的方式会强烈影响周围人的感受。",
-      details: [
-        "在通道与车门附近，行李容易碰到他人，请注意位置与高度。",
-        "湿伞或大型购物袋放在脚边更安心。",
-      ],
+    "rule-no-trespassing": {
+      title: "不擅入私有地",
+      shortDescription: "田地、庭院等可能为私人土地，即使风景好也不可擅入。",
+      details: ["不要翻越围栏或无视禁止进入标识。", "不确定时改走其他路线。"],
     },
-    "facility-photo": {
-      title: "先确认可否拍照",
-      shortDescription: "在日本，即使看起来可以拍，也要注意展品与他人入镜。",
-      details: [
-        "若有禁止闪光灯、禁止录像等标识，请务必遵守。",
-        "若会拍到其他游客，请调整角度或位置。",
-        "不确定时向工作人员确认最为稳妥。",
-      ],
+    "rule-drinking-age-20": {
+      title: "饮酒须满20岁",
+      shortDescription: "日本法律规定年满20岁方可饮酒。",
+      details: ["未满20岁请勿饮酒。", "购酒时可能被要求出示证件。"],
     },
-    "facility-voice": {
-      title: "讲解或观展时请压低交谈声",
-      shortDescription: "安静的展示空间需要控制声量，方便大家参观。",
-      details: [
-        "在展柜前长时间停留时，也请注意后方视线。",
-        "在禁止饮食区域，饮料与口香糖也请避免。",
-      ],
+    "rule-traffic-signals": {
+      title: "遵守红绿灯与斑马线",
+      shortDescription: "遵守信号与过街设施能保障行人安全。",
+      details: ["按信号灯过街。", "尽量走人行横道。"],
     },
-    "facility-ask-staff": {
-      title: "有疑问就问工作人员",
-      shortDescription: "资料馆与展馆规则因地而异，向工作人员询问最安全。",
-      details: [
-        "拍摄、参观路线、可否进入等不要自行判断，先确认。",
-        "在展品附近若有不安，小声向工作人员咨询。",
-      ],
-    },
-    "experience-instruction": {
-      title: "认真听开场说明",
-      shortDescription: "体验设施的开场说明往往涉及安全与流程，十分重要。",
-      details: [
-        "不清楚时不要继续操作，尽早向工作人员确认。",
-        "不要把工具拿到作业区以外。",
-        "带走成品、干燥时间等请在结束前再确认。",
-      ],
-    },
-    "experience-time": {
-      title: "迟到或取消请尽早联系",
-      shortDescription: "日本的体验预约常需提前准备，迟到联系尤其重要。",
-      details: [
-        "若可能迟到，尽量在开始前电话或联系预约方。",
-        "若有取消规定，预约时请先确认。",
-      ],
-    },
-    "community-respect": {
-      title: "以当地人与队伍为先",
-      shortDescription: "在祭典中，地域进行往往优先于观光拍照。",
-      details: [
-        "不要进入绳索或管制路线内侧。",
-        "若要参与，请遵从主办或工作人员引导。",
-        "未经允许不要触摸服装、花车或器具。",
-      ],
-    },
-    "community-trash": {
-      title: "垃圾带走或投入指定处",
-      shortDescription: "日本街头垃圾桶较少，活动现场也常需自行带走垃圾。",
-      details: [
-        "在摊位或会场请确认分类规则。",
-        "移动时不要堵住居民生活道路。",
-      ],
+    "rule-no-graffiti": {
+      title: "不要涂鸦公共设施",
+      shortDescription: "公共设施供大家共用，请勿刻画或乱涂。",
+      details: ["不要在建筑物上刻画或涂鸦。", "爱惜公共设施。"],
     },
   },
   topics: {
-    "date-culture": {
-      title: "伊达文化的背景",
-      subtitle: "了解仙台气质",
-      description: "仙台的城市与文化深受伊达政宗影响，了解背景会看得更深。",
-      details: [
-        "作为城下町发展的历史至今仍体现在地名与文化中。",
-        "参观寺社史迹时，若以「地域记忆的场所」而非仅观光地去看，感受会不同。",
-        "事先略读历史，展板与说明会更容易理解。",
-      ],
-    },
-    "festival-meaning": {
-      title: "了解祭典的意义",
-      subtitle: "装饰与队列也有由来",
-      description: "祭典与行事不只是热闹，往往承载着地域的祈愿与角色。",
-      details: [
-        "七夕装饰或队列动作往往各有愿望或职责。",
-        "对当地人而言，这是年年守护的重要场合，不仅是观光活动。",
-        "了解「为什么」之后，能发现照片难以传达的魅力。",
-      ],
-    },
-    "kokeshi-story": {
-      title: "木芥子的差异",
-      subtitle: "产地不同，表情与造型也不同",
-      description: "东北的木芥子乍看相似，但作坊在轮廓、彩绘与表情上各有特色。",
-      details: [
-        "在宫城县内也因地区而异，头与身体的比例是看点之一。",
-        "选购伴手礼时，除了纹样也可看产地，会更有趣。",
-        "结合工艺体验后再看，欣赏方式也会改变。",
-      ],
-    },
-    "sacred-place": {
-      title: "神社与寺庙的参观方式",
-      subtitle: "在成为拍照点之前，首先是祈祷的场所",
-      description: "神社与寺庙不仅是风景，也与当地人的祈愿紧密相连。",
-      details: [
-        "有参拜者时，祈祷往往优先于观光节奏。",
-        "除了建筑年代，若能看到与日常生活的联系，理解会更深。",
-        "留意指示牌与氛围，以安静、克制的参观方式为佳。",
-      ],
-    },
-    "local-words": {
-      title: "当地用语",
-      subtitle: "略知一二更容易拉近距离",
-      description: "旅途中常听到的说法或地名昵称，略知一点会让对话更亲切。",
-      details: [
-        "在店铺或体验场所听不懂时，微笑再问一次通常就能沟通。",
-        "地名或祭典名称常有当地独特的读法。",
-        "稍做准备就容易成为与当地人聊天的契机。",
-      ],
-    },
-    "experience-flow": {
-      title: "体验前的流程",
-      subtitle: "从预约到当天",
-      description: "工艺体验与工作坊若事先确认预约与携带物品，当天会顺畅许多。",
-      details: [
-        "开始时间、集合地点、是否需自带物品请在前一天前确认。",
-        "记下可能迟到时的联系方式更安心。",
-        "若有成品领取或干燥时间，回程请预留余裕。",
-      ],
-    },
-    "photo-tips": {
-      title: "拍照的乐趣",
-      subtitle: "既要拍得美也要顾及周围",
-      description: "文化体验的照片不仅能记录，也能留下现场氛围，拍前先看一圈周围是诀窍。",
-      details: [
-        "拍摄手部与工具容易传达当时的气氛。",
-        "若有人入镜，请选择对方日后看到也舒适的拍法。",
-        "在展示或祭典场合，先确认可否拍摄与站立位置。",
-      ],
-    },
-    "season-enjoy": {
-      title: "按季节享受",
-      subtitle: "同一地点也会因时期而不同",
-      description: "同一地点也因季节而改变乐趣，这是旅行的趣味之一，可与行事、景色一起规划。",
-      details: [
-        "春季适合散步与赏花，夏季适合祭典与傍晚散步。",
-        "秋冬则适合室内体验与展馆，参观较从容。",
-        "事先查举办时期，更容易对准想看的行事。",
-      ],
-    },
-    "day-plan": {
-      title: "半日行程的做法",
-      subtitle: "不过度排满更轻松",
-      description: "文化体验不宜塞太满，在移动与停留之间留一点空白，满意度往往更高。",
-      details: [
-        "一项体验加一个顺路点，通常就不易因移动而疲惫。",
-        "体验后安排咖啡或短时间散步，更能品味余韵。",
-        "雨天备选准备一个，天气变化时行程较不易崩。",
-      ],
-    },
+    ...sheetTipsTopicsZh,
   },
 } as const;

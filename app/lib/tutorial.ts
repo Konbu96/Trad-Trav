@@ -72,45 +72,117 @@ export function getTutorialSteps(
     case "map":
       return [
         {
+          id: "map-nav-tab",
+          targetId: "nav.map",
+          title: copy.mapNavMapTitle,
+          description: copy.mapNavMapDesc,
+        },
+        {
+          id: "map-performing-more",
+          targetId: "map.genre.performing-load-more",
+          title: copy.mapPerformingMoreTitle,
+          description: copy.mapPerformingMoreDesc,
+        },
+        {
+          id: "map-pick-spot",
+          targetId: "map.genre.pick-spot",
+          title: copy.mapPickSpotTitle,
+          description: copy.mapPickSpotDesc,
+        },
+        {
+          id: "map-close-detail",
+          targetId: "map.spot-detail.close",
+          title: copy.mapCloseDetailTitle,
+          description: copy.mapCloseDetailDesc,
+        },
+        {
+          id: "map-back-to-list",
+          targetId: "map.genre.back-to-list",
+          title: copy.mapBackListTitle,
+          description: copy.mapBackListDesc,
+        },
+        {
           id: "map-search-input",
           targetId: "map.search-input",
           title: copy.mapSearchTitle,
           description: copy.mapSearchDesc,
         },
-        {
-          id: "map-subtab",
-          targetId: "map.subtab.map",
-          title: copy.mapSubtabTitle,
-          description: copy.mapSubtabDesc,
-        },
       ];
     case "now":
-      if (!options.hasNowLocation) {
-        return [
-          {
-            id: "now-location-settings",
-            targetId: "now.location-settings-button",
-            title: copy.nowSetupTitle,
-            description: copy.nowSetupDesc,
-          },
-        ];
-      }
-
       return [
         {
-          id: "now-location-refresh",
-          targetId: "now.location-update-button",
-          title: copy.nowRefreshTitle,
-          description: copy.nowRefreshDesc,
+          id: "now-nav-tab",
+          targetId: "nav.now",
+          title: copy.nowNavTitle,
+          description: copy.nowNavDesc,
         },
+        ...(options.hasNowLocation
+          ? [
+              {
+                id: "now-location-refresh",
+                targetId: "now.location-update-button",
+                title: copy.nowRefreshTitle,
+                description: copy.nowRefreshDesc,
+              } satisfies TutorialStep,
+            ]
+          : [
+              {
+                id: "now-location-settings",
+                targetId: "now.location-settings-button",
+                title: copy.nowSetupTitle,
+                description: copy.nowSetupDesc,
+              } satisfies TutorialStep,
+            ]),
       ];
     case "manner":
       return [
         {
-          id: "manner-travel-tab",
-          targetId: "manner.tab.travel",
-          title: copy.mannerTravelTitle,
-          description: copy.mannerTravelDesc,
+          id: "manner-nav-tab",
+          targetId: "nav.manner",
+          title: copy.mannerNavTitle,
+          description: copy.mannerNavDesc,
+        },
+        {
+          id: "manner-tab-manner",
+          targetId: "manner.tab.manner",
+          title: copy.mannerTabMannerTitle,
+          description: copy.mannerTabMannerDesc,
+        },
+        {
+          id: "manner-open-category",
+          targetId: "manner.open-first-category",
+          title: copy.mannerOpenCategoryTitle,
+          description: copy.mannerOpenCategoryDesc,
+        },
+        {
+          id: "manner-item-see-more",
+          targetId: "manner.item-see-more",
+          title: copy.mannerItemSeeMoreTitle,
+          description: copy.mannerItemSeeMoreDesc,
+        },
+        {
+          id: "manner-item-favorite",
+          targetId: "manner.item-favorite",
+          title: copy.mannerItemFavoriteTitle,
+          description: copy.mannerItemFavoriteDesc,
+        },
+        {
+          id: "manner-category-back",
+          targetId: "manner.category-back",
+          title: copy.mannerCategoryBackTitle,
+          description: copy.mannerCategoryBackDesc,
+        },
+        {
+          id: "manner-tab-trivia",
+          targetId: "manner.tab.trivia",
+          title: copy.mannerTabTriviaTitle,
+          description: copy.mannerTabTriviaDesc,
+        },
+        {
+          id: "manner-tab-guide",
+          targetId: "manner.tab.guide",
+          title: copy.mannerTabGuideTitle,
+          description: copy.mannerTabGuideDesc,
         },
         {
           id: "manner-ai-button",
@@ -121,6 +193,12 @@ export function getTutorialSteps(
       ];
     case "mypage":
       return [
+        {
+          id: "mypage-nav-tab",
+          targetId: "nav.mypage",
+          title: copy.mypageNavTitle,
+          description: copy.mypageNavDesc,
+        },
         {
           id: "mypage-settings-open",
           targetId: "mypage.settings-entry",
@@ -138,6 +216,30 @@ export function getTutorialSteps(
           targetId: "mypage.language-button",
           title: copy.mypageLanguageTitle,
           description: copy.mypageLanguageDesc,
+        },
+        {
+          id: "mypage-settings-back",
+          targetId: "mypage.settings-back",
+          title: copy.mypageSettingsBackTitle,
+          description: copy.mypageSettingsBackDesc,
+        },
+        {
+          id: "mypage-quests",
+          targetId: "mypage.quest-section",
+          title: copy.mypageQuestTitle,
+          description: copy.mypageQuestDesc,
+        },
+        {
+          id: "mypage-cosmetics",
+          targetId: "mypage.cosmetics-entry",
+          title: copy.mypageCosmeticsTitle,
+          description: copy.mypageCosmeticsDesc,
+        },
+        {
+          id: "mypage-login",
+          targetId: "mypage.login-cta",
+          title: copy.mypageLoginTitle,
+          description: copy.mypageLoginDesc,
         },
       ];
     default:

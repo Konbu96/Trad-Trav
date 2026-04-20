@@ -7,12 +7,13 @@ import SpotDetailSheet from "./SpotDetailSheet";
 
 interface PlanViewProps {
   diagnosisResult: DiagnosisResult | null;
-  onJumpToSpot: (spotId: number) => void;
+  onJumpToSpot: (spotId: number, spotNameHint?: string) => void;
   favoriteSpotIds: number[];
   onToggleFavorite: (spotId: number) => void;
   onSpotView: (spot: { id: number; name: string; category: string }) => void;
   onStartDiagnosis?: () => void;
   onOpenLanguageHelper?: (spotName: string) => void;
+  onOpenReservationGuide?: () => void;
 }
 
 type DayKey = "short" | "medium" | "long" | "extended";
@@ -122,6 +123,7 @@ export default function PlanView({
   onSpotView,
   onStartDiagnosis,
   onOpenLanguageHelper,
+  onOpenReservationGuide,
 }: PlanViewProps) {
   const [interests, setInterests] = useState<string[]>(diagnosisResult?.interests || []);
   const [days, setDays] = useState<string>(diagnosisResult?.duration || "");
@@ -464,7 +466,7 @@ export default function PlanView({
                             詳細
                           </button>
                           <button
-                            onClick={() => onJumpToSpot(spot.id)}
+                            onClick={() => onJumpToSpot(spot.id, spot.name)}
                             className="flex-1 text-xs text-white rounded-xl py-2 font-medium flex items-center justify-center gap-1"
                             style={{ backgroundColor: "#e88fa3" }}
                           >
@@ -508,6 +510,14 @@ export default function PlanView({
           isFavorite={favoriteSpotIds.includes(selectedSpot.id)}
           onToggleFavorite={() => onToggleFavorite(selectedSpot.id)}
           onOpenLanguageHelper={onOpenLanguageHelper}
+          onOpenReservationGuide={
+            onOpenReservationGuide
+              ? () => {
+                  setSelectedSpot(null);
+                  onOpenReservationGuide();
+                }
+              : undefined
+          }
           reserveMainBottomNav={false}
         />
       )}

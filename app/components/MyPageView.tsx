@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
 import { ClockIcon, DefaultAvatarIcon, GearIcon, HeartIcon, PenIcon } from "./icons";
+import { TIPS_TOPICS } from "../data/helpfulInfo";
 import { recommendedSpots } from "../data/spots";
+import { localizeHelpfulCard } from "../lib/localizeHelpfulLibrary";
 import type { CurrentAddress, LocationPermissionState } from "../page";
 import {
   cosmeticsCoinsForLevelUp,
@@ -37,7 +39,21 @@ interface ViewHistoryItem {
 
 type MypagePanel = "main" | "history" | "favorites" | "settings" | "cosmetics";
 
-function MypageSubHeader({ title, onBack }: { title: string; onBack: () => void }) {
+export type MyPageTutorialHandle = {
+  applyTutorialAutomation: (targetId: string) => void;
+};
+
+function MypageSubHeader({
+  title,
+  onBack,
+  backDataTutorialId,
+  onTutorialAction,
+}: {
+  title: string;
+  onBack: () => void;
+  backDataTutorialId?: string;
+  onTutorialAction?: (actionId: string) => void;
+}) {
   const { t } = useLanguage();
   return (
     <div
@@ -52,7 +68,13 @@ function MypageSubHeader({ title, onBack }: { title: string; onBack: () => void 
     >
       <button
         type="button"
-        onClick={onBack}
+        data-tutorial-id={backDataTutorialId}
+        onClick={() => {
+          if (backDataTutorialId) {
+            onTutorialAction?.(backDataTutorialId);
+          }
+          onBack();
+        }}
         style={{
           border: "none",
           background: "rgba(255,255,255,0.9)",
@@ -76,7 +98,7 @@ interface MyPageViewProps {
   user: User | null;
   viewHistory?: ViewHistoryItem[];
   onLogout?: () => void;
-  onJumpToSpot?: (spotId: number) => void;
+  onJumpToSpot?: (spotId: number, spotNameHint?: string) => void;
   onStartDiagnosis?: () => void;
   onLoginRequest?: () => void;
   locationPermissionState?: LocationPermissionState;
@@ -90,6 +112,9 @@ interface MyPageViewProps {
   onReplayTutorials?: () => void;
   favoriteSpotIds?: number[];
   onToggleFavorite?: (spotId: number) => void;
+  helpfulFavoriteKeys?: string[];
+  onToggleHelpfulFavorite?: (favoriteKey: string) => void;
+  onOpenHelpfulFavorite?: (favoriteKey: string) => void;
   /** 未ログイン時に localStorage から復元した表示名（空ならゲスト扱い） */
   guestDisplayName?: string;
   onSaveDisplayName?: (name: string) => Promise<void>;
@@ -100,30 +125,36 @@ interface MyPageViewProps {
   onResetPlayerProgressDev?: () => void | Promise<void>;
 }
 
-export default function MyPageView({
-  user,
-  viewHistory = [],
-  onLogout,
-  onJumpToSpot,
-  onStartDiagnosis,
-  onLoginRequest,
-  locationPermissionState = "idle",
-  locationIssueCode = "",
-  currentPosition = null,
-  currentAddress = null,
-  isUsingMockLocation = false,
-  onRequestLocationPermission,
-  settingsOpenKey = 0,
-  onTutorialAction,
-  onReplayTutorials,
-  favoriteSpotIds = [],
-  onToggleFavorite,
-  guestDisplayName = "",
-  onSaveDisplayName,
-  playerProgress: playerProgressProp,
+const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function MyPageView(
+  {
+    user,
+    viewHistory = [],
+    onLogout,
+    onJumpToSpot,
+    onStartDiagnosis,
+    onLoginRequest,
+    locationPermissionState = "idle",
+    locationIssueCode = "",
+    currentPosition = null,
+    currentAddress = null,
+    isUsingMockLocation = false,
+    onRequestLocationPermission,
+    settingsOpenKey = 0,
+    onTutorialAction,
+    onReplayTutorials,
+    favoriteSpotIds = [],
+    onToggleFavorite,
+    helpfulFavoriteKeys = [],
+    onToggleHelpfulFavorite,
+    onOpenHelpfulFavorite,
+    guestDisplayName = "",
+    onSaveDisplayName,
+    playerProgress: playerProgressProp,
   onClaimQuest,
   onResetPlayerProgressDev,
-}: MyPageViewProps) {
+  },
+  ref
+) {
   const playerProgress = playerProgressProp ?? defaultPlayerProgress();
   const levelRingGradId = useId().replace(/:/g, "");
   const { language, setLanguage, t } = useLanguage();
@@ -282,6 +313,47 @@ export default function MyPageView({
     [subPanelEntered]
   );
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      applyTutorialAutomation(targetId: string) {
+        switch (targetId) {
+          case "nav.mypage":
+          case "mypage.location-share-button":
+          case "mypage.language-button":
+          case "mypage.login-cta":
+            return;
+          case "mypage.settings-entry":
+            setShowLanguageModal(false);
+            setPanel("settings");
+            return;
+          case "mypage.settings-back":
+            setShowLanguageModal(false);
+            setPanel("main");
+            setSubPanelEntered(false);
+            return;
+          case "mypage.quest-section":
+            setShowLanguageModal(false);
+            setPanel("main");
+            setSubPanelEntered(false);
+            requestAnimationFrame(() => {
+              document
+                .querySelector<HTMLElement>(`[data-tutorial-id="mypage.quest-section"]`)
+                ?.scrollIntoView({ behavior: "smooth", block: "center" });
+            });
+            return;
+          case "mypage.cosmetics-entry":
+            setShowLanguageModal(false);
+            setPanel("cosmetics");
+            return;
+          default:
+            return;
+        }
+      },
+    }),
+    []
+  );
+
   const favoriteDisplayRows = favoriteSpotIds.map((id) => {
     const spot = recommendedSpots.find((s) => s.id === id);
     const hist = viewHistory.find((h) => h.id === id);
@@ -292,6 +364,32 @@ export default function MyPageView({
     const category = spot?.category || hist?.category || "";
     return { id, name, category };
   });
+
+  const mannerFavoriteKeys = useMemo(
+    () => helpfulFavoriteKeys.filter((k) => k.startsWith("manner:") || k.startsWith("mannerItem:")),
+    [helpfulFavoriteKeys]
+  );
+  const triviaFavoriteKeys = useMemo(
+    () =>
+      helpfulFavoriteKeys.filter((k) => {
+        if (!k.startsWith("tips:")) return false;
+        const id = k.slice("tips:".length);
+        return TIPS_TOPICS.find((topic) => topic.id === id)?.tabId === "trivia";
+      }),
+    [helpfulFavoriteKeys]
+  );
+  const guideFavoriteKeys = useMemo(
+    () =>
+      helpfulFavoriteKeys.filter((k) => {
+        if (!k.startsWith("tips:")) return false;
+        const id = k.slice("tips:".length);
+        return TIPS_TOPICS.find((topic) => topic.id === id)?.tabId === "guide";
+      }),
+    [helpfulFavoriteKeys]
+  );
+
+  const totalFavoritesCount =
+    favoriteDisplayRows.length + mannerFavoriteKeys.length + triviaFavoriteKeys.length + guideFavoriteKeys.length;
 
   useEffect(() => {
     if (!settingsOpenKey) return;
@@ -883,7 +981,7 @@ export default function MyPageView({
                     key={`${item.id}-${item.date}`}
                     type="button"
                     onClick={() => {
-                      onJumpToSpot?.(item.id);
+                      onJumpToSpot?.(item.id, item.name);
                       setSubPanelEntered(false);
                       setPanel("main");
                     }}
@@ -926,89 +1024,235 @@ export default function MyPageView({
             onBack={beginCloseSubPanel}
           />
           <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px 100px" }}>
-            <div
-              style={{
-                backgroundColor: "white",
-                borderRadius: "16px",
-                overflow: "hidden",
-                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
-              }}
-            >
-              {favoriteDisplayRows.length > 0 ? (
-                favoriteDisplayRows.map((row, index) => (
-                  <div
-                    key={row.id}
+            {totalFavoritesCount === 0 ? (
+              <div
+                style={{
+                  backgroundColor: "white",
+                  borderRadius: "16px",
+                  overflow: "hidden",
+                  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+                  padding: "24px",
+                  textAlign: "center",
+                }}
+              >
+                <p style={{ color: "#9ca3af", fontSize: "14px", margin: 0 }}>{t.mypage.noFavorites}</p>
+              </div>
+            ) : (
+              <>
+                <section style={{ marginBottom: "20px" }}>
+                  <h2
                     style={{
-                      display: "flex",
-                      alignItems: "stretch",
-                      borderBottom: index < favoriteDisplayRows.length - 1 ? "1px solid #f3f4f6" : "none",
+                      fontSize: "13px",
+                      fontWeight: 800,
+                      color: "#b85f74",
+                      margin: "0 0 8px 4px",
                     }}
                   >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onJumpToSpot?.(row.id);
-                        setSubPanelEntered(false);
-                        setPanel("main");
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: "16px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        background: "none",
-                        border: "none",
-                        cursor: onJumpToSpot ? "pointer" : "default",
-                        textAlign: "left",
-                        minWidth: 0,
-                      }}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <p
-                          className="line-clamp-2"
-                          style={{ fontSize: "15px", fontWeight: "500", color: "#374151" }}
+                    {t.mypage.favoriteSectionSpots}
+                  </h2>
+                  <div
+                    style={{
+                      backgroundColor: "white",
+                      borderRadius: "16px",
+                      overflow: "hidden",
+                      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+                    }}
+                  >
+                    {favoriteDisplayRows.length > 0 ? (
+                      favoriteDisplayRows.map((row, index) => (
+                        <div
+                          key={row.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "stretch",
+                            borderBottom: index < favoriteDisplayRows.length - 1 ? "1px solid #f3f4f6" : "none",
+                          }}
                         >
-                          {row.name}
-                        </p>
-                        {row.category ? (
-                          <p style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>{row.category}</p>
-                        ) : null}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onJumpToSpot?.(row.id, row.name);
+                              setSubPanelEntered(false);
+                              setPanel("main");
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: "16px",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              background: "none",
+                              border: "none",
+                              cursor: onJumpToSpot ? "pointer" : "default",
+                              textAlign: "left",
+                              minWidth: 0,
+                            }}
+                          >
+                            <div style={{ minWidth: 0 }}>
+                              <p
+                                className="line-clamp-2"
+                                style={{ fontSize: "15px", fontWeight: "500", color: "#374151" }}
+                              >
+                                {row.name}
+                              </p>
+                              {row.category ? (
+                                <p style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>{row.category}</p>
+                              ) : null}
+                            </div>
+                            <span
+                              style={{ fontSize: "20px", color: onJumpToSpot ? "#e88fa3" : "#d1d5db", flexShrink: 0 }}
+                            >
+                              ›
+                            </span>
+                          </button>
+                          {onToggleFavorite ? (
+                            <button
+                              type="button"
+                              onClick={() => onToggleFavorite(row.id)}
+                              style={{
+                                flexShrink: 0,
+                                padding: "12px 14px",
+                                border: "none",
+                                borderLeft: "1px solid #f3f4f6",
+                                background: "#fff",
+                                color: "#e88fa3",
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                                alignSelf: "stretch",
+                                display: "flex",
+                                alignItems: "center",
+                              }}
+                            >
+                              {t.mypage.removeFavorite}
+                            </button>
+                          ) : null}
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ padding: "16px", textAlign: "center" }}>
+                        <p style={{ color: "#9ca3af", fontSize: "13px", margin: 0 }}>{t.mypage.favoriteSectionEmpty}</p>
                       </div>
-                      <span style={{ fontSize: "20px", color: onJumpToSpot ? "#e88fa3" : "#d1d5db", flexShrink: 0 }}>
-                        ›
-                      </span>
-                    </button>
-                    {onToggleFavorite && (
-                      <button
-                        type="button"
-                        onClick={() => onToggleFavorite(row.id)}
-                        style={{
-                          flexShrink: 0,
-                          padding: "12px 14px",
-                          border: "none",
-                          borderLeft: "1px solid #f3f4f6",
-                          background: "#fff",
-                          color: "#e88fa3",
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                          alignSelf: "stretch",
-                          display: "flex",
-                          alignItems: "center",
-                        }}
-                      >
-                        {t.mypage.removeFavorite}
-                      </button>
                     )}
                   </div>
-                ))
-              ) : (
-                <div style={{ padding: "24px", textAlign: "center" }}>
-                  <p style={{ color: "#9ca3af", fontSize: "14px" }}>{t.mypage.noFavorites}</p>
-                </div>
-              )}
-            </div>
+                </section>
+
+                {(
+                  [
+                    { title: t.mypage.favoriteSectionManner, keys: mannerFavoriteKeys },
+                    { title: t.mypage.favoriteSectionTrivia, keys: triviaFavoriteKeys },
+                    { title: t.mypage.favoriteSectionGuide, keys: guideFavoriteKeys },
+                  ] as const
+                ).map(({ title, keys }) => (
+                  <section key={title} style={{ marginBottom: "20px" }}>
+                    <h2
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 800,
+                        color: "#b85f74",
+                        margin: "0 0 8px 4px",
+                      }}
+                    >
+                      {title}
+                    </h2>
+                    <div
+                      style={{
+                        backgroundColor: "white",
+                        borderRadius: "16px",
+                        overflow: "hidden",
+                        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+                      }}
+                    >
+                      {keys.length > 0 ? (
+                        keys.map((favoriteKey, index) => {
+                          const card = localizeHelpfulCard(favoriteKey, t, language);
+                          return (
+                            <div
+                              key={favoriteKey}
+                              style={{
+                                display: "flex",
+                                alignItems: "stretch",
+                                borderBottom: index < keys.length - 1 ? "1px solid #f3f4f6" : "none",
+                              }}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onOpenHelpfulFavorite?.(favoriteKey);
+                                  setSubPanelEntered(false);
+                                  setPanel("main");
+                                }}
+                                style={{
+                                  flex: 1,
+                                  padding: "16px",
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  background: "none",
+                                  border: "none",
+                                  cursor: onOpenHelpfulFavorite ? "pointer" : "default",
+                                  textAlign: "left",
+                                  minWidth: 0,
+                                }}
+                              >
+                                <div style={{ minWidth: 0 }}>
+                                  <p
+                                    className="line-clamp-2"
+                                    style={{ fontSize: "15px", fontWeight: "500", color: "#374151" }}
+                                  >
+                                    {card.title}
+                                  </p>
+                                  {card.subtitle ? (
+                                    <p style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>
+                                      {card.subtitle}
+                                    </p>
+                                  ) : null}
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: "20px",
+                                    color: onOpenHelpfulFavorite ? "#e88fa3" : "#d1d5db",
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  ›
+                                </span>
+                              </button>
+                              {onToggleHelpfulFavorite ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onToggleHelpfulFavorite(favoriteKey)}
+                                  style={{
+                                    flexShrink: 0,
+                                    padding: "12px 14px",
+                                    border: "none",
+                                    borderLeft: "1px solid #f3f4f6",
+                                    background: "#fff",
+                                    color: "#e88fa3",
+                                    fontSize: "12px",
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                    alignSelf: "stretch",
+                                    display: "flex",
+                                    alignItems: "center",
+                                  }}
+                                >
+                                  {t.mypage.removeFavorite}
+                                </button>
+                              ) : null}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div style={{ padding: "16px", textAlign: "center" }}>
+                          <p style={{ color: "#9ca3af", fontSize: "13px", margin: 0 }}>{t.mypage.favoriteSectionEmpty}</p>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                ))}
+              </>
+            )}
           </div>
         </>
       )}
@@ -1018,6 +1262,8 @@ export default function MyPageView({
           <MypageSubHeader
             title={t.mypage.settings}
             onBack={beginCloseSubPanel}
+            backDataTutorialId="mypage.settings-back"
+            onTutorialAction={onTutorialAction}
           />
           <div style={{ flex: 1, overflowY: "auto", padding: "8px 24px 100px" }}>{settingsPanelBody}</div>
         </>
@@ -1321,7 +1567,11 @@ export default function MyPageView({
               icon: <HeartIcon size={18} color="white" />,
               onClick: () => setPanel("favorites"),
             },
-            { label: t.mypage.menuDiagnosis, icon: <PenIcon size={18} color="white" />, onClick: onStartDiagnosis },
+            {
+              label: t.mypage.menuDiagnosis,
+              icon: <PenIcon size={18} color="white" />,
+              onClick: () => onStartDiagnosis?.(),
+            },
             {
               label: t.mypage.menuSettings,
               icon: <GearIcon size={18} color="white" />,
@@ -1337,7 +1587,6 @@ export default function MyPageView({
               type="button"
               data-tutorial-id={"tutorialId" in item ? item.tutorialId : undefined}
               onClick={item.onClick}
-              disabled={!item.onClick}
               style={{
                 flex: 1,
                 display: "flex",
@@ -1347,7 +1596,7 @@ export default function MyPageView({
                 background: "none",
                 border: "none",
                 padding: 0,
-                cursor: item.onClick ? "pointer" : "default",
+                cursor: "pointer",
               }}
             >
               <div
@@ -1373,7 +1622,11 @@ export default function MyPageView({
 
         <button
           type="button"
-          onClick={() => setPanel("cosmetics")}
+          data-tutorial-id="mypage.cosmetics-entry"
+          onClick={() => {
+            onTutorialAction?.("mypage.cosmetics-entry");
+            setPanel("cosmetics");
+          }}
           style={{
             width: "100%",
             marginTop: "14px",
@@ -1435,6 +1688,7 @@ export default function MyPageView({
 
       <div style={{ padding: "24px 24px 16px" }}>
         <div
+          data-tutorial-id="mypage.quest-section"
           style={{
             backgroundColor: "white",
             borderRadius: "16px",
@@ -1683,7 +1937,12 @@ export default function MyPageView({
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <p style={{ textAlign: "center", fontSize: "13px", color: "#6b7280" }}>{t.mypage.loginGuestHint}</p>
             <button
-              onClick={onLoginRequest}
+              type="button"
+              data-tutorial-id="mypage.login-cta"
+              onClick={() => {
+                onTutorialAction?.("mypage.login-cta");
+                onLoginRequest?.();
+              }}
               style={{
                 width: "100%",
                 padding: "16px",
@@ -1825,4 +2084,6 @@ export default function MyPageView({
       )}
     </div>
   );
-}
+});
+
+export default MyPageView;

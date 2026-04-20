@@ -228,7 +228,7 @@ function getExperienceScore(place: GooglePlace, latitude: number, longitude: num
   return score;
 }
 
-/** 体験予約タブと揃えた4分類（名称・型・住所テキストから推定） */
+/** 体験発掘タブと揃えた4分類（名称・型・住所テキストから推定） */
 function classifyTraditionalGenre(place: GooglePlace): TraditionalGenreId {
   const searchable = buildSearchableText(place);
   const pt = place.primaryType || "";

@@ -1,0 +1,10 @@
+{
+  "name": "Trad Trav",
+  "short_name": "Trad Trav",
+  "description": "東北地方の伝統文化・旅行観光マップアプリ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFE4EC",
+  "theme_color": "#FFE4EC",
+  "lang": "ja"
+}

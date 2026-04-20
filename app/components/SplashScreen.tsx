@@ -52,35 +52,6 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
         overflow: "hidden",
       }}
     >
-      {/* 水引（ど真ん中、端から端まで引き伸ばし） */}
-      <div
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: "-5%",
-          width: "110%",
-          transform: "translateY(-50%)",
-          zIndex: 10,
-          margin: 0,
-          padding: 0,
-          lineHeight: 0,
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/image/mizuhiki.png"
-          alt="水引"
-          style={{
-            display: "block",
-            width: "100%",
-            height: "auto",
-            margin: 0,
-            padding: 0,
-            mixBlendMode: "multiply",
-          }}
-        />
-      </div>
-
       {/* 舞妓さん */}
       <div
         style={{
@@ -95,9 +66,8 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
           width={280}
           height={350}
           style={{
-            width: "auto",
-            height: "55vh",
-            maxHeight: "350px",
+            height: "min(55vh, 350px)",
+            width: "min(280px, calc(min(55vh, 350px) * 280 / 350))",
             objectFit: "contain",
             mixBlendMode: "multiply",
           }}

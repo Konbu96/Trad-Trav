@@ -1,396 +1,446 @@
-/** お役立ち（マナーカテゴリ・項目・豆知識・旅ガイド）の本文。ja はデータソースと同一文言。 */
+import { sheetTipsTopicsEn, sheetTipsTopicsJa } from "./sheetTipsTopics";
+
+/** お役立ち（マナーカテゴリ・項目・豆知識・旅ガイド）の本文。マナー項目の日本語本文の表示正本は `manners.ts` の `MANNER_ITEMS`（ja UI はそちら優先）。ここ ja の mannerItems は英訳・他言語との並走用のコピー。 */
 export const helpfulLibraryJa = {
   mannerCategories: {
-    transit: {
-      label: "移動中",
-      description: "電車やバス、徒歩での移動中に気を付けたいマナーです。",
+    meal: {
+      label: "食事",
+      description: "いただきます・箸使いなど、食卓や外食のときのマナーです。",
     },
-    facility: {
-      label: "施設内",
-      description: "展示施設や観光施設の中で守りたい基本のふるまいです。",
+    sightseeing: {
+      label: "観光",
+      description: "神社・温泉・着物など、観光の場面でのマナーです。",
     },
-    experience: {
-      label: "体験中",
-      description: "工芸体験やワークショップに参加するときのマナーです。",
+    mobility: {
+      label: "移動",
+      description: "電車・エスカレーターなど、移動中のマナーです。",
     },
-    community: {
-      label: "地域文化",
-      description: "祭りや地域の方と接するときに意識したい配慮です。",
+    daily: {
+      label: "生活",
+      description: "買い物・公共の場・ゴミなど、日常の場面のマナーです。",
+    },
+    rules: {
+      label: "ルール",
+      description: "撮影・喫煙・私有地など、ルールや法律に関する注意です。",
     },
   },
   mannerItems: {
-    "transit-phone": {
-      title: "車内では通話を控える",
-      shortDescription: "日本の電車やバスでは、車内通話を控えるのが一般的です。",
-      details: [
-        "着信に出るときは短く済ませ、すぐに切るようにします。",
-        "周囲の人との距離が近いときは、音量や話し声に特に気を付けます。",
-        "混雑時はスマートフォンの操作も最小限にすると安心です。",
-      ],
-    },
-    "transit-bag": {
-      title: "荷物は小さくまとめる",
-      shortDescription: "混雑した車内では、荷物の持ち方が周囲への印象を大きく左右します。",
-      details: [
-        "通路やドア付近では、荷物が人に当たりやすいので位置に注意します。",
-        "濡れた傘や大きな買い物袋は足元に寄せると安心です。",
-      ],
-    },
-    "facility-photo": {
-      title: "撮影可否を最初に確認する",
+    "meal-before-greeting": {
+      title: "食事の前のあいさつ",
       shortDescription:
-        "日本では撮影できそうに見える場所でも、展示や人の写り込みに配慮が求められます。",
+        "食事の前後に感謝の言葉を伝える文化があります。食べ物や作ってくれた人への気持ちを表すものです。",
+      details: ["食前は「いただきます」と言いましょう。", "食後は「ごちそうさまでした」と言いましょう。"],
+    },
+    "meal-quiet-eating": {
+      title: "音を立てすぎない",
+      shortDescription: "日本では静かに食事をする人が多く、周囲への配慮が大切にされています。",
       details: [
-        "フラッシュ禁止や動画禁止の表示がある場合は必ず従います。",
-        "他のお客さんが写るときは、撮影場所や角度を配慮します。",
-        "わからないときはスタッフに一言確認するのが安全です。",
+        "麺以外は音を立てないようにしましょう。",
+        "できる限り静かに食べると安心です。",
+        "周囲の雰囲気に合わせましょう。",
       ],
     },
-    "facility-voice": {
-      title: "解説中や展示前では私語を控える",
-      shortDescription: "静かな展示空間では、周囲も落ち着いて見学できるよう声量に気を配ります。",
-      details: [
-        "展示の前で長時間立ち止まるときは、後ろの人の視界も意識します。",
-        "飲食禁止エリアでは、ペットボトルやガムも控えると安心です。",
-      ],
+    "meal-chopsticks-no-rice-plant": {
+      title: "箸を食べ物に刺さない",
+      shortDescription: "ご飯に箸を立てる行為は、お葬式などを連想させるため避けられています。",
+      details: ["箸はご飯に立てないようにしましょう。", "使わないときは皿や箸置きに置きましょう。"],
     },
-    "facility-ask-staff": {
-      title: "困ったときはスタッフに確認する",
+    "meal-chopsticks-no-pass": {
+      title: "箸で渡さない",
+      shortDescription: "箸から箸へ食べ物を渡す行為は、お葬式などの場面を連想させるため避けられています。",
+      details: ["箸から箸へ渡さないようにしましょう。", "取り分けるときは一度他のお皿に移すと安心です。"],
+    },
+    "meal-restaurant-voice-level": {
+      title: "店内では大声で話さない",
       shortDescription:
-        "資料館や展示施設は場所ごとにルールが違うため、迷ったらスタッフに聞くのがいちばん安全です。",
+        "日本の飲食店では落ち着いた雰囲気が好まれますが、居酒屋などではにぎやかに過ごすこともあります。",
+      details: ["店の雰囲気に合わせて声の大きさを調整しましょう。", "周囲の人の様子を見ると判断しやすいです。"],
+    },
+    "sightseeing-torii-bow": {
+      title: "鳥居の前で一礼",
+      shortDescription: "鳥居は神聖な場所への入口とされており、敬意を表す行動が大切にされています。",
+      details: ["鳥居の前後で軽くお辞儀をしましょう。"],
+    },
+    "sightseeing-quiet-shrine": {
+      title: "静かに行動する",
+      shortDescription: "神社やお寺は静かな空間が大切にされており、落ち着いた行動が求められます。",
+      details: ["大声を出さず静かに過ごしましょう。", "写真を撮るときも周囲に配慮しましょう。"],
+    },
+    "sightseeing-sando-center": {
+      title: "参道の中央はなるべく避ける",
+      shortDescription: "参道の中央は神様の通り道と考えられており、端を歩く人が多いです。",
       details: [
-        "撮影、見学ルート、立入可否などは自己判断せずに確認します。",
-        "展示の近くで不安なことがあるときは、小さな声でスタッフに相談します。",
+        "参道の中央はなるべく避けて歩きましょう。",
+        "混雑時は無理に避けなくても大丈夫です。",
+        "周囲の人の動きに合わせると安心です。",
       ],
     },
-    "experience-instruction": {
-      title: "最初の説明をよく聞く",
-      shortDescription: "体験施設では最初の説明が安全面や進行の基準になることが多いです。",
+    "sightseeing-onsen-wash-first": {
+      title: "入る前に体を洗う",
+      shortDescription: "温泉は多くの人が共有して使うため、清潔に保つことがとても大切です。",
       details: [
-        "わからないまま進めず、スタッフに早めに確認します。",
-        "作業スペースの外に道具を持ち出さないようにします。",
-        "完成品の持ち帰り方法や乾燥時間も最後に確認すると安心です。",
+        "入る前に体をしっかり洗いましょう。",
+        "シャンプーや石けんは湯船に入る前に済ませましょう。",
+        "洗い場は次の人のために軽く流しておきましょう。",
       ],
     },
-    "experience-time": {
-      title: "遅刻やキャンセルは早めに連絡する",
-      shortDescription:
-        "日本の体験予約は事前準備で動いていることが多く、遅刻連絡が特に大切です。",
+    "sightseeing-onsen-no-towel-in-bath": {
+      title: "タオルを湯船に入れない",
+      shortDescription: "湯船の水を清潔に保つため、タオルを入れない習慣があります。",
       details: [
-        "到着が遅れそうなときは、開始前に電話や予約先へ連絡します。",
-        "キャンセル規定がある場合は、事前に確認しておきます。",
+        "タオルは湯船に入れないようにしましょう。",
+        "タオル置き場がある場合はそこを使いましょう。",
+        "ない場合は濡れないようにし、人の邪魔にならない場所に置きましょう。",
       ],
     },
-    "community-respect": {
-      title: "地域の人や参加者の流れを優先する",
-      shortDescription:
-        "祭りでは観光客よりも地域の進行が優先されるため、流れを止めない配慮が大切です。",
+    "sightseeing-kimono-hem-walk": {
+      title: "裾を踏まないように歩く",
+      shortDescription: "着物は裾が長く動きにくいため、歩き方に少し注意が必要です。",
+      details: ["裾を少し持って汚さないように歩きましょう。", "階段や段差では特に注意しましょう。"],
+    },
+    "transit-escalator-stand-aside": {
+      title: "片側に寄る",
+      shortDescription: "エスカレーターでは急ぐ人のために通路を空ける習慣があります。",
+      details: ["片側に寄って立ちましょう。", "地域によって違うので周囲に合わせましょう。"],
+    },
+    "transit-elevator-yield-exit": {
+      title: "降りる人を優先",
+      shortDescription: "スムーズに移動するため、降りる人を優先するのが一般的です。",
+      details: ["降りる人を先に通しましょう。", "ドア付近では少しよけるとスムーズです。"],
+    },
+    "transit-backpack-front-when-crowded": {
+      title: "リュックは前に持つ",
+      shortDescription: "混雑時は周囲との距離が近くなるため、荷物の持ち方に配慮が必要です。",
+      details: ["混雑時はリュックを前に持ちましょう。", "周囲のスペースに気をつけましょう。"],
+    },
+    "transit-quiet-on-public-transport": {
+      title: "公共の乗り物では静かにする",
+      shortDescription: "電車やバスでは静かな環境が保たれており、周囲への配慮が重視されています。",
+      details: ["音や声は控えめにしましょう。", "イヤホンの音漏れにも注意しましょう。"],
+    },
+    "life-no-open-before-payment": {
+      title: "会計前の商品は使わない",
+      shortDescription: "商品は購入するまで店のものであり、勝手に開封することはできません。",
+      details: ["商品は会計前に開けないようにしましょう。"],
+    },
+    "life-queue-in-line": {
+      title: "列に並ぶ",
+      shortDescription: "日本では順番を守ることが大切にされており、列に並ぶ文化があります。",
+      details: ["列に並んで順番を待ちましょう。", "最後尾の位置を確認すると安心です。"],
+    },
+    "life-quiet-in-public": {
+      title: "公共の場では静かに話す",
+      shortDescription: "公共の場では周囲に配慮した行動が求められ、静かに過ごす人が多いです。",
+      details: ["声を抑えて話しましょう。", "周囲の人の様子を参考にすると安心です。"],
+    },
+    "life-phone-avoid-on-train": {
+      title: "電車では通話を控える",
+      shortDescription: "電車内では静かな環境を保つため、通話は控えることが一般的です。",
+      details: ["通話は控えましょう。", "必要な場合は車外やデッキで話しましょう。"],
+    },
+    "life-trash-take-home": {
+      title: "ゴミは持ち帰る",
+      shortDescription: "日本ではゴミ箱が少ないため、自分で持ち帰ることが一般的です。",
+      details: ["ゴミは持ち帰るようにしましょう。", "小さな袋を用意しておくと便利です。"],
+    },
+    "life-trash-sort": {
+      title: "分別する",
+      shortDescription: "ゴミは種類ごとに分けて処理されるため、分別が重要とされています。",
+      details: ["ゴミは分別して捨てましょう。", "表示や案内を確認すると分かりやすいです。"],
+    },
+    "life-discreet-pda": {
+      title: "人前でのスキンシップは控えめにする",
+      shortDescription: "公共の場では控えめな行動が好まれ、スキンシップも控えめな傾向があります。",
+      details: ["スキンシップは控えめにしましょう。"],
+    },
+    "rule-smoking-designated-only": {
+      title: "タバコは指定場所で吸う",
+      shortDescription: "喫煙場所は決められていることが多く、ルールを守ることが求められます。",
+      details: ["タバコは決められた場所で吸いましょう。", "事前に喫煙所を確認しておくと安心です。"],
+    },
+    "rule-photo-consent": {
+      title: "無断撮影に注意",
+      shortDescription: "日本ではプライバシーが重視されており、無断撮影はトラブルになることがあります。",
       details: [
-        "進行ルートや規制線の中には入らないようにします。",
-        "参加したいときは、主催やスタッフの案内に従います。",
-        "衣装や道具に無断で触れないようにします。",
+        "人物を撮影する前は一声かけましょう。",
+        "店内では周囲のお客さんが写らないように配慮しましょう。",
+        "料理等の写真は基本的に問題ないことが多いですが、迷ったら店の案内を確認しましょう。",
       ],
     },
-    "community-trash": {
-      title: "ゴミは持ち帰るか指定場所へ",
-      shortDescription:
-        "日本は街中のゴミ箱が少ないため、イベント会場でも持ち帰り前提の場面があります。",
-      details: [
-        "屋台やイベント会場で出たゴミは分別ルールを確認します。",
-        "地域の方の生活道路をふさがないように移動します。",
-      ],
+    "rule-no-trespassing": {
+      title: "私有地に入らない",
+      shortDescription: "土地には所有者がいるため、無断で立ち入ることはできません。",
+      details: ["許可なく立ち入らないようにしましょう。", "標識や表示を確認しましょう。"],
+    },
+    "rule-drinking-age-20": {
+      title: "飲酒は年齢制限がある",
+      shortDescription: "日本では法律で飲酒できる年齢が定められています。",
+      details: ["20歳以上で飲みましょう。", "年齢確認を求められることがあります。"],
+    },
+    "rule-traffic-signals": {
+      title: "信号を守る",
+      shortDescription: "交通の安全を守るため、信号を守ることが重要です。",
+      details: ["信号を守りましょう。", "徒歩の場合、横断歩道を使うと安全です。"],
+    },
+    "rule-no-graffiti": {
+      title: "落書きをしない",
+      shortDescription: "公共物はみんなで使うものであり、きれいに保つ意識が大切です。",
+      details: ["落書きはしないようにしましょう。", "公共のものは大切に使いましょう。"],
     },
   },
   topics: {
-    "date-culture": {
-      title: "伊達文化の背景",
-      subtitle: "仙台らしさを知る",
-      description:
-        "仙台の文化や街並みには伊達政宗の影響が強く残っており、背景を知ると見え方が深まります。",
-      details: [
-        "城下町として整えられた歴史があり、今も土地の呼び名や文化にその名残があります。",
-        "寺社や史跡を見るときは、観光地というより地域の記憶の場として見ると印象が変わります。",
-        "歴史スポットを回る前に知っておくと、展示や案内文が理解しやすくなります。",
-      ],
-    },
-    "festival-meaning": {
-      title: "祭りの意味を知る",
-      subtitle: "飾りや動きにも由来があります",
-      description: "祭りや行事は見た目の華やかさだけでなく、地域の祈りや願いが込められています。",
-      details: [
-        "七夕飾りや行列の動きには、それぞれ願いや役割があることがあります。",
-        "地元の人にとっては観光イベントではなく、毎年守ってきた大切な場です。",
-        "背景を知ってから見ると、写真だけでは伝わらない魅力に気づきやすくなります。",
-      ],
-    },
-    "kokeshi-story": {
-      title: "こけしの違い",
-      subtitle: "地域ごとに表情や形が変わります",
-      description: "東北のこけしは一見似ていても、産地ごとに形や模様、表情に個性があります。",
-      details: [
-        "宮城でも地域ごとに作風が異なり、頭や胴の形に特徴があります。",
-        "おみやげとして選ぶときは、柄だけでなく産地を見ると違いが楽しめます。",
-        "工芸体験とあわせて知ると、作品を見る目が少し変わります。",
-      ],
-    },
-    "sacred-place": {
-      title: "神社やお寺の見方",
-      subtitle: "観光地である前に祈りの場です",
-      description:
-        "神社やお寺は、写真映えする場所というだけでなく、今も地域の祈りとつながる大切な場です。",
-      details: [
-        "参拝の人がいるときは、観光よりも祈りが優先される場面があります。",
-        "建物の歴史だけでなく、地域の暮らしとの関わりを見ると理解が深まります。",
-        "案内表示や空気感を見ながら、静かな見方を意識すると心地よく過ごせます。",
-      ],
-    },
-    "local-words": {
-      title: "地元のことば",
-      subtitle: "ひとこと知ると距離が縮まります",
-      description:
-        "旅先でよく聞く言い回しや土地の呼び方を少し知っているだけで、会話がぐっと親しみやすくなります。",
-      details: [
-        "お店や体験先で聞く言い回しに戸惑っても、笑顔で聞き返せば十分伝わります。",
-        "地名や祭りの呼び方には地域独特の読み方があることがあります。",
-        "少し知っておくだけで、地元の人との会話のきっかけになりやすいです。",
-      ],
-    },
-    "experience-flow": {
-      title: "体験前の流れ",
-      subtitle: "予約から当日までの確認",
-      description:
-        "工芸体験やワークショップは、予約確認と到着前の準備をしておくと当日がかなりスムーズです。",
-      details: [
-        "開始時間、集合場所、持ち物の有無を前日までに確認しておきます。",
-        "遅れそうなときの連絡先を控えておくと安心です。",
-        "完成品の受け取り方法や乾燥時間がある場合は、帰りの予定に余裕を持たせます。",
-      ],
-    },
-    "photo-tips": {
-      title: "写真の楽しみ方",
-      subtitle: "きれいに残しつつ配慮も忘れずに",
-      description:
-        "文化体験の写真は、記録だけでなく場の空気を残せる魅力があります。撮る前に一度周囲を見るのがコツです。",
-      details: [
-        "体験中の手元や道具を撮ると、その場の雰囲気が伝わりやすくなります。",
-        "人物が写るときは、あとで見返しても気持ちよく残せるよう配慮します。",
-        "展示や祭りでは、撮影可否と立ち位置を先に確認すると安心です。",
-      ],
-    },
-    "season-enjoy": {
-      title: "季節ごとの楽しみ方",
-      subtitle: "時期で見える文化が変わります",
-      description:
-        "同じ場所でも季節によって楽しみ方が変わるのが旅の面白さです。行事や景色と一緒に考えると選びやすくなります。",
-      details: [
-        "春は街歩きと花の風景、夏は祭りや夕方の散策が相性よく楽しめます。",
-        "秋冬は屋内体験や展示施設が落ち着いて回りやすい時期です。",
-        "事前に開催時期を調べると、見たい行事に合わせて動きやすくなります。",
-      ],
-    },
-    "day-plan": {
-      title: "半日プランの作り方",
-      subtitle: "無理なく回るコツ",
-      description:
-        "文化体験は詰め込みすぎないほうが満足度が上がりやすく、移動と滞在の余白を少し取るのがコツです。",
-      details: [
-        "1つの体験と1つの立ち寄り先くらいに絞ると、移動で疲れにくくなります。",
-        "体験後は近くのカフェや散策時間を入れると余韻を楽しめます。",
-        "雨の日の候補も1つ考えておくと、予定を崩しにくいです。",
-      ],
-    },
+    ...sheetTipsTopicsJa,
   },
 } as const;
 
 export const helpfulLibraryEn = {
   mannerCategories: {
-    transit: {
-      label: "On the move",
-      description: "Etiquette for trains, buses, and walking between places.",
+    meal: {
+      label: "Dining",
+      description: "Table manners for meals out or at the table—greetings, chopsticks, and more.",
     },
-    facility: {
-      label: "Inside venues",
-      description: "Basics for museums, galleries, and other visitor facilities.",
+    sightseeing: {
+      label: "Sightseeing",
+      description: "At shrines, hot springs, in kimono, and other travel moments.",
     },
-    experience: {
-      label: "During workshops",
-      description: "How to join craft experiences and hands-on sessions smoothly.",
+    mobility: {
+      label: "Getting around",
+      description: "On trains, buses, escalators, and elevators.",
     },
-    community: {
-      label: "Local culture",
-      description: "Consideration at festivals and when meeting local people.",
+    daily: {
+      label: "Daily life",
+      description: "Shopping lines, public spaces, trash, and everyday courtesy.",
+    },
+    rules: {
+      label: "Rules",
+      description: "Photos, smoking, private land, age limits, and posted rules.",
     },
   },
   mannerItems: {
-    "transit-phone": {
-      title: "Keep phone calls short or off",
-      shortDescription: "On Japanese trains and buses, long voice calls in the car are uncommon.",
-      details: [
-        "If you must answer, keep it brief and lower your voice.",
-        "When it is crowded, be extra mindful of volume and how long you talk.",
-        "In crush periods, minimize screen time and loud speaker use.",
-      ],
-    },
-    "transit-bag": {
-      title: "Keep bags compact",
-      shortDescription: "In crowded cars, how you hold luggage strongly affects people around you.",
-      details: [
-        "Near doors and aisles, bags swing into others—watch placement and height.",
-        "Wet umbrellas and large shopping bags are easier at your feet or between your legs.",
-      ],
-    },
-    "facility-photo": {
-      title: "Check photo rules first",
+    "meal-before-greeting": {
+      title: "Say itadakimasu and gochisousama",
       shortDescription:
-        "Even when a place looks photo-friendly, exhibits and other visitors may need extra care.",
+        "Before and after meals, short phrases express thanks to the food and the people who prepared it.",
       details: [
-        "Follow any no-flash, no-video, or no-tripod signs.",
-        "If others appear in frame, change angle or step aside.",
-        "When unsure, ask staff—this is normal and welcome.",
+        "Before eating, say “itadakimasu.”",
+        "After eating, say “gochisousama deshita.”",
       ],
     },
-    "facility-voice": {
-      title: "Keep voices low in quiet galleries",
-      shortDescription: "Quiet spaces are shared; softer speech helps everyone enjoy the visit.",
+    "meal-quiet-eating": {
+      title: "Keep eating sounds low",
+      shortDescription: "Many diners in Japan eat quietly out of consideration for others nearby.",
       details: [
-        "If you stop in front of a case, be aware of sight lines behind you.",
-        "In no-food zones, avoid drinks and gum as well.",
+        "Except for noodles, try not to make loud eating sounds.",
+        "Eat as quietly as you comfortably can.",
+        "Match the noise level to the room.",
       ],
     },
-    "facility-ask-staff": {
-      title: "Ask staff when unsure",
-      shortDescription: "Rules differ by venue; staff can clarify faster than guessing.",
+    "meal-chopsticks-no-rice-plant": {
+      title: "Do not stick chopsticks upright in rice",
+      shortDescription: "Upright chopsticks in rice recall funeral imagery, so people avoid it.",
       details: [
-        "Confirm photography, routes, and off-limits areas instead of assuming.",
-        "If something feels off near an exhibit, step aside and ask quietly.",
+        "Do not stand chopsticks vertically in a bowl of rice.",
+        "When not in use, rest them on a chopstick rest or the edge of a plate.",
       ],
     },
-    "experience-instruction": {
-      title: "Listen to the opening briefing",
-      shortDescription: "The intro often covers safety, tools, and how the session runs.",
+    "meal-chopsticks-no-pass": {
+      title: "Do not pass food chopstick-to-chopstick",
+      shortDescription: "Passing food directly from one pair of chopsticks to another also recalls funeral customs.",
       details: [
-        "Pause and ask early if anything is unclear.",
-        "Keep tools and materials within the workspace unless told otherwise.",
-        "Before leaving, confirm pickup, drying time, or take-home steps.",
+        "Do not hand off food from chopsticks to chopsticks.",
+        "To share, place food on a small plate first, then pick it up.",
       ],
     },
-    "experience-time": {
-      title: "Contact early if late or canceling",
-      shortDescription: "Hosts often prepare materials ahead; timely notice matters.",
+    "meal-restaurant-voice-level": {
+      title: "Keep your voice down in restaurants",
+      shortDescription:
+        "Many restaurants value a calm mood, though izakaya pubs can be lively—read the room.",
       details: [
-        "If you may be late, call or message before the start time when possible.",
-        "Check cancellation rules when you book.",
+        "Adjust your volume to match the venue.",
+        "Glancing at nearby tables helps you judge what feels right.",
       ],
     },
-    "community-respect": {
-      title: "Let locals and the procession come first",
-      shortDescription: "At festivals, community flow usually takes priority over sightseeing shots.",
+    "sightseeing-torii-bow": {
+      title: "Bow lightly at a torii gate",
+      shortDescription: "A torii marks the approach to a sacred area; a small bow shows respect.",
+      details: ["Bow lightly once before and after passing through the torii."],
+    },
+    "sightseeing-quiet-shrine": {
+      title: "Move calmly at shrines and temples",
+      shortDescription: "Quiet behavior is valued so everyone can pray and reflect.",
       details: [
-        "Stay outside ropes and cordoned routes.",
-        "If you join in, follow staff or organizers’ directions.",
-        "Do not touch costumes, floats, or gear without permission.",
+        "Avoid loud voices.",
+        "When taking photos, be mindful of worshippers around you.",
       ],
     },
-    "community-trash": {
-      title: "Take trash with you or use marked bins",
-      shortDescription: "Public bins are scarce; events often expect you to carry trash out.",
+    "sightseeing-sando-center": {
+      title: "Walk slightly off the center of the approach",
+      shortDescription: "The middle of the path is often treated as reserved for the kami; many people walk to the side.",
       details: [
-        "Check separation rules at stalls and venues.",
-        "Move aside from residential lanes so you do not block locals.",
+        "Try to walk a little to the side of the central line.",
+        "When it is crowded, it is fine not to stress about it.",
+        "Follow the flow of people around you.",
+      ],
+    },
+    "sightseeing-onsen-wash-first": {
+      title: "Wash thoroughly before entering the bath",
+      shortDescription: "Shared hot springs stay clean only if everyone rinses before soaking.",
+      details: [
+        "Wash your body well before stepping into the tub.",
+        "Finish shampoo and soap at the washing area, not in the tub.",
+        "Rinse your space lightly for the next person.",
+      ],
+    },
+    "sightseeing-onsen-no-towel-in-bath": {
+      title: "Keep towels out of the bath water",
+      shortDescription: "Towels stay out of the shared tub to keep the water clean.",
+      details: [
+        "Do not let towels soak in the bath.",
+        "Use a towel rack or basket if provided.",
+        "If none, keep the towel dry and out of others’ way.",
+      ],
+    },
+    "sightseeing-kimono-hem-walk": {
+      title: "Lift the hem slightly when walking in kimono",
+      shortDescription: "Long hems can catch on steps; a little lift helps you move safely.",
+      details: [
+        "Hold the hem slightly so it does not drag or trip you.",
+        "Be extra careful on stairs and uneven ground.",
+      ],
+    },
+    "transit-escalator-stand-aside": {
+      title: "Stand to one side on escalators",
+      shortDescription: "One side is often left open so people in a hurry can pass.",
+      details: [
+        "Stand on one side and leave a lane free.",
+        "Customs vary by region—watch what locals do.",
+      ],
+    },
+    "transit-elevator-yield-exit": {
+      title: "Let people off first",
+      shortDescription: "Yielding to those exiting keeps elevators and trains moving smoothly.",
+      details: [
+        "Wait until people have stepped out before you enter.",
+        "Step slightly aside near the doors.",
+      ],
+    },
+    "transit-backpack-front-when-crowded": {
+      title: "Wear backpacks on your front when crowded",
+      shortDescription: "In tight spaces, turning your pack forward avoids bumping people behind you.",
+      details: [
+        "On crowded trains, move your backpack to your chest.",
+        "Watch the space around you.",
+      ],
+    },
+    "transit-quiet-on-public-transport": {
+      title: "Stay quiet on trains and buses",
+      shortDescription: "Public transit is usually kept low-noise out of respect for others.",
+      details: [
+        "Keep voices and device sounds low.",
+        "Watch for headphone sound leaking.",
+      ],
+    },
+    "life-no-open-before-payment": {
+      title: "Do not open products before paying",
+      shortDescription: "Until you buy it, merchandise still belongs to the shop.",
+      details: ["Do not open packages before checkout unless staff say it is OK."],
+    },
+    "life-queue-in-line": {
+      title: "Join the end of the line",
+      shortDescription: "Waiting your turn in an orderly line is the usual custom.",
+      details: [
+        "Queue at the back and wait your turn.",
+        "If you are unsure where the line ends, look for signs or ask quietly.",
+      ],
+    },
+    "life-quiet-in-public": {
+      title: "Speak softly in public spaces",
+      shortDescription: "Many people keep conversations subdued in shared indoor and outdoor areas.",
+      details: [
+        "Lower your speaking volume.",
+        "Take cues from people nearby.",
+      ],
+    },
+    "life-phone-avoid-on-train": {
+      title: "Avoid voice calls on trains",
+      shortDescription: "Voice calls are uncommon inside train cars; people step out to talk when needed.",
+      details: [
+        "Skip calls inside the car when you can.",
+        "If you must talk, use a vestibule or platform after you exit.",
+      ],
+    },
+    "life-trash-take-home": {
+      title: "Carry trash with you",
+      shortDescription: "Public trash cans are scarce; carrying a small bag helps.",
+      details: [
+        "Plan to take your trash back to your lodging or the next bin.",
+        "A small plastic bag in your daypack is handy.",
+      ],
+    },
+    "life-trash-sort": {
+      title: "Sort trash by category",
+      shortDescription: "Local rules often require separating burnable, recyclables, and more.",
+      details: [
+        "Follow labels on bins and posters.",
+        "When unsure, ask staff or look for pictograms.",
+      ],
+    },
+    "life-discreet-pda": {
+      title: "Keep public affection modest",
+      shortDescription: "Bold physical affection in public is relatively uncommon in Japan.",
+      details: ["Save larger gestures for private settings."],
+    },
+    "rule-smoking-designated-only": {
+      title: "Smoke only where allowed",
+      shortDescription: "Smoking is restricted to signed areas in many towns and buildings.",
+      details: [
+        "Use official smoking rooms or outdoor smoking zones.",
+        "Check maps or signs before you light up.",
+      ],
+    },
+    "rule-photo-consent": {
+      title: "Ask before photographing people",
+      shortDescription: "Privacy is taken seriously; candid portraits can cause trouble.",
+      details: [
+        "Get a quick OK before photographing strangers’ faces.",
+        "In shops, avoid capturing other customers without care.",
+        "Food shots are usually fine; when in doubt, check posted rules.",
+      ],
+    },
+    "rule-no-trespassing": {
+      title: "Do not enter private land",
+      shortDescription: "Fields, yards, and paths may be private even if they look scenic.",
+      details: [
+        "Do not cross fences or “no entry” signs.",
+        "When unsure, choose another route.",
+      ],
+    },
+    "rule-drinking-age-20": {
+      title: "Legal drinking age is 20",
+      shortDescription: "Japanese law sets twenty as the age for alcohol.",
+      details: [
+        "Do not drink alcohol if you are under 20.",
+        "Carry ID; shops may check ages.",
+      ],
+    },
+    "rule-traffic-signals": {
+      title: "Follow traffic lights and crosswalks",
+      shortDescription: "Signals keep pedestrians and drivers safe.",
+      details: [
+        "Wait for the walk signal at crossings.",
+        "Use marked crosswalks where they exist.",
+      ],
+    },
+    "rule-no-graffiti": {
+      title: "Do not mark public property",
+      shortDescription: "Shared spaces stay pleasant when everyone avoids damage and graffiti.",
+      details: [
+        "Do not write or carve on structures.",
+        "Treat public facilities with care.",
       ],
     },
   },
   topics: {
-    "date-culture": {
-      title: "Date culture in Sendai",
-      subtitle: "What makes the city feel “Sendai”",
-      description:
-        "Sendai’s streets and culture still carry strong echoes of Date Masamune; a little context deepens what you see.",
-      details: [
-        "The city was shaped as a castle town; names and habits still reflect that past.",
-        "Temples and historic sites read differently when you think of them as living memory, not only photo spots.",
-        "Skimming history first makes signs and exhibits easier to follow.",
-      ],
-    },
-    "festival-meaning": {
-      title: "What festivals mean here",
-      subtitle: "Decorations and movement have stories",
-      description: "Festivals are not only spectacle—they often carry local prayers and roles.",
-      details: [
-        "Tanabata displays or parade lines may each carry wishes or duties.",
-        "For residents these are yearly traditions, not only tourist events.",
-        "Knowing the “why” helps you notice charm that photos alone miss.",
-      ],
-    },
-    "kokeshi-story": {
-      title: "Kokeshi differences",
-      subtitle: "Shape and face vary by region",
-      description: "Tohoku kokeshi look similar at a glance, but workshops differ in silhouette, paint, and expression.",
-      details: [
-        "Within Miyagi, style shifts by area—note head and body proportions.",
-        "When buying souvenirs, checking origin—not only pattern—adds fun.",
-        "Pairing with a craft visit changes how you look at dolls afterward.",
-      ],
-    },
-    "sacred-place": {
-      title: "Visiting shrines and temples",
-      subtitle: "Prayer places before photo spots",
-      description: "Shrines and temples are still tied to local prayer, not only scenic backdrops.",
-      details: [
-        "When worshippers are present, prayer often comes before sightseeing pace.",
-        "Seeing ties to daily life—not only building dates—adds depth.",
-        "Watch signs and atmosphere and favor a calm, quiet stance.",
-      ],
-    },
-    "local-words": {
-      title: "Local words",
-      subtitle: "A phrase or two warms things up",
-      description: "A few common sayings or place nicknames make small talk easier on the road.",
-      details: [
-        "If you miss a phrase, a smile and a polite repeat usually work fine.",
-        "Some place or festival names have local readings.",
-        "Even light prep can open friendlier chats.",
-      ],
-    },
-    "experience-flow": {
-      title: "Before your workshop",
-      subtitle: "From booking to arrival day",
-      description: "For craft workshops, double-checking reservation details and what to bring makes the day smoother.",
-      details: [
-        "Confirm start time, meeting point, and what to bring by the day before.",
-        "Save a contact number in case you might be late.",
-        "If pieces need drying or pickup, leave slack in your return schedule.",
-      ],
-    },
-    "photo-tips": {
-      title: "Enjoying photos respectfully",
-      subtitle: "Capture the mood, not only the subject",
-      description: "Cultural experiences photograph well when you pause once to read the room.",
-      details: [
-        "Hands and tools in frame often convey the atmosphere well.",
-        "When people appear, shoot in ways they would be comfortable seeing later.",
-        "At exhibits or festivals, confirm if photography is allowed and where to stand.",
-      ],
-    },
-    "season-enjoy": {
-      title: "Seasonal angles",
-      subtitle: "The same place changes with the calendar",
-      description: "The fun of travel is how seasons shift what you notice—pair plans with events and scenery.",
-      details: [
-        "Spring suits strolls and blossoms; summer suits festivals and evening walks.",
-        "Autumn and winter are calmer for indoor crafts and museums.",
-        "Checking event calendars helps you line up what you want to see.",
-      ],
-    },
-    "day-plan": {
-      title: "Building a half-day plan",
-      subtitle: "Avoid overpacking the schedule",
-      description: "For culture days, a little slack between moves and visits usually feels better than cramming.",
-      details: [
-        "One experience plus one nearby stop is often enough before fatigue sets in.",
-        "After a workshop, add café time or a short walk to savor the moment.",
-        "Keep one rainy-day idea so plans bend less when weather shifts.",
-      ],
-    },
+    ...sheetTipsTopicsEn,
   },
 } as const;

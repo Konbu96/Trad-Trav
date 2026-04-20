@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  decodePlacesPhotoNameFromProxyRequest,
   fetchPlacePhotoImage,
   getPhotoUri,
   isValidPlacesPhotoName,
-  normalizePlacesPhotoName,
 } from "../_lib/photo";
 
 export async function GET(req: NextRequest) {
-  const name = normalizePlacesPhotoName(req.nextUrl.searchParams.get("name") || "");
+  const name = decodePlacesPhotoNameFromProxyRequest(
+    req.nextUrl.searchParams.get("n"),
+    req.nextUrl.searchParams.get("name")
+  );
   if (!name || !isValidPlacesPhotoName(name)) {
     return NextResponse.json({ error: "valid photo name is required" }, { status: 400 });
   }
@@ -29,9 +32,19 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  let upstream = await fetchPlacePhotoImage(apiKey, name);
+  const upstream = await fetchPlacePhotoImage(apiKey, name);
 
   if (!upstream) {
+    if (process.env.NODE_ENV === "development") {
+      return NextResponse.json(
+        {
+          error: "photo not available",
+          hint:
+            "Google 側で画像を取得できませんでした。`npm run dev` のターミナルに `[google-places photo]` と HTTP ステータス・本文の抜粋が出ます。403 は API キー・課金・「Places API (New)」の有効化やキー制限（サーバーからの呼び出しではリファラー制限が効かない等）、400/404 は写真リソース名の失効や無効なリクエストが多いです。",
+        },
+        { status: 404 }
+      );
+    }
     return NextResponse.json({ error: "photo not available" }, { status: 404 });
   }
 

@@ -25,11 +25,6 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* react-leaflet: 右下ズームをメイン下部タブの上に（配置は右下のまま） */
-.trad-trav-map-root .leaflet-bottom.leaflet-right {
-  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
-}
-
 /* マイページ: 経験値獲得・レベルアップ演出 */
 @keyframes trad-trav-xp-card-enter {
   0% {

@@ -1,28 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
-import dynamic from "next/dynamic";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type Spot } from "../data/spots";
 import { TRADITIONAL_GENRES, type TraditionalGenreId } from "../data/traditionalGenres";
-import { translations } from "../i18n/translations";
 import { useLanguage } from "../i18n/LanguageContext";
 import type { Translations } from "../i18n/translations";
 import SpotDetailSheet from "./SpotDetailSheet";
 import type { SearchLocation } from "./SearchBar";
-import { LocationIcon, TravelGuideIcon } from "./icons";
-
-const MapView = dynamic(() => import("./MapView"), {
-  ssr: false,
-  loading: () => (
-    <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 border-4 border-pink-400 border-t-transparent rounded-full animate-spin" />
-        <span className="text-gray-600 text-sm">{translations.ja.mapTab.loading}</span>
-      </div>
-    </div>
-  ),
-});
+import { buildGoogleMapsUrl, openGoogleMapsUrl } from "../lib/googleMapsUrl";
+import { isPlacePhotoKnownFailed, markPlacePhotoFailed } from "../lib/placePhotoLoadCache";
 
 const GENRES = TRADITIONAL_GENRES;
 type GenreId = TraditionalGenreId;
@@ -45,20 +32,20 @@ function genreHeading(id: GenreId, t: Translations): string {
 /** トップ一覧のジャンル棚に並べる最大件数 */
 const GENRE_SHELF_PREVIEW_MAX = 5;
 
+export type MapTabTutorialHandle = {
+  /** 「次へ」で現在ステップ相当の画面状態にそろえる */
+  applyTutorialAutomation: (targetId: string) => void;
+};
+
 interface MapTabViewProps {
   onSpotView: (spot: { id: number; name: string; category: string }) => void;
-  jumpToSpotId: number | null;
-  onJumpComplete: () => void;
   favoriteSpotIds: number[];
   onToggleFavorite: (spotId: number) => void;
-  recommendedSpotIds: number[] | null;
   onOpenLanguageHelper?: (spotName: string) => void;
-  /** お役立ちの「旅ガイド」タブへ */
-  onOpenTravelGuide?: () => void;
+  /** 旅ガイド「体験前の流れ」など（予約のヒント）へ */
+  onOpenReservationGuide?: () => void;
   resetToSearchKey?: number;
   onTutorialAction?: (actionId: string) => void;
-  /** 許可済みの現在地（マップ上で体験スポットまでの距離・目安表示に使用） */
-  viewerPosition?: { latitude: number; longitude: number } | null;
 }
 
 type SearchPanelSpot = Spot & { placeId?: string; source?: "google" };
@@ -67,10 +54,6 @@ type GoogleSearchResponse = {
   locations?: SearchLocation[];
   error?: string;
 };
-
-type CuratedGenreFetchResult =
-  | { ok: true; locations: SearchLocation[] }
-  | { ok: false; error: string };
 
 type GooglePlaceDetailResponse = {
   name?: string;
@@ -89,16 +72,14 @@ interface SpotShelfCardProps {
   spot: SearchPanelSpot | Spot;
   fallbackEmoji: string;
   onOpen: () => void;
-  onJumpToMap: () => void;
-  onOpenGuide: () => void;
+  tutorialDataId?: string;
 }
 
 interface SpotGridCardProps {
   spot: SearchPanelSpot | Spot;
   fallbackEmoji: string;
   onOpen: () => void;
-  onJumpToMap: () => void;
-  onOpenGuide: () => void;
+  tutorialDataId?: string;
 }
 
 function getSearchCategory(category?: string, type?: string): string {
@@ -132,22 +113,7 @@ function getPrimaryPhoto(spot: SearchPanelSpot | Spot) {
   return spot.photos?.[0] || null;
 }
 
-const shelfActionBtnStyle: CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "1px",
-  padding: "3px 2px",
-  border: "none",
-  background: "transparent",
-  cursor: "pointer",
-};
-
-function SpotShelfCard({ spot, fallbackEmoji, onOpen, onJumpToMap, onOpenGuide }: SpotShelfCardProps) {
-  const { t } = useLanguage();
+function SpotShelfCard({ spot, fallbackEmoji, onOpen, tutorialDataId }: SpotShelfCardProps) {
   const primaryPhoto = getPrimaryPhoto(spot);
   const [photoFailed, setPhotoFailed] = useState(false);
 
@@ -155,7 +121,8 @@ function SpotShelfCard({ spot, fallbackEmoji, onOpen, onJumpToMap, onOpenGuide }
     setPhotoFailed(false);
   }, [primaryPhoto]);
 
-  const showImage = Boolean(primaryPhoto) && !photoFailed;
+  const knownBad = Boolean(primaryPhoto && isPlacePhotoKnownFailed(primaryPhoto));
+  const showImage = Boolean(primaryPhoto) && !photoFailed && !knownBad;
 
   return (
     <div
@@ -167,7 +134,7 @@ function SpotShelfCard({ spot, fallbackEmoji, onOpen, onJumpToMap, onOpenGuide }
         boxShadow: "0 4px 14px rgba(15,23,42,0.08)",
       }}
     >
-      <button type="button" onClick={onOpen} className="block w-full text-left">
+      <button type="button" onClick={onOpen} className="block w-full text-left" data-tutorial-id={tutorialDataId}>
         <div style={{ position: "relative", aspectRatio: "1 / 1", background: "linear-gradient(135deg, #f6d7b8, #f3b6c3)" }}>
           {showImage ? (
             // Google Places photo URLs are resolved at runtime and are not preconfigured for next/image.
@@ -176,7 +143,11 @@ function SpotShelfCard({ spot, fallbackEmoji, onOpen, onJumpToMap, onOpenGuide }
               src={primaryPhoto!}
               alt={spot.name}
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              onError={() => setPhotoFailed(true)}
+              loading="lazy"
+              onError={() => {
+                markPlacePhotoFailed(primaryPhoto!);
+                setPhotoFailed(true);
+              }}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-white" style={{ fontSize: "36px" }}>
@@ -185,37 +156,11 @@ function SpotShelfCard({ spot, fallbackEmoji, onOpen, onJumpToMap, onOpenGuide }
           )}
         </div>
       </button>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "stretch",
-          padding: "4px 4px 5px",
-        }}
-      >
-        <button type="button" onClick={onJumpToMap} aria-label={t.mapTab.mapAria} style={shelfActionBtnStyle}>
-          <LocationIcon size={14} color="#e88fa3" />
-          <span style={{ fontSize: "9px", fontWeight: 700, color: "#374151", lineHeight: 1.1 }}>{t.mapTab.mapLabel}</span>
-        </button>
-        <div
-          style={{
-            width: "1px",
-            alignSelf: "stretch",
-            flexShrink: 0,
-            backgroundColor: "#e5e7eb",
-            margin: "2px 0",
-          }}
-          aria-hidden
-        />
-        <button type="button" onClick={onOpenGuide} aria-label={t.mapTab.guideAria} style={shelfActionBtnStyle}>
-          <TravelGuideIcon size={14} color="#e88fa3" />
-          <span style={{ fontSize: "9px", fontWeight: 700, color: "#374151", lineHeight: 1.1 }}>{t.mapTab.guideLabel}</span>
-        </button>
-      </div>
     </div>
   );
 }
 
-function SpotGridCard({ spot, fallbackEmoji, onOpen, onJumpToMap, onOpenGuide }: SpotGridCardProps) {
+function SpotGridCard({ spot, fallbackEmoji, onOpen, tutorialDataId }: SpotGridCardProps) {
   const { t } = useLanguage();
   const primaryPhoto = getPrimaryPhoto(spot);
   const [photoFailed, setPhotoFailed] = useState(false);
@@ -224,14 +169,12 @@ function SpotGridCard({ spot, fallbackEmoji, onOpen, onJumpToMap, onOpenGuide }:
     setPhotoFailed(false);
   }, [primaryPhoto]);
 
-  const showImage = Boolean(primaryPhoto) && !photoFailed;
-
-  const jumpBtnClass =
-    "flex flex-1 flex-col items-center justify-center gap-0.5 border-0 bg-transparent py-1 text-xs font-bold leading-tight";
+  const knownBad = Boolean(primaryPhoto && isPlacePhotoKnownFailed(primaryPhoto));
+  const showImage = Boolean(primaryPhoto) && !photoFailed && !knownBad;
 
   return (
     <div className="overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: "1px solid #f3f4f6" }}>
-      <button type="button" onClick={onOpen} className="block w-full text-left">
+      <button type="button" onClick={onOpen} className="block w-full text-left" data-tutorial-id={tutorialDataId}>
         <div style={{ position: "relative", aspectRatio: "1 / 1", background: "linear-gradient(135deg, #f6d7b8, #f3b6c3)" }}>
           {showImage ? (
             // Google Places photo URLs are resolved at runtime and are not preconfigured for next/image.
@@ -240,7 +183,11 @@ function SpotGridCard({ spot, fallbackEmoji, onOpen, onJumpToMap, onOpenGuide }:
               src={primaryPhoto!}
               alt={spot.name}
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              onError={() => setPhotoFailed(true)}
+              loading="lazy"
+              onError={() => {
+                markPlacePhotoFailed(primaryPhoto!);
+                setPhotoFailed(true);
+              }}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-white" style={{ fontSize: "40px" }}>
@@ -250,65 +197,46 @@ function SpotGridCard({ spot, fallbackEmoji, onOpen, onJumpToMap, onOpenGuide }:
         </div>
       </button>
 
-      <div className="p-3">
-        <div className="flex items-stretch">
-          <button type="button" onClick={onJumpToMap} className={jumpBtnClass} style={{ color: "#e88fa3" }}>
-            <LocationIcon size={18} color="#e88fa3" />
-            {t.mapTab.mapLabel}→
-          </button>
-          <div className="my-0.5 w-px shrink-0 self-stretch bg-gray-200" aria-hidden />
-          <button type="button" onClick={onOpenGuide} className={jumpBtnClass} style={{ color: "#e88fa3" }}>
-            <TravelGuideIcon size={18} color="#e88fa3" />
-            {t.mapTab.guideLabel}→
-          </button>
-        </div>
-
-        <div className="mt-2">
-          <button
-            type="button"
-            onClick={onOpen}
-            className="w-full rounded-xl px-3 py-2 text-xs font-semibold"
-            style={{ color: "#e88fa3", border: "1px solid #f3b6c3" }}
-          >
-            {t.mapTab.seeDetail}
-          </button>
-        </div>
+      <div className="p-3 pt-2">
+        <button type="button" onClick={onOpen} className="w-full rounded-xl px-3 py-2 text-xs font-semibold" style={{ color: "#e88fa3", border: "1px solid #f3b6c3" }}>
+          {t.mapTab.seeDetail}
+        </button>
       </div>
     </div>
   );
 }
 
-export default function MapTabView({
-  onSpotView,
-  jumpToSpotId,
-  onJumpComplete,
-  favoriteSpotIds,
-  onToggleFavorite,
-  recommendedSpotIds,
-  onOpenLanguageHelper,
-  onOpenTravelGuide,
-  resetToSearchKey = 0,
-  onTutorialAction,
-  viewerPosition = null,
-}: MapTabViewProps) {
+const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function MapTabView(
+  {
+    onSpotView,
+    favoriteSpotIds,
+    onToggleFavorite,
+    onOpenLanguageHelper,
+    onOpenReservationGuide,
+    resetToSearchKey = 0,
+    onTutorialAction,
+  },
+  ref
+) {
   const { t, language } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [activeSubTab, setActiveSubTab] = useState<"map" | "search">("search");
   const [selectedSpot, setSelectedSpot] = useState<SearchPanelSpot | Spot | null>(null);
   const [isFetchingSpotInfo, setIsFetchingSpotInfo] = useState(false);
-  const [localJumpId, setLocalJumpId] = useState<number | null>(null);
-  const [mapSearchLocations, setMapSearchLocations] = useState<SearchLocation[] | null>(null);
   const [searchResults, setSearchResults] = useState<SearchPanelSpot[]>([]);
   const [searchResultLocations, setSearchResultLocations] = useState<SearchLocation[] | null>(null);
   const [genreResults, setGenreResults] = useState<Partial<Record<GenreId, SearchPanelSpot[]>>>({});
   const [genreLocations, setGenreLocations] = useState<Partial<Record<GenreId, SearchLocation[]>>>({});
   const [genreLoading, setGenreLoading] = useState<Partial<Record<GenreId, boolean>>>({});
   const [genreErrors, setGenreErrors] = useState<Partial<Record<GenreId, string>>>({});
+  /** 名前検索の API 失敗（再試行でクリア） */
+  const [searchFetchError, setSearchFetchError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
+  const genreResultsRef = useRef(genreResults);
+  genreResultsRef.current = genreResults;
 
   const selectedGenreParam = searchParams.get("genre");
   const selectedGenre = GENRES.some(genre => genre.id === selectedGenreParam)
@@ -403,10 +331,15 @@ export default function MapTabView({
     void enrichSpotDetail(spot);
   }, [enrichSpotDetail, onSpotView]);
 
-  const loadGenre = useCallback(async (genreId: GenreId) => {
+  const loadGenre = useCallback(async (genreId: GenreId, opts?: { retry?: boolean }) => {
     const genre = GENRES.find(item => item.id === genreId);
+    if (!genre) return;
+    if (genreLoading[genreId]) return;
+    /** 失敗直後は useEffect の再実行で無限フェッチしない（「もう一度」のみ retry） */
+    if (genreErrors[genreId] && !opts?.retry) return;
+
     const hasLoadedGenre = Object.prototype.hasOwnProperty.call(genreResults, genreId);
-    if (!genre || (hasLoadedGenre && !genreErrors[genreId]) || genreLoading[genreId]) return;
+    if (hasLoadedGenre && !genreErrors[genreId] && !opts?.retry) return;
 
     setGenreLoading(prev => ({ ...prev, [genreId]: true }));
     setGenreErrors(prev => {
@@ -418,14 +351,10 @@ export default function MapTabView({
       const result = await fetchCuratedGenreLocations(genreId);
       if (!result.ok) {
         setGenreLocations(prev => ({ ...prev, [genreId]: [] }));
-        setGenreResults(prev => {
-          const next = { ...prev };
-          delete next[genreId];
-          return next;
-        });
+        setGenreResults(prev => ({ ...prev, [genreId]: [] }));
         setGenreErrors(prev => ({
           ...prev,
-          [genreId]: t.mapTab.fetchError,
+          [genreId]: t.mapTab.fetchFailed,
         }));
         return;
       }
@@ -441,14 +370,10 @@ export default function MapTabView({
     } catch (error) {
       console.warn("genre google search error:", error);
       setGenreLocations(prev => ({ ...prev, [genreId]: [] }));
-      setGenreResults(prev => {
-        const next = { ...prev };
-        delete next[genreId];
-        return next;
-      });
+      setGenreResults(prev => ({ ...prev, [genreId]: [] }));
       setGenreErrors(prev => ({
         ...prev,
-        [genreId]: t.mapTab.fetchError,
+        [genreId]: t.mapTab.fetchFailed,
       }));
     } finally {
       setGenreLoading(prev => ({ ...prev, [genreId]: false }));
@@ -458,16 +383,17 @@ export default function MapTabView({
     genreErrors,
     genreLoading,
     genreResults,
-    language,
-    t.mapTab.fetchError,
+    t.mapTab.fetchFailed,
     t.mapTab.spotDescriptionFallback,
     t.spot.address,
   ]);
 
   /** 「もっと見る」・URL直叩き用。キュレーション全件＋検索で最大30件 */
-  const loadGenreExpanded = useCallback(async (genreId: GenreId) => {
+  const loadGenreExpanded = useCallback(async (genreId: GenreId, opts?: { retry?: boolean }) => {
     const genre = GENRES.find(item => item.id === genreId);
     if (!genre) return;
+    if (genreLoading[genreId]) return;
+    if (genreErrors[genreId] && !opts?.retry) return;
 
     setGenreLoading(prev => ({ ...prev, [genreId]: true }));
     setGenreErrors(prev => {
@@ -482,14 +408,10 @@ export default function MapTabView({
       const data: GoogleSearchResponse = await res.json();
       if (!res.ok) {
         setGenreLocations(prev => ({ ...prev, [genreId]: [] }));
-        setGenreResults(prev => {
-          const next = { ...prev };
-          delete next[genreId];
-          return next;
-        });
+        setGenreResults(prev => ({ ...prev, [genreId]: [] }));
         setGenreErrors(prev => ({
           ...prev,
-          [genreId]: t.mapTab.fetchError,
+          [genreId]: t.mapTab.fetchFailed,
         }));
         return;
       }
@@ -503,17 +425,20 @@ export default function MapTabView({
       }));
     } catch (error) {
       console.warn("genre expanded load error:", error);
+      setGenreLocations(prev => ({ ...prev, [genreId]: [] }));
+      setGenreResults(prev => ({ ...prev, [genreId]: [] }));
       setGenreErrors(prev => ({
         ...prev,
-        [genreId]: t.mapTab.fetchError,
+        [genreId]: t.mapTab.fetchFailed,
       }));
     } finally {
       setGenreLoading(prev => ({ ...prev, [genreId]: false }));
     }
-  }, [language, t.mapTab.fetchError, t.mapTab.spotDescriptionFallback, t.spot.address]);
+  }, [genreErrors, genreLoading, language, t.mapTab.fetchFailed, t.mapTab.spotDescriptionFallback, t.spot.address]);
 
   const handleSearch = async () => {
     setHasSearched(true);
+    setSearchFetchError(null);
 
     if (!keyword.trim()) {
       setSearchResults([]);
@@ -530,12 +455,11 @@ export default function MapTabView({
           searchLocationToPanelSpot(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address)
         )
       );
-      setMapSearchLocations(null);
     } catch (error) {
       console.error("search panel google search error:", error);
       setSearchResultLocations([]);
       setSearchResults([]);
-      setMapSearchLocations(null);
+      setSearchFetchError(t.mapTab.fetchFailed);
     } finally {
       setIsSearching(false);
     }
@@ -544,9 +468,9 @@ export default function MapTabView({
   const handleClearAll = () => {
     setKeyword("");
     setHasSearched(false);
+    setSearchFetchError(null);
     setSearchResults([]);
     setSearchResultLocations(null);
-    setMapSearchLocations(null);
     const params = new URLSearchParams(searchParams.toString());
     params.delete("genre");
     const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
@@ -573,14 +497,12 @@ export default function MapTabView({
   useEffect(() => {
     if (!resetToSearchKey) return;
 
-    setActiveSubTab("search");
     setSelectedSpot(null);
-    setLocalJumpId(null);
-    setMapSearchLocations(null);
     setKeyword("");
     setHasSearched(false);
     setSearchResults([]);
     setSearchResultLocations(null);
+    setSearchFetchError(null);
     setGenreErrors({});
 
     const params = new URLSearchParams(searchParams.toString());
@@ -589,8 +511,11 @@ export default function MapTabView({
     router.replace(nextUrl, { scroll: false });
   }, [pathname, resetToSearchKey, router, searchParams]);
 
-  const displayedSpots = hasSearched ? searchResults : [];
-  const displayedLocations = hasSearched ? searchResultLocations : null;
+  const displayedSpots = useMemo(() => (hasSearched ? searchResults : []), [hasSearched, searchResults]);
+  const displayedLocations = useMemo(
+    () => (hasSearched ? searchResultLocations : null),
+    [hasSearched, searchResultLocations]
+  );
   const selectedGenreConfig = selectedGenre
     ? GENRES.find(genre => genre.id === selectedGenre) || null
     : null;
@@ -624,6 +549,33 @@ export default function MapTabView({
 
     return [...orderedSections, ...otherSections];
   }, [displayedSpots, t]);
+
+  const openGoogleMapsForSpot = useCallback(
+    (spot: SearchPanelSpot | Spot, sourceLocations: SearchLocation[] | null = displayedLocations) => {
+      onSpotView({ id: spot.id, name: spot.name, category: spot.category });
+
+      let url: string | null = null;
+      if (sourceLocations && "placeId" in spot && spot.placeId) {
+        const matched = sourceLocations.find((location) => location.placeId === spot.placeId);
+        if (matched?.placeId) {
+          url = buildGoogleMapsUrl({
+            placeId: matched.placeId,
+            lat: matched.lat,
+            lng: matched.lng,
+            label: matched.name,
+          });
+        }
+      }
+      if (!url && typeof spot.lat === "number" && typeof spot.lng === "number") {
+        url = buildGoogleMapsUrl({ lat: spot.lat, lng: spot.lng, label: spot.name });
+      }
+      if (!url) {
+        url = buildGoogleMapsUrl({ query: `${spot.name} 宮城県` });
+      }
+      openGoogleMapsUrl(url);
+    },
+    [displayedLocations, onSpotView]
+  );
 
   const renderGenreState = (
     genreId: GenreId,
@@ -660,7 +612,9 @@ export default function MapTabView({
         >
           <p style={{ fontSize: "13px", color: "#991b1b", lineHeight: "1.8" }}>{genreError}</p>
           <button
-            onClick={() => void (expandedRetry ? loadGenreExpanded(genreId) : loadGenre(genreId))}
+            onClick={() =>
+              void (expandedRetry ? loadGenreExpanded(genreId, { retry: true }) : loadGenre(genreId, { retry: true }))
+            }
             className="mt-3 rounded-full px-3 py-1 text-xs font-semibold"
             style={{ border: "1px solid #f3d1da", color: "#e88fa3", backgroundColor: "#fff" }}
           >
@@ -694,38 +648,62 @@ export default function MapTabView({
     router.push(nextUrl, { scroll: false });
   };
 
-  // 検索結果をタップ → マップタブへ切り替えてジャンプ
-  const handleSearchResultClick = (
-    spot: SearchPanelSpot | Spot,
-    sourceLocations: SearchLocation[] | null = displayedLocations
-  ) => {
-    if (sourceLocations && "placeId" in spot && spot.placeId) {
-      const matched = sourceLocations.find(location => location.placeId === spot.placeId);
-      if (matched) {
-        setActiveSubTab("map");
-        onSpotView({ id: spot.id, name: spot.name, category: spot.category });
-        setSelectedSpot(null);
-        setMapSearchLocations([matched]);
-        return;
-      }
-    }
-    setMapSearchLocations(null);
-    setLocalJumpId(spot.id);
-    setActiveSubTab("map");
-    setSelectedSpot(null);
-    onSpotView({ id: spot.id, name: spot.name, category: spot.category });
-  };
-
-  const effectiveJumpId = jumpToSpotId ?? localJumpId;
-
-  const handleJumpComplete = () => {
-    setLocalJumpId(null);
-    onJumpComplete();
-  };
+  useImperativeHandle(
+    ref,
+    () => ({
+      applyTutorialAutomation(targetId: string) {
+        switch (targetId) {
+          case "nav.map":
+            return;
+          case "map.genre.performing-load-more": {
+            const params = new URLSearchParams(searchParams.toString());
+            params.set("genre", "performing");
+            router.push(`${pathname}?${params.toString()}`, { scroll: false });
+            return;
+          }
+          case "map.genre.pick-spot": {
+            const tryOpen = () => {
+              const spots = genreResultsRef.current["performing"] ?? [];
+              const first = spots[0];
+              if (first) {
+                openSpotDetail(first);
+                return true;
+              }
+              return false;
+            };
+            if (!tryOpen()) {
+              window.setTimeout(() => {
+                void tryOpen();
+              }, 500);
+            }
+            return;
+          }
+          case "map.spot-detail.close":
+            setSelectedSpot(null);
+            return;
+          case "map.genre.back-to-list": {
+            const params = new URLSearchParams(searchParams.toString());
+            params.delete("genre");
+            const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+            router.push(nextUrl, { scroll: false });
+            return;
+          }
+          case "map.search-input":
+            requestAnimationFrame(() => {
+              document.querySelector<HTMLInputElement>(`[data-tutorial-id="map.search-input"]`)?.focus();
+            });
+            return;
+          default:
+            return;
+        }
+      },
+    }),
+    [openSpotDetail, pathname, router, searchParams]
+  );
 
   return (
     <div className="absolute inset-0 flex flex-col">
-      {/* サブタブヘッダー */}
+      {/* ヘッダー */}
       <div
         className="flex-shrink-0 z-10"
         style={{
@@ -747,59 +725,11 @@ export default function MapTabView({
             {t.mapTab.headerTitle}
           </h1>
         </div>
-        <div className="flex" style={{ backgroundColor: "rgba(255,255,255,0.12)", borderTop: "1px solid rgba(255,255,255,0.24)" }}>
-          {(["search", "map"] as const).map((tab) => {
-            const isActive = activeSubTab === tab;
-            return (
-              <button
-                key={tab}
-                onClick={() => {
-                  onTutorialAction?.(`map.subtab.${tab}`);
-                  setActiveSubTab(tab);
-                }}
-                data-tutorial-id={`map.subtab.${tab}`}
-                className="flex-1 text-sm font-medium border-b-2 transition-colors"
-                style={{
-                  padding: "12px 8px",
-                  borderBottomColor: isActive ? "#ffffff" : "transparent",
-                  color: "#ffffff",
-                  backgroundColor: isActive ? "rgba(255,255,255,0.08)" : "transparent",
-                  borderRight: tab === "search" ? "1px solid rgba(255,255,255,0.24)" : "none",
-                }}
-              >
-                {tab === "search" ? t.mapTab.tabSearch : t.mapTab.tabMap}
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       {/* コンテンツエリア */}
-      <div className="flex-1 relative">
-        {/* マップ（常にマウント・切り替え時は非表示） */}
-        <div
-          className="absolute inset-0"
-          style={{ visibility: activeSubTab === "map" ? "visible" : "hidden" }}
-        >
-          <MapView
-            onSpotView={onSpotView}
-            jumpToSpotId={effectiveJumpId}
-            onJumpComplete={handleJumpComplete}
-            favoriteSpotIds={favoriteSpotIds}
-            onToggleFavorite={onToggleFavorite}
-            recommendedSpotIds={recommendedSpotIds}
-            externalSearchLocations={mapSearchLocations}
-            viewerPosition={
-              viewerPosition
-                ? { lat: viewerPosition.latitude, lng: viewerPosition.longitude }
-                : null
-            }
-          />
-        </div>
-
-        {/* 検索パネル */}
-        {activeSubTab === "search" && (
-          <div className="absolute inset-0 bg-gray-50 overflow-y-auto" style={{ paddingBottom: "80px" }}>
+      <div className="relative min-h-0 flex-1">
+        <div className="absolute inset-0 overflow-y-auto bg-gray-50" style={{ paddingBottom: "80px" }}>
             <div
               className="px-2 pt-4 pb-4"
               style={{
@@ -863,7 +793,12 @@ export default function MapTabView({
               {!hasSearched && selectedGenreConfig && (
                 <div className="mb-5">
                   <button
-                    onClick={closeGenrePage}
+                    type="button"
+                    data-tutorial-id="map.genre.back-to-list"
+                    onClick={() => {
+                      onTutorialAction?.("map.genre.back-to-list");
+                      closeGenrePage();
+                    }}
                     className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-gray-500"
                   >
                     <span style={{ fontSize: "18px", lineHeight: 1 }}>←</span>
@@ -890,6 +825,15 @@ export default function MapTabView({
                 </div>
               )}
 
+              {hasSearched && !isSearching && searchFetchError && (
+                <div
+                  className="mb-4 rounded-2xl px-4 py-3 text-center text-sm font-semibold"
+                  style={{ border: "1px solid #fecdd3", backgroundColor: "#fff1f2", color: "#991b1b" }}
+                >
+                  {searchFetchError}
+                </div>
+              )}
+
               {hasSearched ? (
                 <div className="space-y-8">
                   {groupedSearchSections.map((section) => (
@@ -906,8 +850,6 @@ export default function MapTabView({
                             spot={spot}
                             fallbackEmoji={section.emoji}
                             onOpen={() => openSpotDetail(spot)}
-                            onJumpToMap={() => handleSearchResultClick(spot, displayedLocations)}
-                            onOpenGuide={() => onOpenTravelGuide?.()}
                           />
                         ))}
                       </div>
@@ -923,17 +865,21 @@ export default function MapTabView({
                     true
                   )}
                   {!genreLoading[selectedGenreConfig.id] && !genreErrors[selectedGenreConfig.id] && (
-                    <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
-                      {(genreResults[selectedGenreConfig.id] || []).map((spot) => (
+                      <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+                      {(genreResults[selectedGenreConfig.id] || []).map((spot, spotIdx) => (
                         <SpotGridCard
                           key={spot.id}
                           spot={spot}
                           fallbackEmoji={selectedGenreConfig.emoji}
-                          onOpen={() => openSpotDetail(spot)}
-                          onJumpToMap={() =>
-                            handleSearchResultClick(spot, genreLocations[selectedGenreConfig.id] || null)
+                          tutorialDataId={
+                            selectedGenreConfig.id === "performing" && spotIdx === 0 ? "map.genre.pick-spot" : undefined
                           }
-                          onOpenGuide={() => onOpenTravelGuide?.()}
+                          onOpen={() => {
+                            if (selectedGenreConfig.id === "performing" && spotIdx === 0) {
+                              onTutorialAction?.("map.genre.pick-spot");
+                            }
+                            openSpotDetail(spot);
+                          }}
                         />
                       ))}
                     </div>
@@ -955,7 +901,14 @@ export default function MapTabView({
                             </h2>
                           </div>
                           <button
-                            onClick={() => openGenrePage(genre.id)}
+                            type="button"
+                            data-tutorial-id={genre.id === "performing" ? "map.genre.performing-load-more" : undefined}
+                            onClick={() => {
+                              if (genre.id === "performing") {
+                                onTutorialAction?.("map.genre.performing-load-more");
+                              }
+                              openGenrePage(genre.id);
+                            }}
                             className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold"
                             style={{ border: "1px solid #f3d1da", color: "#ef95a5", backgroundColor: "#fff" }}
                           >
@@ -967,14 +920,20 @@ export default function MapTabView({
 
                         {!isGenreLoading && !genreErrors[genre.id] && allSpots.length > 0 && (
                           <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
-                            {shelfSpots.map((spot) => (
+                            {shelfSpots.map((spot, shelfIdx) => (
                               <SpotShelfCard
                                 key={spot.id}
                                 spot={spot}
                                 fallbackEmoji={genre.emoji}
-                                onOpen={() => openSpotDetail(spot)}
-                                onJumpToMap={() => handleSearchResultClick(spot, genreLocations[genre.id] || null)}
-                                onOpenGuide={() => onOpenTravelGuide?.()}
+                                tutorialDataId={
+                                  genre.id === "performing" && shelfIdx === 0 ? "map.genre.pick-spot" : undefined
+                                }
+                                onOpen={() => {
+                                  if (genre.id === "performing" && shelfIdx === 0) {
+                                    onTutorialAction?.("map.genre.pick-spot");
+                                  }
+                                  openSpotDetail(spot);
+                                }}
                               />
                             ))}
                           </div>
@@ -986,7 +945,6 @@ export default function MapTabView({
               )}
             </div>
           </div>
-        )}
       </div>
 
       {/* スポット詳細シート */}
@@ -994,6 +952,7 @@ export default function MapTabView({
         <SpotDetailSheet
           spot={selectedSpot}
           onClose={() => setSelectedSpot(null)}
+          onTutorialAction={onTutorialAction}
           isLoadingInfo={isFetchingSpotInfo}
           isFavorite={favoriteSpotIds.includes(selectedSpot.id)}
           onToggleFavorite={() => onToggleFavorite(selectedSpot.id)}
@@ -1015,10 +974,20 @@ export default function MapTabView({
                 }
               }
             }
-            handleSearchResultClick(spot, locs);
+            openGoogleMapsForSpot(spot, locs);
           }}
+          onOpenReservationGuide={
+            onOpenReservationGuide
+              ? () => {
+                  setSelectedSpot(null);
+                  onOpenReservationGuide();
+                }
+              : undefined
+          }
         />
       )}
     </div>
   );
-}
+});
+
+export default MapTabView;

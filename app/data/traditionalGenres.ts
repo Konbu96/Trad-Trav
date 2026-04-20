@@ -37,7 +37,7 @@ export type CuratedTraditionalPlace = {
   summary: string;
   experienceTitle?: string;
   officialSourceUrl?: string;
-  /** Google が photos を返さない場合の任意画像（HTTPS）。体験予約棚のフォールバック用。 */
+  /** Google が photos を返さない場合の任意画像（HTTPS）。体験発掘タブ棚のフォールバック用。 */
   imageUrl?: string;
 };
 

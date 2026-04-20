@@ -127,26 +127,26 @@ function PhoneMock({ variant }: { variant: MockVariant }) {
 export type AppOnboardingWalkthroughProps = {
   slideIndex: number;
   onPrimary: () => void;
+  onBack: () => void;
   onSkip: () => void;
 };
 
-export default function AppOnboardingWalkthrough({ slideIndex, onPrimary, onSkip }: AppOnboardingWalkthroughProps) {
+export default function AppOnboardingWalkthrough({
+  slideIndex,
+  onPrimary,
+  onBack,
+  onSkip,
+}: AppOnboardingWalkthroughProps) {
   const { t } = useLanguage();
   const o = t.onboarding as MessagesOnboarding;
   const idx = Math.min(Math.max(0, slideIndex), SLIDE_COUNT - 1);
   const slide = SLIDES[idx]!;
 
+  const canGoBack = idx > 0;
+
   return (
     <div className="fixed inset-0 z-[100] flex flex-col bg-white text-neutral-900">
-      <div className="flex shrink-0 justify-end px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <button
-          type="button"
-          onClick={onSkip}
-          className="text-sm text-neutral-500 underline-offset-2 hover:text-neutral-700 hover:underline"
-        >
-          {o.skip}
-        </button>
-      </div>
+      <div className="shrink-0 pt-[max(0.75rem,env(safe-area-inset-top))]" aria-hidden />
 
       <div className="flex min-h-0 flex-1 flex-col items-center px-6 pb-4 pt-2">
         <h1 className="text-center text-xl font-bold leading-snug tracking-tight sm:text-2xl">{o[slide.titleKey]}</h1>
@@ -172,14 +172,35 @@ export default function AppOnboardingWalkthrough({ slideIndex, onPrimary, onSkip
         </div>
       </div>
 
-      <div className="shrink-0 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
-        <button
-          type="button"
-          onClick={onPrimary}
-          className="w-full rounded-2xl bg-neutral-800 py-3.5 text-center text-base font-semibold text-white transition hover:bg-neutral-900 active:scale-[0.99]"
-        >
-          {idx < SLIDE_COUNT - 1 ? o.next : o.start}
-        </button>
+      <div className="shrink-0 border-t border-neutral-100 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+        <div className="mx-auto grid max-w-md grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            disabled={!canGoBack}
+            className={`rounded-2xl border border-neutral-200 py-3 text-center text-sm font-semibold transition active:scale-[0.99] ${
+              canGoBack
+                ? "bg-white text-neutral-800 hover:bg-neutral-50"
+                : "cursor-default bg-neutral-50 text-neutral-300"
+            }`}
+          >
+            {t.common.back}
+          </button>
+          <button
+            type="button"
+            onClick={onSkip}
+            className="rounded-2xl border border-neutral-200 bg-white py-3 text-center text-sm font-semibold text-neutral-600 transition hover:bg-neutral-50 active:scale-[0.99]"
+          >
+            {o.skip}
+          </button>
+          <button
+            type="button"
+            onClick={onPrimary}
+            className="rounded-2xl bg-neutral-800 py-3 text-center text-sm font-semibold text-white transition hover:bg-neutral-900 active:scale-[0.99]"
+          >
+            {idx < SLIDE_COUNT - 1 ? o.next : o.start}
+          </button>
+        </div>
       </div>
     </div>
   );
