@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { recommendedSpots, getRecommendedSpotIds, type Spot } from "../data/spots";
+import { useLanguage } from "../i18n/LanguageContext";
 import type { DiagnosisResult } from "./DiagnosisView";
 import SpotDetailSheet from "./SpotDetailSheet";
 
@@ -125,6 +126,8 @@ export default function PlanView({
   onOpenLanguageHelper,
   onOpenReservationGuide,
 }: PlanViewProps) {
+  const { t } = useLanguage();
+  const dq = t.diagnosis.traditionalQuiz;
   const [interests, setInterests] = useState<string[]>(diagnosisResult?.interests || []);
   const [days, setDays] = useState<string>(diagnosisResult?.duration || "");
   const [companion, setCompanion] = useState<string>(diagnosisResult?.companion || "");
@@ -197,12 +200,15 @@ export default function PlanView({
               <span className="text-2xl">🧭</span>
               <div className="flex-1">
                 <p className="text-sm font-bold" style={{ color: "#b85f74" }}>
-                  {diagnosisResult ? "診断をやり直す" : "旅タイプ診断を受ける"}
+                  {diagnosisResult ? dq.planBannerRetake : dq.planBannerStart}
                 </p>
                 <p className="text-xs mt-0.5" style={{ color: "#e88fa3" }}>
                   {diagnosisResult
-                    ? `現在のタイプ：${diagnosisResult.travelStyle ?? "診断済み"} → 条件に自動反映されます`
-                    : "3問の診断で条件が自動入力されます"}
+                    ? dq.planBannerWithType.replace(
+                        "{style}",
+                        diagnosisResult.travelStyle ?? dq.planBannerDiagnosedFallback
+                      )
+                    : dq.planBannerIntro}
                 </p>
               </div>
               <span style={{ color: "#e88fa3" }}>›</span>

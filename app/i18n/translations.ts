@@ -1,4 +1,10 @@
 import { deepMergeLocale } from "../lib/deepMergeLocale";
+import {
+  traditionalQuizEn,
+  traditionalQuizJa,
+  traditionalQuizKo,
+  traditionalQuizZh,
+} from "./diagnosisQuizStrings";
 import { helpfulLibraryEn, helpfulLibraryJa } from "./helpfulLibraryContent";
 import { helpfulLibraryKo } from "./helpfulLibraryKo";
 import { helpfulLibraryZh } from "./helpfulLibraryZh";
@@ -178,6 +184,9 @@ const translationsJaEn = {
         sightseeing: "観光満喫派",
         balanced: "バランス派",
       },
+
+      /** 旅タイプ診断（3問）本文・プランタブの診断バナー */
+      traditionalQuiz: traditionalQuizJa,
     },
 
     // マイページ
@@ -839,6 +848,8 @@ const translationsJaEn = {
         sightseeing: "Sightseeing Enthusiast",
         balanced: "Balanced Traveler",
       },
+
+      traditionalQuiz: traditionalQuizEn,
     },
 
     // My Page
@@ -1335,15 +1346,26 @@ const translationsJaEn = {
 
 type JaLocale = (typeof translationsJaEn)["ja"];
 
+const zhLocaleMerged = deepMergeLocale(translationsJaEn.ja, zhPatch) as JaLocale;
+const koLocaleMerged = deepMergeLocale(translationsJaEn.ja, koPatch) as JaLocale;
+
 export const translations = {
   ...translationsJaEn,
   zh: {
-    ...(deepMergeLocale(translationsJaEn.ja, zhPatch) as unknown as Record<string, unknown>),
+    ...zhLocaleMerged,
     helpfulLibrary: helpfulLibraryZh,
+    diagnosis: {
+      ...zhLocaleMerged.diagnosis,
+      traditionalQuiz: traditionalQuizZh,
+    },
   } as unknown as JaLocale,
   ko: {
-    ...(deepMergeLocale(translationsJaEn.ja, koPatch) as unknown as Record<string, unknown>),
+    ...koLocaleMerged,
     helpfulLibrary: helpfulLibraryKo,
+    diagnosis: {
+      ...koLocaleMerged.diagnosis,
+      traditionalQuiz: traditionalQuizKo,
+    },
   } as unknown as JaLocale,
 } as const;
 

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import type { DiagnosisTravelTypeKey } from "../i18n/diagnosisQuizStrings";
+import type { Translations } from "../i18n/translations";
 import { useLanguage } from "../i18n/LanguageContext";
 import { CloseIcon } from "./icons";
 
@@ -28,194 +30,119 @@ interface RecommendedPlan {
 
 type Step = "interests" | "duration" | "companion" | "result";
 
-type TravelTypeKey = "performing_arts" | "crafts" | "allround";
+type TravelTypeKey = DiagnosisTravelTypeKey;
 
-// Q1 興味（複数選択）
-const interestOptions = [
-  { id: "performing_arts", label: "伝統芸能・踊り・祭りに参加したい", emoji: "🎭" },
-  { id: "crafts",          label: "伝統工芸・ものづくりを体験したい", emoji: "🏺" },
+const INTEREST_IDS = [
+  { id: "performing_arts" as const, emoji: "🎭" },
+  { id: "crafts" as const, emoji: "🏺" },
 ];
 
-// Q2 旅行期間
-const durationOptions = [
-  { id: "short",    label: "1〜2泊",   description: "短期滞在" },
-  { id: "medium",   label: "3〜4泊",   description: "ゆっくり主要スポットを回る" },
-  { id: "long",     label: "5〜6泊",   description: "じっくり東北を満喫" },
-  { id: "extended", label: "1週間以上", description: "深く探訪・体験重視" },
-];
+const DURATION_IDS = ["short", "medium", "long", "extended"] as const;
 
-// Q3 同行者
-const companionOptions = [
-  { id: "solo",    label: "一人旅",      emoji: "🚶" },
-  { id: "couple",  label: "恋人・夫婦",  emoji: "💑" },
-  { id: "family",  label: "家族（子連れ）", emoji: "👨‍👩‍👧‍👦" },
-  { id: "friends", label: "友人グループ", emoji: "👫" },
-];
+const COMPANION_IDS = [
+  { id: "solo" as const, emoji: "🚶" },
+  { id: "couple" as const, emoji: "💑" },
+  { id: "family" as const, emoji: "👨‍👩‍👧‍👦" },
+  { id: "friends" as const, emoji: "👫" },
+] as const;
 
 // スコアリングマトリクス（Q1選択 → タイプ別加算）
 const SCORE_MATRIX: Record<string, Record<TravelTypeKey, number>> = {
   performing_arts: { performing_arts: 6, crafts: 0, allround: 1 },
-  crafts:          { performing_arts: 0, crafts: 6, allround: 1 },
+  crafts: { performing_arts: 0, crafts: 6, allround: 1 },
 };
 
 // Q2 期間補正（タイブレーカー程度）
 const DURATION_BONUS: Record<string, Partial<Record<TravelTypeKey, number>>> = {
-  short:    {},
-  medium:   { crafts: 1 },
-  long:     { allround: 1 },
+  short: {},
+  medium: { crafts: 1 },
+  long: { allround: 1 },
   extended: { allround: 2 },
 };
 
 // Q3 同行者補正（タイブレーカー）
 const COMPANION_BONUS: Record<string, Partial<Record<TravelTypeKey, number>>> = {
-  solo:    { crafts: 1 },
-  couple:  { performing_arts: 1 },
-  family:  { allround: 1 },
+  solo: { crafts: 1 },
+  couple: { performing_arts: 1 },
+  family: { allround: 1 },
   friends: { performing_arts: 1 },
 };
 
-// 結果タイプ定義
-const TRAVEL_TYPE_DATA: Record<TravelTypeKey, {
-  label: string;
-  emoji: string;
-  description: string;
-  tips: string[];
-  spotNames: string[];
-  categories: { label: string; emoji: string }[];
-  planTitle: string;
-  planDescription: string;
-}> = {
-  performing_arts: {
-    label: "伝統芸能参加者",
-    emoji: "🎭",
-    description: "踊り・祭り・芸能の中に飛び込みたいあなた。700年続く盆踊りの輪に加わり、鬼の面をつけて舞い、太鼓の音に体を委ねる。東北の伝統芸能は参加してこそ本物の感動があります。",
-    tips: [
-      "夏の祭り（7〜8月）は参加型イベントが多く、最もおすすめです",
-      "跳ね人・踊り連への参加は事前申込が必要な場合があります",
-      "竿燈や鬼剣舞などの体験コーナーは開場直後が混みにくいです",
-      "衣装レンタルができる祭りも多いので気軽に参加してみましょう",
-    ],
-    spotNames: ["青森ねぶた祭（跳ね人参加）", "盛岡さんさ踊り（参加型）", "秋田竿燈まつり（竿燈体験）", "鬼剣舞（体験ワークショップ）", "西馬音内盆踊り（飛び入り参加）"],
-    categories: [
-      { label: "伝統芸能・踊り", emoji: "🎭" },
-      { label: "祭り・行列", emoji: "🎪" },
-      { label: "能・神楽", emoji: "🎑" },
-    ],
-    planTitle: "東北伝統芸能参加プラン",
-    planDescription: "踊り・祭り・芸能の輪に自ら加わり、東北の生きた伝統を体全体で感じる旅。",
-  },
-  crafts: {
-    label: "伝統工芸体験家",
-    emoji: "🏺",
-    description: "作ること・手を動かすことに喜びを感じるあなた。南部鉄器・曲げわっぱ・会津漆器など、東北の職人が何百年と守り続けてきた技に触れ、自分だけの一品を生み出しましょう。",
-    tips: [
-      "工芸体験はほとんどの場所で事前予約が必要です",
-      "完成品の発送に対応している工房も多いのでお土産にもなります",
-      "所要時間は1〜3時間が多いので、日程に余裕を持って計画を",
-      "職人さんへの質問は積極的に。技術の背景を教えてもらえます",
-    ],
-    spotNames: ["南部鉄器体験（岩鋳鉄器館）", "曲げわっぱ体験（大館）", "樺細工体験（角館）", "会津本郷焼（陶芸体験）", "会津漆器（蒔絵体験）"],
-    categories: [
-      { label: "伝統工芸・体験", emoji: "🏺" },
-      { label: "ものづくり・陶芸", emoji: "🎨" },
-      { label: "染め・織り・漆器", emoji: "🧵" },
-    ],
-    planTitle: "東北伝統工芸体験プラン",
-    planDescription: "鉄器・木工・漆器・陶芸など、東北の職人技を手と心で感じる創作の旅。",
-  },
-  allround: {
-    label: "東北文化全体験者",
-    emoji: "🌸",
-    description: "踊りも工芸も両方体験したい欲張りなあなた。祭りの熱気に包まれながら職人の技にも触れる、東北の伝統文化を余すことなく楽しむ贅沢な旅をしましょう。",
-    tips: [
-      "夏（7〜8月）は祭りシーズン。工芸体験と組み合わせると最高です",
-      "東北新幹線を使えば複数県のはしごも可能",
-      "祭り参加と工芸体験の予約を事前にセットで入れておくと安心",
-      "国重要無形民俗文化財に指定された本物の伝統を選びましょう",
-    ],
-    spotNames: ["青森ねぶた祭（跳ね人参加）", "南部鉄器体験（岩鋳鉄器館）", "黒川能（体験・鑑賞）", "こけし絵付け体験（鳴子温泉郷）", "西馬音内盆踊り（飛び入り参加）"],
-    categories: [
-      { label: "伝統芸能・踊り", emoji: "🎭" },
-      { label: "伝統工芸・体験", emoji: "🏺" },
-      { label: "祭り・能・民俗芸能", emoji: "🎑" },
-    ],
-    planTitle: "東北伝統文化フルコースプラン",
-    planDescription: "芸能・工芸・祭り・能楽など、東北が誇る本物の伝統文化を全て体験する旅。",
-  },
-};
+function buildRecommendedPlan(t: Translations, typeKey: TravelTypeKey): RecommendedPlan {
+  const td = t.diagnosis.traditionalQuiz.types[typeKey];
+  return {
+    title: td.planTitle,
+    description: td.planDescription,
+    spots: [...td.spots],
+    tips: [...td.tips],
+  };
+}
 
 // スコアリング判定
-function calcTravelType(
-  interests: string[],
-  duration: string,
-  companion: string
-): TravelTypeKey {
+function calcTravelType(interests: string[], duration: string, companion: string): TravelTypeKey {
   const types: TravelTypeKey[] = ["performing_arts", "crafts", "allround"];
   const scores: Record<TravelTypeKey, number> = { performing_arts: 0, crafts: 0, allround: 0 };
 
-  // Q1 ベーススコア（選択順を記録してタイブレーカーに使う）
   interests.forEach(interest => {
     const matrix = SCORE_MATRIX[interest];
     if (matrix) {
-      types.forEach(t => { scores[t] += matrix[t]; });
+      types.forEach(ty => {
+        scores[ty] += matrix[ty];
+      });
     }
   });
 
-  // Q2 期間補正
   const dBonus = DURATION_BONUS[duration] || {};
-  types.forEach(t => { scores[t] += dBonus[t] ?? 0; });
+  types.forEach(ty => {
+    scores[ty] += dBonus[ty] ?? 0;
+  });
 
-  // Q3 同行者補正
   const cBonus = COMPANION_BONUS[companion] || {};
-  types.forEach(t => { scores[t] += cBonus[t] ?? 0; });
+  types.forEach(ty => {
+    scores[ty] += cBonus[ty] ?? 0;
+  });
 
-  const maxScore = Math.max(...types.map(t => scores[t]));
+  const maxScore = Math.max(...types.map(ty => scores[ty]));
 
-  // Q1で複数の異なるジャンルを幅広く選んだ場合（上位2タイプの差が僅か かつ 3種以上選択）はオールラウンド
   const sortedScores = [...types].sort((a, b) => scores[b] - scores[a]);
   const topDiff = scores[sortedScores[0]] - scores[sortedScores[1]];
   if (interests.length >= 3 && topDiff <= 2 && sortedScores[0] !== "allround") {
     return "allround";
   }
 
-  // 最高スコアのタイプを選ぶ（Q1スコアが圧倒的なため allround 以外が優先される）
-  for (const t of types) {
-    if (t !== "allround" && scores[t] === maxScore) return t;
+  for (const ty of types) {
+    if (ty !== "allround" && scores[ty] === maxScore) return ty;
   }
-  if (scores["allround"] === maxScore) return "allround";
+  if (scores.allround === maxScore) return "allround";
   return sortedScores[0] as TravelTypeKey;
 }
 
 function generatePlan(
   interests: string[],
   duration: string,
-  companion: string
+  companion: string,
+  t: Translations
 ): { travelStyle: string; typeKey: TravelTypeKey; plan: RecommendedPlan } {
   const typeKey = calcTravelType(interests, duration, companion);
-  const typeData = TRAVEL_TYPE_DATA[typeKey];
-
-  const plan: RecommendedPlan = {
-    title: typeData.planTitle,
-    description: typeData.planDescription,
-    spots: typeData.spotNames,
-    tips: typeData.tips,
+  const td = t.diagnosis.traditionalQuiz.types[typeKey];
+  return {
+    travelStyle: td.travelTypeLabel,
+    typeKey,
+    plan: buildRecommendedPlan(t, typeKey),
   };
-
-  return { travelStyle: typeData.label, typeKey, plan };
 }
 
 export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewProps) {
   const { t } = useLanguage();
+  const q = t.diagnosis.traditionalQuiz;
   const [step, setStep] = useState<Step>("interests");
   const [interests, setInterests] = useState<string[]>([]);
   const [duration, setDuration] = useState<string>("");
   const [companion, setCompanion] = useState<string>("");
-  const [result, setResult] = useState<{ travelStyle: string; typeKey: TravelTypeKey; plan: RecommendedPlan } | null>(null);
+  const [resultTypeKey, setResultTypeKey] = useState<TravelTypeKey | null>(null);
 
   const handleInterestToggle = (id: string) => {
-    setInterests(prev =>
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+    setInterests(prev => (prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]));
   };
 
   const handleNext = () => {
@@ -224,21 +151,23 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
     } else if (step === "duration" && duration) {
       setStep("companion");
     } else if (step === "companion" && companion) {
-      const generated = generatePlan(interests, duration, companion);
-      setResult(generated);
+      setResultTypeKey(calcTravelType(interests, duration, companion));
       setStep("result");
     }
   };
 
+  const typeBundle = resultTypeKey ? q.types[resultTypeKey] : null;
+  const planPreview = resultTypeKey ? buildRecommendedPlan(t, resultTypeKey) : null;
+
   const handleComplete = () => {
-    if (result) {
+    if (resultTypeKey && planPreview) {
       onComplete({
         interests,
         duration,
         companion,
         budget: "",
-        travelStyle: result.travelStyle,
-        recommendedPlan: result.plan,
+        travelStyle: q.types[resultTypeKey].travelTypeLabel,
+        recommendedPlan: planPreview,
       });
     }
   };
@@ -250,14 +179,15 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
     result: 100,
   };
 
-  const typeData = result ? TRAVEL_TYPE_DATA[result.typeKey] : null;
-
   const canNext =
     (step === "interests" && interests.length > 0) ||
     (step === "duration" && !!duration) ||
     (step === "companion" && !!companion);
 
   const showCancelButton = Boolean(onCancel && step !== "result");
+
+  const stepProgressLabel =
+    step === "interests" ? q.progressQ1 : step === "duration" ? q.progressQ2 : q.progressQ3;
 
   return (
     <div
@@ -270,7 +200,6 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
         zIndex: 9999,
       }}
     >
-      {/* 診断途中のみ：バツで診断中止 */}
       {showCancelButton && (
         <button
           type="button"
@@ -296,7 +225,6 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
         </button>
       )}
 
-      {/* ヘッダー */}
       <div
         style={{
           padding: showCancelButton ? "52px 24px 20px" : "48px 24px 20px",
@@ -307,7 +235,7 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
           {step === "result" ? t.diagnosis.resultTitle : t.diagnosis.title}
         </h1>
         <p style={{ fontSize: "13px", color: "#6b7280" }}>
-          {step === "result" ? "あなたにぴったりの旅スタイル" : "伝統文化の旅をご提案します"}
+          {step === "result" ? q.subtitleResult : q.subtitleDuring}
         </p>
 
         {step !== "result" && (
@@ -330,26 +258,20 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
                 }}
               />
             </div>
-            <p style={{ fontSize: "12px", color: "#e88fa3", marginTop: "6px" }}>
-              {step === "interests" ? "Q1 / 3" : step === "duration" ? "Q2 / 3" : "Q3 / 3"}
-            </p>
+            <p style={{ fontSize: "12px", color: "#e88fa3", marginTop: "6px" }}>{stepProgressLabel}</p>
           </>
         )}
       </div>
 
-      {/* コンテンツ */}
       <div style={{ flex: 1, overflowY: "auto", padding: "0 24px 120px" }}>
-
-        {/* Q1 興味 */}
         {step === "interests" && (
           <div>
-            <h2 style={{ fontSize: "17px", fontWeight: "600", color: "#374151", marginBottom: "8px" }}>
-              伝統文化の旅でしたいことは？
-            </h2>
-            <p style={{ fontSize: "13px", color: "#9ca3af", marginBottom: "20px" }}>複数選択できます</p>
+            <h2 style={{ fontSize: "17px", fontWeight: "600", color: "#374151", marginBottom: "8px" }}>{q.q1Title}</h2>
+            <p style={{ fontSize: "13px", color: "#9ca3af", marginBottom: "20px" }}>{q.q1MultiHint}</p>
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {interestOptions.map(option => {
+              {INTEREST_IDS.map(option => {
                 const isSelected = interests.includes(option.id);
+                const label = q.interests[option.id];
                 return (
                   <button
                     key={option.id}
@@ -369,7 +291,7 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
                   >
                     <span style={{ fontSize: "26px", flexShrink: 0 }}>{option.emoji}</span>
                     <span style={{ fontSize: "14px", fontWeight: "500", color: "#374151", lineHeight: "1.4" }}>
-                      {option.label}
+                      {label}
                     </span>
                     {isSelected && (
                       <span style={{ marginLeft: "auto", color: "#e88fa3", fontSize: "18px", flexShrink: 0 }}>✓</span>
@@ -381,19 +303,17 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
           </div>
         )}
 
-        {/* Q2 旅行期間 */}
         {step === "duration" && (
           <div>
-            <h2 style={{ fontSize: "17px", fontWeight: "600", color: "#374151", marginBottom: "20px" }}>
-              何泊の旅行ですか？
-            </h2>
+            <h2 style={{ fontSize: "17px", fontWeight: "600", color: "#374151", marginBottom: "20px" }}>{q.q2Title}</h2>
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {durationOptions.map(option => {
-                const isSelected = duration === option.id;
+              {DURATION_IDS.map(did => {
+                const option = q.durations[did];
+                const isSelected = duration === did;
                 return (
                   <button
-                    key={option.id}
-                    onClick={() => setDuration(option.id)}
+                    key={did}
+                    onClick={() => setDuration(did)}
                     style={{
                       padding: "20px",
                       borderRadius: "16px",
@@ -421,15 +341,13 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
           </div>
         )}
 
-        {/* Q3 同行者 */}
         {step === "companion" && (
           <div>
-            <h2 style={{ fontSize: "17px", fontWeight: "600", color: "#374151", marginBottom: "20px" }}>
-              誰と行きますか？
-            </h2>
+            <h2 style={{ fontSize: "17px", fontWeight: "600", color: "#374151", marginBottom: "20px" }}>{q.q3Title}</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-              {companionOptions.map(option => {
+              {COMPANION_IDS.map(option => {
                 const isSelected = companion === option.id;
+                const label = q.companions[option.id];
                 return (
                   <button
                     key={option.id}
@@ -445,7 +363,7 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
                     }}
                   >
                     <span style={{ fontSize: "32px", display: "block", marginBottom: "8px" }}>{option.emoji}</span>
-                    <span style={{ fontSize: "13px", fontWeight: "500", color: "#374151" }}>{option.label}</span>
+                    <span style={{ fontSize: "13px", fontWeight: "500", color: "#374151" }}>{label}</span>
                   </button>
                 );
               })}
@@ -453,11 +371,8 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
           </div>
         )}
 
-        {/* 結果 */}
-        {step === "result" && result && typeData && (
+        {step === "result" && resultTypeKey && typeBundle && planPreview && (
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-
-            {/* タイプカード */}
             <div
               style={{
                 background: "linear-gradient(135deg, #fdf3f5, #f7dfe5)",
@@ -466,17 +381,14 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
                 textAlign: "center",
               }}
             >
-              <span style={{ fontSize: "48px", display: "block", marginBottom: "12px" }}>{typeData.emoji}</span>
-              <p style={{ fontSize: "13px", color: "#e88fa3", marginBottom: "6px" }}>あなたの旅行タイプは</p>
+              <span style={{ fontSize: "48px", display: "block", marginBottom: "12px" }}>{typeBundle.emoji}</span>
+              <p style={{ fontSize: "13px", color: "#e88fa3", marginBottom: "6px" }}>{q.resultTypeIntro}</p>
               <h2 style={{ fontSize: "26px", fontWeight: "bold", color: "#b85f74", marginBottom: "12px" }}>
-                {typeData.label}
+                {typeBundle.travelTypeLabel}
               </h2>
-              <p style={{ fontSize: "14px", color: "#6b7280", lineHeight: "1.7" }}>
-                {typeData.description}
-              </p>
+              <p style={{ fontSize: "14px", color: "#6b7280", lineHeight: "1.7" }}>{typeBundle.description}</p>
             </div>
 
-            {/* おすすめカテゴリ */}
             <div
               style={{
                 backgroundColor: "white",
@@ -486,10 +398,10 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
               }}
             >
               <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#374151", marginBottom: "12px" }}>
-                🗂 おすすめカテゴリ
+                {q.recommendedCategoriesTitle}
               </h3>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {typeData.categories.map((cat, i) => (
+                {typeBundle.categories.map((cat, i) => (
                   <span
                     key={i}
                     style={{
@@ -507,7 +419,6 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
               </div>
             </div>
 
-            {/* おすすめプラン */}
             <div
               style={{
                 backgroundColor: "white",
@@ -517,16 +428,16 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
               }}
             >
               <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#374151", marginBottom: "6px" }}>
-                📍 {result.plan.title}
+                📍 {planPreview.title}
               </h3>
               <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "14px", lineHeight: "1.6" }}>
-                {result.plan.description}
+                {planPreview.description}
               </p>
               <h4 style={{ fontSize: "13px", fontWeight: "600", color: "#374151", marginBottom: "10px" }}>
-                おすすめスポット
+                {q.mapSpotsSectionTitle}
               </h4>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {result.plan.spots.map((spot, i) => (
+                {planPreview.spots.map((spot, i) => (
                   <div
                     key={i}
                     style={{
@@ -549,7 +460,6 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
               </div>
             </div>
 
-            {/* 旅のヒント */}
             <div
               style={{
                 backgroundColor: "white",
@@ -559,10 +469,10 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
               }}
             >
               <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#374151", marginBottom: "12px" }}>
-                💡 旅のヒント
+                {q.travelTipsTitle}
               </h3>
               <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
-                {result.plan.tips.map((tip, i) => (
+                {planPreview.tips.map((tip, i) => (
                   <li
                     key={i}
                     style={{
@@ -583,7 +493,6 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
         )}
       </div>
 
-      {/* ボタン */}
       <div
         style={{
           position: "absolute",
@@ -612,13 +521,11 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
               transition: "background-color 0.2s",
             }}
           >
-            次へ
+            {t.common.next}
           </button>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            <p style={{ textAlign: "center", fontSize: "13px", color: "#9ca3af", margin: 0 }}>
-              ✨ あなたのタイプに合わせたスポットを地図に表示します
-            </p>
+            <p style={{ textAlign: "center", fontSize: "13px", color: "#9ca3af", margin: 0 }}>{q.completeNote}</p>
             <button
               onClick={handleComplete}
               style={{
@@ -638,7 +545,7 @@ export default function DiagnosisView({ onComplete, onCancel }: DiagnosisViewPro
                 gap: "8px",
               }}
             >
-              <span>地図でスポットを見る</span>
+              <span>{q.showOnMap}</span>
               <span>🗺️</span>
             </button>
           </div>

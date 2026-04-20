@@ -611,27 +611,30 @@ const MannerView = forwardRef<MannerTutorialHandle, MannerViewProps>(function Ma
             <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#111827", marginTop: "4px" }}>{t.manner.aiHowHeadline}</h3>
             <p style={{ fontSize: "14px", color: "#4b5563", lineHeight: "1.8", marginTop: "8px" }}>{t.manner.aiHowDescription}</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "12px" }}>
-              {MANNER_QUICK_QUESTIONS.map((canonical, i) => (
-                <button
-                  key={canonical}
-                  type="button"
-                  disabled={helperLoading}
-                  onClick={() => void handleAskHelper(canonical)}
-                  style={{
-                    borderRadius: "999px",
-                    border: "1px solid #f3d1da",
-                    backgroundColor: "#fdf3f5",
-                    color: "#b85f74",
-                    padding: "8px 12px",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    opacity: helperLoading ? 0.55 : 1,
-                    cursor: helperLoading ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {t.manner.quickQuestions[i] ?? canonical}
-                </button>
-              ))}
+              {MANNER_QUICK_QUESTIONS.map((canonical, i) => {
+                const label = t.manner.quickQuestions[i] ?? canonical;
+                return (
+                  <button
+                    key={`manner-quick-${i}`}
+                    type="button"
+                    disabled={helperLoading}
+                    onClick={() => void handleAskHelper(label)}
+                    style={{
+                      borderRadius: "999px",
+                      border: "1px solid #f3d1da",
+                      backgroundColor: "#fdf3f5",
+                      color: "#b85f74",
+                      padding: "8px 12px",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      opacity: helperLoading ? 0.55 : 1,
+                      cursor: helperLoading ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -867,27 +870,30 @@ const MannerView = forwardRef<MannerTutorialHandle, MannerViewProps>(function Ma
                 {t.manner.aiQuickSectionTitle}
               </p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {MANNER_QUICK_QUESTIONS.map((canonical, i) => (
-                  <button
-                    key={canonical}
-                    type="button"
-                    disabled={helperLoading}
-                    onClick={() => void handleAskHelper(canonical)}
-                    style={{
-                      borderRadius: "999px",
-                      border: "1px solid #e5e7eb",
-                      backgroundColor: "#f8fafc",
-                      color: "#374151",
-                      padding: "8px 12px",
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      opacity: helperLoading ? 0.55 : 1,
-                      cursor: helperLoading ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {t.manner.quickQuestions[i] ?? canonical}
-                  </button>
-                ))}
+                {MANNER_QUICK_QUESTIONS.map((canonical, i) => {
+                  const label = t.manner.quickQuestions[i] ?? canonical;
+                  return (
+                    <button
+                      key={`sheet-quick-${i}`}
+                      type="button"
+                      disabled={helperLoading}
+                      onClick={() => void handleAskHelper(label)}
+                      style={{
+                        borderRadius: "999px",
+                        border: "1px solid #e5e7eb",
+                        backgroundColor: "#f8fafc",
+                        color: "#374151",
+                        padding: "8px 12px",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        opacity: helperLoading ? 0.55 : 1,
+                        cursor: helperLoading ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

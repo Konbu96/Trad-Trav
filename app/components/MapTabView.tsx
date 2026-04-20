@@ -14,19 +14,15 @@ import { isPlacePhotoKnownFailed, markPlacePhotoFailed } from "../lib/placePhoto
 const GENRES = TRADITIONAL_GENRES;
 type GenreId = TraditionalGenreId;
 
+const GENRE_HEADING: Record<GenreId, (t: Translations) => string> = {
+  festival: (t) => t.mapTab.genreFestival,
+  performing: (t) => t.mapTab.genrePerforming,
+  history: (t) => t.mapTab.genreHistory,
+  craft: (t) => t.mapTab.genreCraft,
+};
+
 function genreHeading(id: GenreId, t: Translations): string {
-  switch (id) {
-    case "festival":
-      return t.mapTab.genreFestival;
-    case "performing":
-      return t.mapTab.genrePerforming;
-    case "history":
-      return t.mapTab.genreHistory;
-    case "craft":
-      return t.mapTab.genreCraft;
-    default:
-      return t.mapTab.genreDefault;
-  }
+  return (GENRE_HEADING[id] ?? (() => t.mapTab.genreDefault))(t);
 }
 
 /** トップ一覧のジャンル棚に並べる最大件数 */
@@ -132,16 +128,51 @@ function getPrimaryPhoto(spot: SearchPanelSpot | Spot) {
   return spot.photos?.[0] || null;
 }
 
-function SpotShelfCard({ spot, fallbackEmoji, onOpen, tutorialDataId }: SpotShelfCardProps) {
-  const primaryPhoto = getPrimaryPhoto(spot);
+/** ジャンル棚・グリッド共通の 1:1 サムネ（Google 写真 or 絵文字） */
+function GenreSpotSquarePhoto({
+  spotName,
+  primaryPhoto,
+  fallbackEmoji,
+  emojiFontPx,
+}: {
+  spotName: string;
+  primaryPhoto: string | null;
+  fallbackEmoji: string;
+  emojiFontPx: number;
+}) {
   const [photoFailed, setPhotoFailed] = useState(false);
-
   useEffect(() => {
     setPhotoFailed(false);
   }, [primaryPhoto]);
-
   const knownBad = Boolean(primaryPhoto && isPlacePhotoKnownFailed(primaryPhoto));
   const showImage = Boolean(primaryPhoto) && !photoFailed && !knownBad;
+
+  return (
+    <div style={{ position: "relative", aspectRatio: "1 / 1", background: "linear-gradient(135deg, #f6d7b8, #f3b6c3)" }}>
+      {showImage ? (
+        // Google Places photo URLs are resolved at runtime and are not preconfigured for next/image.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={primaryPhoto!}
+          alt={spotName}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          loading="lazy"
+          onError={() => {
+            markPlacePhotoFailed(primaryPhoto!);
+            setPhotoFailed(true);
+          }}
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-white" style={{ fontSize: `${emojiFontPx}px` }}>
+          {fallbackEmoji}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SpotShelfCard({ spot, fallbackEmoji, onOpen, tutorialDataId }: SpotShelfCardProps) {
+  const primaryPhoto = getPrimaryPhoto(spot);
 
   return (
     <div
@@ -154,26 +185,7 @@ function SpotShelfCard({ spot, fallbackEmoji, onOpen, tutorialDataId }: SpotShel
       }}
     >
       <button type="button" onClick={onOpen} className="block w-full text-left" data-tutorial-id={tutorialDataId}>
-        <div style={{ position: "relative", aspectRatio: "1 / 1", background: "linear-gradient(135deg, #f6d7b8, #f3b6c3)" }}>
-          {showImage ? (
-            // Google Places photo URLs are resolved at runtime and are not preconfigured for next/image.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={primaryPhoto!}
-              alt={spot.name}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              loading="lazy"
-              onError={() => {
-                markPlacePhotoFailed(primaryPhoto!);
-                setPhotoFailed(true);
-              }}
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-white" style={{ fontSize: "36px" }}>
-              {fallbackEmoji}
-            </div>
-          )}
-        </div>
+        <GenreSpotSquarePhoto spotName={spot.name} primaryPhoto={primaryPhoto} fallbackEmoji={fallbackEmoji} emojiFontPx={36} />
       </button>
     </div>
   );
@@ -182,38 +194,11 @@ function SpotShelfCard({ spot, fallbackEmoji, onOpen, tutorialDataId }: SpotShel
 function SpotGridCard({ spot, fallbackEmoji, onOpen, tutorialDataId }: SpotGridCardProps) {
   const { t } = useLanguage();
   const primaryPhoto = getPrimaryPhoto(spot);
-  const [photoFailed, setPhotoFailed] = useState(false);
-
-  useEffect(() => {
-    setPhotoFailed(false);
-  }, [primaryPhoto]);
-
-  const knownBad = Boolean(primaryPhoto && isPlacePhotoKnownFailed(primaryPhoto));
-  const showImage = Boolean(primaryPhoto) && !photoFailed && !knownBad;
 
   return (
     <div className="overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: "1px solid #f3f4f6" }}>
       <button type="button" onClick={onOpen} className="block w-full text-left" data-tutorial-id={tutorialDataId}>
-        <div style={{ position: "relative", aspectRatio: "1 / 1", background: "linear-gradient(135deg, #f6d7b8, #f3b6c3)" }}>
-          {showImage ? (
-            // Google Places photo URLs are resolved at runtime and are not preconfigured for next/image.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={primaryPhoto!}
-              alt={spot.name}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              loading="lazy"
-              onError={() => {
-                markPlacePhotoFailed(primaryPhoto!);
-                setPhotoFailed(true);
-              }}
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-white" style={{ fontSize: "40px" }}>
-              {fallbackEmoji}
-            </div>
-          )}
-        </div>
+        <GenreSpotSquarePhoto spotName={spot.name} primaryPhoto={primaryPhoto} fallbackEmoji={fallbackEmoji} emojiFontPx={40} />
       </button>
 
       <div className="p-3 pt-2">
@@ -263,6 +248,32 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     ? (selectedGenreParam as GenreId)
     : null;
 
+  const navigateWithoutGenre = useCallback(
+    (method: "push" | "replace") => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("genre");
+      const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+      router[method](nextUrl, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  const markGenreCuratedFailed = useCallback((genreId: GenreId) => {
+    setGenreLocations(prev => ({ ...prev, [genreId]: [] }));
+    setGenreResults(prev => ({ ...prev, [genreId]: [] }));
+    setGenreErrors(prev => ({ ...prev, [genreId]: true }));
+  }, []);
+
+  const applyGenreCuratedSuccess = useCallback((genreId: GenreId, locations: SearchLocation[]) => {
+    setGenreLocations(prev => ({ ...prev, [genreId]: locations }));
+    setGenreResults(prev => ({
+      ...prev,
+      [genreId]: locations.map((loc, i) =>
+        searchLocationToPanelSpot(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address, t)
+      ),
+    }));
+  }, [t]);
+
   const fetchGoogleLocations = useCallback(async (query: string) => {
     const res = await fetch(
       `/api/google-places/search?query=${encodeURIComponent(query)}&lang=${encodeURIComponent(language)}`
@@ -274,9 +285,10 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     return data.locations || [];
   }, [language]);
 
-  const fetchCuratedGenreLocations = useCallback(async (genreId: GenreId) => {
+  const fetchCuratedGenreLocations = useCallback(async (genreId: GenreId, options?: { expanded?: boolean }) => {
+    const expandedQS = options?.expanded ? "&expanded=1" : "";
     const res = await fetch(
-      `/api/google-places/curated?genre=${encodeURIComponent(genreId)}&lang=${encodeURIComponent(language)}`
+      `/api/google-places/curated?genre=${encodeURIComponent(genreId)}${expandedQS}&lang=${encodeURIComponent(language)}`
     );
     const data: GoogleSearchResponse = await res.json();
     if (!res.ok) {
@@ -372,41 +384,23 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     try {
       const result = await fetchCuratedGenreLocations(genreId);
       if (!result.ok) {
-        setGenreLocations(prev => ({ ...prev, [genreId]: [] }));
-        setGenreResults(prev => ({ ...prev, [genreId]: [] }));
-        setGenreErrors(prev => ({
-          ...prev,
-          [genreId]: true,
-        }));
+        markGenreCuratedFailed(genreId);
         return;
       }
-
-      const locations = result.locations;
-      setGenreLocations(prev => ({ ...prev, [genreId]: locations }));
-      setGenreResults((prev) => ({
-        ...prev,
-        [genreId]: locations.map((loc, i) =>
-          searchLocationToPanelSpot(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address, t)
-        ),
-      }));
+      applyGenreCuratedSuccess(genreId, result.locations);
     } catch (error) {
       console.warn("genre google search error:", error);
-      setGenreLocations(prev => ({ ...prev, [genreId]: [] }));
-      setGenreResults(prev => ({ ...prev, [genreId]: [] }));
-      setGenreErrors(prev => ({
-        ...prev,
-        [genreId]: true,
-      }));
+      markGenreCuratedFailed(genreId);
     } finally {
       setGenreLoading(prev => ({ ...prev, [genreId]: false }));
     }
   }, [
+    applyGenreCuratedSuccess,
     fetchCuratedGenreLocations,
     genreErrors,
     genreLoading,
     genreResults,
-    t.mapTab.spotDescriptionFallback,
-    t.spot.address,
+    markGenreCuratedFailed,
   ]);
 
   /** 「もっと見る」・URL直叩き用。キュレーション全件＋検索で最大30件 */
@@ -423,39 +417,25 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
       return next;
     });
     try {
-      const res = await fetch(
-        `/api/google-places/curated?genre=${encodeURIComponent(genreId)}&expanded=1&lang=${encodeURIComponent(language)}`
-      );
-      const data: GoogleSearchResponse = await res.json();
-      if (!res.ok) {
-        setGenreLocations(prev => ({ ...prev, [genreId]: [] }));
-        setGenreResults(prev => ({ ...prev, [genreId]: [] }));
-        setGenreErrors(prev => ({
-          ...prev,
-          [genreId]: true,
-        }));
+      const result = await fetchCuratedGenreLocations(genreId, { expanded: true });
+      if (!result.ok) {
+        markGenreCuratedFailed(genreId);
         return;
       }
-      const locations = data.locations || [];
-      setGenreLocations(prev => ({ ...prev, [genreId]: locations }));
-      setGenreResults((prev) => ({
-        ...prev,
-        [genreId]: locations.map((loc, i) =>
-          searchLocationToPanelSpot(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address, t)
-        ),
-      }));
+      applyGenreCuratedSuccess(genreId, result.locations);
     } catch (error) {
       console.warn("genre expanded load error:", error);
-      setGenreLocations(prev => ({ ...prev, [genreId]: [] }));
-      setGenreResults(prev => ({ ...prev, [genreId]: [] }));
-      setGenreErrors(prev => ({
-        ...prev,
-        [genreId]: true,
-      }));
+      markGenreCuratedFailed(genreId);
     } finally {
       setGenreLoading(prev => ({ ...prev, [genreId]: false }));
     }
-  }, [genreErrors, genreLoading, language, t.mapTab.spotDescriptionFallback, t.spot.address]);
+  }, [
+    applyGenreCuratedSuccess,
+    fetchCuratedGenreLocations,
+    genreErrors,
+    genreLoading,
+    markGenreCuratedFailed,
+  ]);
 
   const handleSearch = async () => {
     setHasSearched(true);
@@ -492,10 +472,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     setSearchFetchFailed(false);
     setSearchResults([]);
     setSearchResultLocations(null);
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("genre");
-    const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-    router.replace(nextUrl, { scroll: false });
+    navigateWithoutGenre("replace");
   };
 
   useEffect(() => {
@@ -526,11 +503,8 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     setSearchFetchFailed(false);
     setGenreErrors({});
 
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("genre");
-    const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-    router.replace(nextUrl, { scroll: false });
-  }, [pathname, resetToSearchKey, router, searchParams]);
+    navigateWithoutGenre("replace");
+  }, [navigateWithoutGenre, resetToSearchKey]);
 
   const displayedSpots = useMemo(() => (hasSearched ? searchResults : []), [hasSearched, searchResults]);
   const displayedLocations = useMemo(
@@ -663,10 +637,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
   };
 
   const closeGenrePage = () => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("genre");
-    const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-    router.push(nextUrl, { scroll: false });
+    navigateWithoutGenre("push");
   };
 
   useImperativeHandle(
@@ -703,10 +674,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
             setSelectedSpot(null);
             return;
           case "map.genre.back-to-list": {
-            const params = new URLSearchParams(searchParams.toString());
-            params.delete("genre");
-            const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-            router.push(nextUrl, { scroll: false });
+            navigateWithoutGenre("push");
             return;
           }
           case "map.search-input":
@@ -719,7 +687,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
         }
       },
     }),
-    [openSpotDetail, pathname, router, searchParams]
+    [navigateWithoutGenre, openSpotDetail, pathname, router, searchParams]
   );
 
   return (
