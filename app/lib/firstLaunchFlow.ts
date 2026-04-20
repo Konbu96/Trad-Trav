@@ -22,6 +22,16 @@ export function writePostSplashLanguageSeen(): void {
   }
 }
 
+/** 次回起動でスプラッシュ直後に言語選択を再表示する（撮影・デモ用） */
+export function clearPostSplashLanguageSeen(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(POST_SPLASH_LANGUAGE_SEEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function readFirstAppWalkthroughDone(): boolean {
   if (typeof window === "undefined") return false;
   try {

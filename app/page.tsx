@@ -53,6 +53,7 @@ import {
   getQuestUnclaimedBadgeCounts,
   recomputePlayerXp,
   saveGuestPlayerProgress,
+  GUEST_PLAYER_PROGRESS_KEY,
   type PlayerEvent,
   type PlayerProgress,
 } from "./lib/playerProgress";
@@ -65,6 +66,7 @@ import {
 } from "./data/helpfulInfo";
 import { signOut } from "firebase/auth";
 import {
+  clearPostSplashLanguageSeen,
   readFirstAppWalkthroughDone,
   readPostSplashLanguageSeen,
   writeFirstAppWalkthroughDone,
@@ -176,6 +178,7 @@ function AppContent() {
     setShowSplash(false);
     if (typeof window === "undefined") return;
     try {
+      // スプラッシュ →（初回のみ）言語選択 → 初回ガイドの順
       if (!readPostSplashLanguageSeen()) {
         setShowPostSplashLanguage(true);
       } else if (!readFirstAppWalkthroughDone()) {
@@ -222,6 +225,25 @@ function AppContent() {
 
   useEffect(() => {
     setTutorialProgress(loadTutorialProgress());
+  }, []);
+
+  /** 一度だけ: ゲスト系 localStorage をクリアし、言語選択をスプラッシュ直後に再表示できるようにする（撮影用フラグ） */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const ONCE = "trad-trav-demo-guest-storage-cleared-v1";
+    try {
+      if (window.localStorage.getItem(ONCE) === "1") return;
+      window.localStorage.setItem(ONCE, "1");
+      window.localStorage.removeItem(GUEST_DISPLAY_NAME_KEY);
+      window.localStorage.removeItem("trad-trav-helpful-favorites");
+      window.localStorage.removeItem(GUEST_PLAYER_PROGRESS_KEY);
+      clearPostSplashLanguageSeen();
+      setGuestDisplayName("");
+      setHelpfulFavoriteKeys([]);
+      setPlayerProgress(defaultPlayerProgress());
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   useEffect(() => {
@@ -625,6 +647,78 @@ function AppContent() {
     startLocationTracking();
   }, [startLocationTracking]);
 
+  /**
+   * マイページ「現在地を共有」: ブラウザの位置情報許可ダイアログは出すが、
+   * 許可後はアプリ上の座標・住所は栗原市の固定値にそろえる（撮影・デモ用）。
+   */
+  const handleMyPageLocationShare = useCallback(() => {
+    if (!navigator.geolocation) {
+      setLocationPermissionState("unsupported");
+      setLocationIssueCode("device_unsupported");
+      setCurrentPosition(null);
+      setCurrentAddress(null);
+      setIsUsingMockLocation(false);
+      return;
+    }
+    if (!window.isSecureContext) {
+      setLocationPermissionState("error");
+      setLocationIssueCode("insecure_context");
+      setCurrentPosition(null);
+      setCurrentAddress(null);
+      setIsUsingMockLocation(false);
+      return;
+    }
+
+    if (locationWatchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(locationWatchIdRef.current);
+      locationWatchIdRef.current = null;
+    }
+
+    setLocationPermissionState("requesting");
+    setLocationIssueCode("");
+    setIsUsingMockLocation(false);
+
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        applyAssumedFallbackLocation();
+        lastReverseGeocodeKeyRef.current = "";
+        void reverseGeocode(ASSUMED_FALLBACK_POSITION.latitude, ASSUMED_FALLBACK_POSITION.longitude);
+      },
+      (error: GeolocationPositionError) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          setLocationPermissionState("denied");
+          setLocationIssueCode("permission_denied");
+          setCurrentPosition(null);
+          setCurrentAddress(null);
+          setIsUsingMockLocation(false);
+          return;
+        }
+        if (error.code === error.POSITION_UNAVAILABLE) {
+          setLocationPermissionState("error");
+          setLocationIssueCode("position_unavailable");
+          setCurrentPosition(null);
+          setCurrentAddress(null);
+          setIsUsingMockLocation(false);
+          return;
+        }
+        if (error.code === error.TIMEOUT) {
+          setLocationPermissionState("error");
+          setLocationIssueCode("timeout");
+          setCurrentPosition(null);
+          setCurrentAddress(null);
+          setIsUsingMockLocation(false);
+          return;
+        }
+        setLocationPermissionState("error");
+        setLocationIssueCode("generic");
+        setCurrentPosition(null);
+        setCurrentAddress(null);
+        setIsUsingMockLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }, [applyAssumedFallbackLocation, reverseGeocode]);
+
   const handleTutorialNext = useCallback(() => {
     if (!activeTutorialScreen || !activeTutorialStep) return;
     const isLast = activeTutorialStepIndex >= activeTutorialSteps.length - 1;
@@ -902,7 +996,7 @@ function AppContent() {
                   currentPosition={currentPosition}
                   currentAddress={currentAddress}
                   isUsingMockLocation={isUsingMockLocation}
-                  onRequestLocationPermission={handleRequestLocationPermission}
+                  onRequestLocationPermission={handleMyPageLocationShare}
                   settingsOpenKey={settingsOpenKey}
                   onTutorialAction={handleTutorialAction}
                   onReplayTutorials={handleReplayTutorials}
