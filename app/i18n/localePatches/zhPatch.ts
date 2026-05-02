@@ -95,7 +95,9 @@ export const zhPatch = {
   },
   mypage: {
     title: "我的",
-    editName: "点击编辑名称",
+    editName: "编辑名称",
+    editDisplayNameTitle: "编辑显示名称",
+    defaultDisplayName: "匿名旅人",
     guest: "访客",
     guestTravelerNameLabel: "访客旅行者名",
     accountDisplayNameLabel: "显示名称",
@@ -584,8 +586,8 @@ export const zhPatch = {
     slide3Title: "设置与进度在「我的」",
     slide3Subtitle: "（我的标签）",
     slide3Body1: "可在此更改显示语言与定位相关设置。",
-    slide3Body2: "浏览记录、收藏与旅行类型诊断也可使用。",
-    slide3Body3: "登录后可将数据同步到云端。",
+    slide3Body2: "浏览记录、收藏、旅行类型诊断与任务系统也可使用。",
+    slide3Body3: "任务奖励可一键领取。登录后可将数据同步到云端。",
   },
   translation: {
     title: "语言助手",

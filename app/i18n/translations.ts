@@ -192,7 +192,9 @@ const translationsJaEn = {
     // マイページ
     mypage: {
       title: "マイページ",
-      editName: "タップして名前を編集",
+      editName: "名前を編集",
+      editDisplayNameTitle: "表示名を編集",
+      defaultDisplayName: "名無しさん",
       guest: "ゲスト",
       guestTravelerNameLabel: "ゲストトラベラーネーム",
       accountDisplayNameLabel: "表示名",
@@ -679,8 +681,8 @@ const translationsJaEn = {
       slide3Title: "設定や進行はマイページから",
       slide3Subtitle: "（マイページタブ）",
       slide3Body1: "表示言語や位置情報の設定はここから変更できます。",
-      slide3Body2: "閲覧履歴・お気に入り・旅タイプ診断も利用できます。",
-      slide3Body3: "ログインするとデータをクラウドに保存できます。",
+      slide3Body2: "閲覧履歴・お気に入り・旅タイプ診断・クエストで旅を楽しめます。",
+      slide3Body3: "クエストの報酬はまとめて受け取れます。ログインするとデータをクラウドに保存できます。",
     },
   },
 
@@ -864,7 +866,9 @@ const translationsJaEn = {
     // My Page
     mypage: {
       title: "My Page",
-      editName: "Tap to edit name",
+      editName: "Edit name",
+      editDisplayNameTitle: "Edit display name",
+      defaultDisplayName: "Anonymous",
       guest: "Guest",
       guestTravelerNameLabel: "Guest traveler name",
       accountDisplayNameLabel: "Display name",
@@ -1356,8 +1360,8 @@ const translationsJaEn = {
       slide3Title: "Settings and progress on My Page",
       slide3Subtitle: "(My Page tab)",
       slide3Body1: "Change display language and location preferences here.",
-      slide3Body2: "History, favorites, and the travel-style quiz are available.",
-      slide3Body3: "Sign in to sync your data to the cloud.",
+      slide3Body2: "History, favorites, the travel-style quiz, and quests keep things playful.",
+      slide3Body3: "Claim quest rewards in one go. Sign in to sync your data to the cloud.",
     },
   },
 } as const;

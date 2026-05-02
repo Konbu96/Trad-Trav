@@ -95,7 +95,9 @@ export const koPatch = {
   },
   mypage: {
     title: "마이페이지",
-    editName: "탭하여 이름 편집",
+    editName: "이름 편집",
+    editDisplayNameTitle: "표시 이름 편집",
+    defaultDisplayName: "익명",
     guest: "게스트",
     guestTravelerNameLabel: "게스트 여행자 이름",
     accountDisplayNameLabel: "표시 이름",
@@ -591,8 +593,8 @@ export const koPatch = {
     slide3Title: "설정과 진행은 마이페이지에서",
     slide3Subtitle: "(마이페이지 탭)",
     slide3Body1: "표시 언어와 위치 관련 설정을 여기서 바꿀 수 있습니다.",
-    slide3Body2: "열람 기록, 즐겨찾기, 여행 타입 진단도 이용할 수 있습니다.",
-    slide3Body3: "로그인하면 데이터를 클라우드에 저장할 수 있습니다.",
+    slide3Body2: "열람 기록, 즐겨찾기, 여행 타입 진단, 퀘스트로 여행을 더 즐길 수 있습니다.",
+    slide3Body3: "퀘스트 보상은 한 번에 받을 수 있어요. 로그인하면 데이터를 클라우드에 저장할 수 있습니다.",
   },
   translation: {
     title: "언어 도우미",

@@ -38,7 +38,7 @@ interface ViewHistoryItem {
   category: string;
 }
 
-type MypagePanel = "main" | "history" | "favorites" | "settings" | "cosmetics";
+type MypagePanel = "main" | "history" | "favorites" | "settings" | "cosmetics" | "editDisplayName";
 
 export type MyPageTutorialHandle = {
   applyTutorialAutomation: (targetId: string) => void;
@@ -275,12 +275,9 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
   const ringCircumference = 2 * Math.PI * RING_R;
   const ringDashOffset = ringCircumference * (1 - levelBarPercent / 100);
   const savedRawDisplayName = user ? (user.name ?? "") : guestDisplayName;
-  /** 未ログイン時は「ゲスト」表記を出さない（空なら名前欄を畳む） */
-  const resolvedDisplayName = user
-    ? savedRawDisplayName.trim() || t.mypage.guest
-    : savedRawDisplayName.trim();
+  /** 保存名が空のときはローカライズしたデフォルト（名無しさん 等）を表示 */
+  const resolvedDisplayName = savedRawDisplayName.trim() || t.mypage.defaultDisplayName;
   const [draftName, setDraftName] = useState(savedRawDisplayName);
-  const [isEditingName, setIsEditingName] = useState(false);
   const [savingName, setSavingName] = useState(false);
   const [saveNameError, setSaveNameError] = useState("");
   const [showLanguageModal, setShowLanguageModal] = useState(false);
@@ -420,39 +417,33 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
   }, [settingsOpenKey]);
 
   useEffect(() => {
-    if (!isEditingName) {
+    if (panel !== "editDisplayName") {
       setDraftName(savedRawDisplayName);
     }
-  }, [savedRawDisplayName, isEditingName]);
+  }, [savedRawDisplayName, panel]);
 
   const beginEditName = useCallback(() => {
     setDraftName(savedRawDisplayName);
     setSaveNameError("");
-    setIsEditingName(true);
-  }, [savedRawDisplayName]);
-
-  const handleCancelNameEdit = useCallback(() => {
-    setDraftName(savedRawDisplayName);
-    setSaveNameError("");
-    setIsEditingName(false);
+    setPanel("editDisplayName");
   }, [savedRawDisplayName]);
 
   const handleConfirmSaveName = useCallback(async () => {
     if (!onSaveDisplayName) {
-      setIsEditingName(false);
+      beginCloseSubPanel();
       return;
     }
     setSavingName(true);
     setSaveNameError("");
     try {
       await onSaveDisplayName(draftName);
-      setIsEditingName(false);
+      beginCloseSubPanel();
     } catch {
       setSaveNameError(t.mypage.saveDisplayNameFailed);
     } finally {
       setSavingName(false);
     }
-  }, [draftName, onSaveDisplayName, t.mypage.saveDisplayNameFailed]);
+  }, [beginCloseSubPanel, draftName, onSaveDisplayName, t.mypage.saveDisplayNameFailed]);
 
   const getLocationErrorGuide = () => {
     if (locationPermissionState === "denied") {
@@ -1481,6 +1472,32 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                   <DefaultAvatarIcon size={70} backgroundColor="#fdf3f5" silhouetteColor="#f3a7b8" />
                 </div>
               </div>
+              {!isEditingName ? (
+                <button
+                  type="button"
+                  onClick={beginEditName}
+                  aria-label={t.mypage.editName}
+                  style={{
+                    position: "absolute",
+                    right: "-4px",
+                    bottom: "-4px",
+                    width: "30px",
+                    height: "30px",
+                    borderRadius: "50%",
+                    border: "2px solid #ffffff",
+                    background: "linear-gradient(135deg, #e88fa3 0%, #f3a7b8 100%)",
+                    boxShadow: "0 2px 8px rgba(232, 143, 163, 0.45)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    padding: 0,
+                    zIndex: 2,
+                  }}
+                >
+                  <PenIcon size={15} color="#ffffff" />
+                </button>
+              ) : null}
             </div>
 
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -1501,7 +1518,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                   }}
                   disabled={savingName}
                   autoFocus
-                  placeholder=""
+                  placeholder={t.mypage.defaultDisplayName}
                   style={{
                     backgroundColor: "#fdf3f5",
                     border: "1px solid #f3d1da",
@@ -1566,26 +1583,18 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                 ) : null}
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={beginEditName}
+              <p
                 style={{
-                  background: "none",
-                  border: "none",
+                  margin: 0,
                   color: "#111827",
                   fontSize: "18px",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: 0,
-                  textAlign: "left",
+                  fontWeight: 700,
+                  lineHeight: 1.35,
+                  wordBreak: "break-word",
                 }}
               >
-                {user ? resolvedDisplayName : resolvedDisplayName || t.mypage.editName}
-                <span style={{ fontSize: "14px", opacity: 0.7 }}>✏️</span>
-              </button>
+                {resolvedDisplayName}
+              </p>
             )}
             {user ? (
               <p style={{ fontSize: "13px", color: "#4b5563", marginTop: "4px" }}>

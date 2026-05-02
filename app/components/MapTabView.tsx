@@ -560,6 +560,10 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     markGenreCuratedFailed,
   ]);
 
+  /** `loadGenreExpanded` は state 更新のたびに参照が変わる → deps に入れると完了後に effect が再実行され無限ループになる */
+  const loadGenreExpandedRef = useRef(loadGenreExpanded);
+  loadGenreExpandedRef.current = loadGenreExpanded;
+
   const handleSearch = async () => {
     setHasSearched(true);
     setSearchFetchFailed(false);
@@ -612,8 +616,8 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
 
   useEffect(() => {
     if (hasSearched || !selectedGenre) return;
-    void loadGenreExpanded(selectedGenre);
-  }, [hasSearched, selectedGenre, loadGenreExpanded]);
+    void loadGenreExpandedRef.current(selectedGenre);
+  }, [hasSearched, selectedGenre]);
 
   useEffect(() => {
     if (!resetToSearchKey) return;
@@ -851,6 +855,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
                   />
                   {keyword && (
                     <button
+                      type="button"
                       onClick={() => setKeyword("")}
                       className="text-gray-400 w-4 h-4 flex items-center justify-center text-xs"
                     >
