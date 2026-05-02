@@ -29,6 +29,7 @@ import {
   saveTravelerDisplayName,
   getPlayerProgress,
   mergeAndSavePlayerProgress,
+  recordClaimAllQuestsInCategory,
   recordPlayerEvent,
   savePlayerProgress,
   type ViewHistoryItem,
@@ -46,6 +47,7 @@ import {
   type TutorialTabId,
 } from "./lib/tutorial";
 import {
+  applyAllClaimableQuestRewardsInCategory,
   applyPlayerEvent,
   clearGuestPlayerProgress,
   defaultPlayerProgress,
@@ -56,6 +58,7 @@ import {
   GUEST_PLAYER_PROGRESS_KEY,
   type PlayerEvent,
   type PlayerProgress,
+  type QuestCategory,
 } from "./lib/playerProgress";
 import { recommendedSpots } from "./data/spots";
 import {
@@ -351,6 +354,27 @@ function AppContent() {
       }
       setPlayerProgress((prev) => {
         const next = applyPlayerEvent(prev, event);
+        saveGuestPlayerProgress(next);
+        return next;
+      });
+    },
+    [user?.id]
+  );
+
+  const handleClaimAllQuestsInCategory = useCallback(
+    async (category: QuestCategory) => {
+      const uid = user?.id;
+      if (uid) {
+        try {
+          const next = await recordClaimAllQuestsInCategory(uid, category);
+          setPlayerProgress(next);
+        } catch (error) {
+          console.error("クエスト一括受け取りの保存に失敗:", error);
+        }
+        return;
+      }
+      setPlayerProgress((prev) => {
+        const next = applyAllClaimableQuestRewardsInCategory(prev, category);
         saveGuestPlayerProgress(next);
         return next;
       });
@@ -1052,6 +1076,7 @@ function AppContent() {
                   onOpenHelpfulFavorite={handleOpenHelpfulFavorite}
                   playerProgress={playerProgress}
                   onClaimQuest={(questId) => void bumpPlayerProgress({ type: "quest_claim", questId })}
+                  onClaimAllQuestsInCategory={(category) => void handleClaimAllQuestsInCategory(category)}
                   onResetPlayerProgressDev={
                     process.env.NODE_ENV === "development" ? handleResetPlayerProgressDev : undefined
                   }

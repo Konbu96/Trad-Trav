@@ -4,6 +4,7 @@ import { getFirestore, doc, setDoc, getDoc, updateDoc, runTransaction } from "fi
 import type { DiagnosisResult } from "../components/DiagnosisView";
 import { normalizeHelpfulFavoriteKey } from "../data/helpfulInfo";
 import {
+  applyAllClaimableQuestRewardsInCategory,
   applyPlayerEvent,
   defaultPlayerProgress,
   mergePlayerProgress,
@@ -11,6 +12,7 @@ import {
   recomputePlayerXp,
   type PlayerEvent,
   type PlayerProgress,
+  type QuestCategory,
 } from "./playerProgress";
 
 export interface ViewHistoryItem {
@@ -170,6 +172,27 @@ export async function recordPlayerEvent(userId: string, event: PlayerEvent): Pro
       ? readPlayerProgressFromUserData(snap.data() as Record<string, unknown>)
       : defaultPlayerProgress();
     const next = applyPlayerEvent(prev, event);
+    transaction.set(
+      docRef,
+      {
+        playerProgress: next,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+    return next;
+  });
+}
+
+/** 指定カテゴリで未受け取りのクエスト報酬をまとめて適用（1 トランザクション） */
+export async function recordClaimAllQuestsInCategory(userId: string, category: QuestCategory): Promise<PlayerProgress> {
+  const docRef = doc(db, "users", userId);
+  return runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(docRef);
+    const prev = snap.exists()
+      ? readPlayerProgressFromUserData(snap.data() as Record<string, unknown>)
+      : defaultPlayerProgress();
+    const next = recomputePlayerXp(applyAllClaimableQuestRewardsInCategory(prev, category));
     transaction.set(
       docRef,
       {

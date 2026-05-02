@@ -394,6 +394,18 @@ export function normalizePlayerProgress(raw: unknown): PlayerProgress {
   });
 }
 
+/** 現在の進捗で、指定カテゴリの「達成済み・未受け取り」クエスト報酬をすべて適用した状態を返す */
+export function applyAllClaimableQuestRewardsInCategory(prev: PlayerProgress, category: QuestCategory): PlayerProgress {
+  const dailyUi = dailyQuestStateForUi(prev.dailyQuestState);
+  const rows = getQuestProgressViewsForCategory(prev.stats, dailyUi, category, prev.completedQuestIds);
+  const ids = rows.filter((r) => r.done && !r.rewardClaimed).map((r) => r.quest.id);
+  let next = prev;
+  for (const questId of ids) {
+    next = applyPlayerEvent(next, { type: "quest_claim", questId });
+  }
+  return next;
+}
+
 export function applyPlayerEvent(prev: PlayerProgress, event: PlayerEvent): PlayerProgress {
   const today = localDateKey();
   const dailyAfterRoll = rolloverDailyQuestState(prev.dailyQuestState, today);
