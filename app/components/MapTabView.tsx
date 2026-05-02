@@ -4,12 +4,14 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type Spot } from "../data/spots";
 import { TRADITIONAL_GENRES, type TraditionalGenreId } from "../data/traditionalGenres";
+import { LOCAL_TRADITIONAL_LOCATIONS } from "../data/localTraditionalLocations";
 import { useLanguage } from "../i18n/LanguageContext";
 import type { Translations } from "../i18n/translations";
 import SpotDetailSheet from "./SpotDetailSheet";
-import type { SearchLocation } from "./SearchBar";
-import { buildGoogleMapsUrl, openGoogleMapsUrl } from "../lib/googleMapsUrl";
+import type { LocalizedSearchLocationFields, SearchLocation } from "./SearchBar";
+import { buildGoogleMapsNameSearchUrl, openGoogleMapsUrl } from "../lib/googleMapsUrl";
 import { isPlacePhotoKnownFailed, markPlacePhotoFailed } from "../lib/placePhotoLoadCache";
+import { buildSpotIntroFromPlaces } from "../lib/spotIntroFromPlaces";
 
 const GENRES = TRADITIONAL_GENRES;
 type GenreId = TraditionalGenreId;
@@ -44,7 +46,7 @@ interface MapTabViewProps {
   onTutorialAction?: (actionId: string) => void;
 }
 
-type SearchPanelSpot = Spot & { placeId?: string; source?: "google" };
+type SearchPanelSpot = Spot & { placeId?: string; source?: "google" | "local" };
 
 type GoogleSearchResponse = {
   locations?: SearchLocation[];
@@ -61,6 +63,14 @@ type GooglePlaceDetailResponse = {
   hours?: string;
   reviews?: Spot["reviews"];
   photos?: string[];
+  overview?: string;
+  generativeOverview?: string;
+  generativeOverviewDisclosure?: string;
+  reviewSummary?: string;
+  reviewSummaryDisclosure?: string;
+  rating?: number;
+  userRatingCount?: number;
+  primaryTypeDisplayName?: string;
   error?: string;
 };
 
@@ -103,25 +113,87 @@ function searchLocationToPanelSpot(
   index: number,
   spotDescriptionFallback: string,
   addressLabel: string,
-  t: Translations
+  t: Translations,
+  language: "ja" | "en" | "zh" | "ko"
 ): SearchPanelSpot {
+  const localized = (language === "ja" ? undefined : location.localized?.[language]) as LocalizedSearchLocationFields | undefined;
+  const name = localized?.name?.trim() || location.name;
+  const formattedAddress = localized?.formattedAddress?.trim() || location.formattedAddress;
+  const summary = localized?.summary;
+  const overview = localized?.overview ?? (language === "ja" ? location.overview : undefined);
+  const generativeOverview = localized?.generativeOverview ?? (language === "ja" ? location.generativeOverview : undefined);
+  const generativeOverviewDisclosure =
+    localized?.generativeOverviewDisclosure ?? (language === "ja" ? location.generativeOverviewDisclosure : undefined);
+  const reviewSummary = localized?.reviewSummary ?? (language === "ja" ? location.reviewSummary : undefined);
+  const reviewSummaryDisclosure =
+    localized?.reviewSummaryDisclosure ?? (language === "ja" ? location.reviewSummaryDisclosure : undefined);
+  const primaryTypeDisplayName = localized?.primaryTypeDisplayName ?? (language === "ja" ? location.primaryTypeDisplayName : undefined);
+  const reviews = localized?.reviews ?? (language === "ja" ? location.reviews : undefined);
+  const hours = localized?.hours ?? (language === "ja" ? location.hours : undefined);
+
   const genreId = location.traditionalGenre ?? inferTraditionalGenreFromGoogleTypes(location.category, location.type);
   const category = genreHeading(genreId, t);
-  const address = location.formattedAddress || location.name;
+  const address = formattedAddress || name;
+  const curated = summary?.trim() || (language === "ja" ? location.summary?.trim() : undefined);
+  const description = buildSpotIntroFromPlaces(
+    {
+      overview,
+      generativeOverview,
+      reviewSummary,
+      curatedSummary: curated,
+      generativeOverviewDisclosure,
+      reviewSummaryDisclosure,
+      rating: location.rating,
+      userRatingCount: location.userRatingCount,
+      primaryTypeDisplayName,
+    },
+    { t, categoryLabel: category, fallbackDescription: spotDescriptionFallback }
+  );
+  const infos: Spot["infos"] = [{ type: "address", label: addressLabel, value: address }];
+  if (hours?.trim()) infos.push({ type: "hours", label: t.spot.hours, value: hours.trim() });
+  if (location.phone?.trim()) infos.push({ type: "phone", label: t.spot.phone, value: location.phone.trim() });
+  if (location.website?.trim()) infos.push({ type: "website", label: t.spot.website, value: location.website.trim() });
+  if (location.mapsUrl?.trim()) infos.push({ type: "maps", label: t.map.googleMaps, value: location.mapsUrl.trim() });
 
   return {
     id: -5000 - index,
-    name: location.name,
+    name,
     lat: location.lat,
     lng: location.lng,
-    description: location.summary || spotDescriptionFallback.replace("{category}", category),
+    description,
     category,
     traditionalGenre: genreId,
-    reviews: [],
-    infos: [{ type: "address", label: addressLabel, value: address }],
+    reviews: reviews?.length ? [...reviews] : [],
+    infos,
     photos: location.photos,
     placeId: location.placeId,
+    source: location.source,
+    curatedSummary: curated || undefined,
   };
+}
+
+function findLocalTraditionalByPlaceId(placeId: string): { loc: SearchLocation; index: number } | null {
+  for (const g of GENRES) {
+    const list = LOCAL_TRADITIONAL_LOCATIONS[g.id] || [];
+    const index = list.findIndex((l) => l.placeId === placeId);
+    if (index >= 0) return { loc: list[index]!, index };
+  }
+  return null;
+}
+
+/** 言語を日本語に戻したとき、スナップショットからローカル施設の表示を組み直す（一覧・詳細の id は維持） */
+function rebuildLocalPanelSpotFromSnapshot(
+  prevSpot: SearchPanelSpot,
+  t: Translations,
+  spotDescriptionFallback: string,
+  addressLabel: string,
+  language: "ja" | "en" | "zh" | "ko"
+): SearchPanelSpot | null {
+  if (prevSpot.source !== "local" || !prevSpot.placeId) return null;
+  const hit = findLocalTraditionalByPlaceId(prevSpot.placeId);
+  if (!hit) return null;
+  const fresh = searchLocationToPanelSpot(hit.loc, hit.index, spotDescriptionFallback, addressLabel, t, language);
+  return { ...fresh, id: prevSpot.id };
 }
 
 function getPrimaryPhoto(spot: SearchPanelSpot | Spot) {
@@ -269,10 +341,10 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     setGenreResults(prev => ({
       ...prev,
       [genreId]: locations.map((loc, i) =>
-        searchLocationToPanelSpot(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address, t)
+        searchLocationToPanelSpot(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address, t, language)
       ),
     }));
-  }, [t]);
+  }, [language, t]);
 
   const fetchGoogleLocations = useCallback(async (query: string) => {
     const res = await fetch(
@@ -286,26 +358,18 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
   }, [language]);
 
   const fetchCuratedGenreLocations = useCallback(async (genreId: GenreId, options?: { expanded?: boolean }) => {
-    const expandedQS = options?.expanded ? "&expanded=1" : "";
-    const res = await fetch(
-      `/api/google-places/curated?genre=${encodeURIComponent(genreId)}${expandedQS}&lang=${encodeURIComponent(language)}`
-    );
-    const data: GoogleSearchResponse = await res.json();
-    if (!res.ok) {
-      return {
-        ok: false as const,
-        error: data.error || "curated search failed",
-      };
-    }
-
+    const all = LOCAL_TRADITIONAL_LOCATIONS[genreId] || [];
+    const locations = options?.expanded ? all : all.slice(0, GENRE_SHELF_PREVIEW_MAX);
     return {
       ok: true as const,
-      locations: data.locations || [],
+      locations,
     };
-  }, [language]);
+  }, []);
 
   const enrichSpotDetail = useCallback(async (spot: SearchPanelSpot | Spot) => {
     if (!("placeId" in spot) || !spot.placeId) return;
+    // ローカル（スナップショット）施設は API を呼ばず静的データのみ利用
+    if ("source" in spot && spot.source === "local") return;
 
     setIsFetchingSpotInfo(true);
     try {
@@ -323,18 +387,35 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
       if (info.address) extraInfos.push({ type: "address", label: t.spot.address, value: info.address });
       if (info.phone)   extraInfos.push({ type: "phone", label: t.spot.phone, value: info.phone });
       if (info.website) extraInfos.push({ type: "website", label: t.spot.website, value: info.website });
-      if (info.mapsUrl) extraInfos.push({ type: "website", label: t.map.googleMaps, value: info.mapsUrl });
+      if (info.mapsUrl) extraInfos.push({ type: "maps", label: t.map.googleMaps, value: info.mapsUrl });
 
       setSelectedSpot(prev => {
         if (!prev) return prev;
         if (!("placeId" in prev) || prev.placeId !== spot.placeId) return prev;
 
+        const categoryNext = info.category
+          ? resolveMapSpotCategoryLabel(t, prev.traditionalGenre, info.category, info.category)
+          : prev.category;
+        const descriptionNext = buildSpotIntroFromPlaces(
+          {
+            overview: info.overview,
+            generativeOverview: info.generativeOverview,
+            reviewSummary: info.reviewSummary,
+            curatedSummary: prev.curatedSummary,
+            generativeOverviewDisclosure: info.generativeOverviewDisclosure,
+            reviewSummaryDisclosure: info.reviewSummaryDisclosure,
+            rating: info.rating,
+            userRatingCount: info.userRatingCount,
+            primaryTypeDisplayName: info.primaryTypeDisplayName,
+          },
+          { t, categoryLabel: categoryNext, fallbackDescription: t.mapTab.spotDescriptionFallback }
+        );
+
         return {
           ...prev,
           name: info.name || prev.name,
-          category: info.category
-            ? resolveMapSpotCategoryLabel(t, prev.traditionalGenre, info.category, info.category)
-            : prev.category,
+          category: categoryNext,
+          description: descriptionNext,
           reviews: info.reviews?.length ? info.reviews : prev.reviews,
           photos: info.photos?.length ? info.photos : prev.photos,
           infos: [
@@ -352,12 +433,54 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     }
   }, [language, t]);
 
+  /** 言語切替時、ローカル施設の一覧・検索結果・詳細をスナップショット基準で再構築 */
+  useEffect(() => {
+    setGenreResults((prev) => {
+      let changed = false;
+      const next: Partial<Record<GenreId, SearchPanelSpot[]>> = { ...prev };
+      for (const g of GENRES) {
+        const list = prev[g.id];
+        if (!list?.length) continue;
+        const rebuilt = list.map((spot) => {
+          if (spot.source !== "local") return spot;
+          const r = rebuildLocalPanelSpotFromSnapshot(spot, t, t.mapTab.spotDescriptionFallback, t.spot.address, language);
+          if (r) {
+            changed = true;
+            return r;
+          }
+          return spot;
+        });
+        next[g.id] = rebuilt;
+      }
+      return changed ? next : prev;
+    });
+    setSearchResults((list) => {
+      let changed = false;
+      const rebuilt = list.map((spot) => {
+        if (spot.source !== "local") return spot;
+        const r = rebuildLocalPanelSpotFromSnapshot(spot, t, t.mapTab.spotDescriptionFallback, t.spot.address, language);
+        if (r) {
+          changed = true;
+          return r;
+        }
+        return spot;
+      });
+      return changed ? rebuilt : list;
+    });
+    setSelectedSpot((cur) => {
+      if (!cur || !("placeId" in cur) || (cur as SearchPanelSpot).source !== "local") return cur;
+      const r = rebuildLocalPanelSpotFromSnapshot(cur as SearchPanelSpot, t, t.mapTab.spotDescriptionFallback, t.spot.address, language);
+      return r ?? cur;
+    });
+  }, [language, t]);
+
   useEffect(() => {
     if (!selectedSpot || !("placeId" in selectedSpot) || !selectedSpot.placeId) return;
+    if ("source" in selectedSpot && selectedSpot.source === "local") return;
     void enrichSpotDetail(selectedSpot);
     // 表示言語が変わったときだけ再取得（開いた直後は openSpotDetail 側で取得済み）
     // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedSpot は言語変更時の再取得対象に含めない（二重取得防止）
-  }, [language]);
+  }, [language, enrichSpotDetail]);
 
   const openSpotDetail = useCallback((spot: SearchPanelSpot | Spot) => {
     setSelectedSpot(spot);
@@ -453,7 +576,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
       setSearchResultLocations(locations);
       setSearchResults(
         locations.map((loc, i) =>
-          searchLocationToPanelSpot(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address, t)
+          searchLocationToPanelSpot(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address, t, language)
         )
       );
     } catch (error) {
@@ -546,30 +669,11 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
   }, [displayedSpots, t]);
 
   const openGoogleMapsForSpot = useCallback(
-    (spot: SearchPanelSpot | Spot, sourceLocations: SearchLocation[] | null = displayedLocations) => {
+    (spot: SearchPanelSpot | Spot) => {
       onSpotView({ id: spot.id, name: spot.name, category: spot.category });
-
-      let url: string | null = null;
-      if (sourceLocations && "placeId" in spot && spot.placeId) {
-        const matched = sourceLocations.find((location) => location.placeId === spot.placeId);
-        if (matched?.placeId) {
-          url = buildGoogleMapsUrl({
-            placeId: matched.placeId,
-            lat: matched.lat,
-            lng: matched.lng,
-            label: matched.name,
-          });
-        }
-      }
-      if (!url && typeof spot.lat === "number" && typeof spot.lng === "number") {
-        url = buildGoogleMapsUrl({ lat: spot.lat, lng: spot.lng, label: spot.name });
-      }
-      if (!url) {
-        url = buildGoogleMapsUrl({ query: `${spot.name} 宮城県` });
-      }
-      openGoogleMapsUrl(url);
+      openGoogleMapsUrl(buildGoogleMapsNameSearchUrl(spot.name, "宮城県"));
     },
-    [displayedLocations, onSpotView]
+    [onSpotView]
   );
 
   const renderGenreState = (
@@ -946,24 +1050,11 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
           isFavorite={favoriteSpotIds.includes(selectedSpot.id)}
           onToggleFavorite={() => onToggleFavorite(selectedSpot.id)}
           onOpenLanguageHelper={onOpenLanguageHelper}
+          googleMapsSearchRegionHint="宮城県"
           onShowMap={() => {
             const spot = selectedSpot;
             if (!spot) return;
-            let locs: SearchLocation[] | null = null;
-            if (hasSearched) {
-              locs = searchResultLocations;
-            } else if (selectedGenreConfig) {
-              locs = genreLocations[selectedGenreConfig.id] || null;
-            } else {
-              for (const g of GENRES) {
-                const spots = genreResults[g.id] || [];
-                if (spots.some((s) => s.id === spot.id)) {
-                  locs = genreLocations[g.id] || null;
-                  break;
-                }
-              }
-            }
-            openGoogleMapsForSpot(spot, locs);
+            openGoogleMapsForSpot(spot);
           }}
           onOpenReservationGuide={
             onOpenReservationGuide

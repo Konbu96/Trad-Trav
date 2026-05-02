@@ -66,13 +66,14 @@ import {
 } from "./data/helpfulInfo";
 import { signOut } from "firebase/auth";
 import {
+  clearFirstAppWalkthroughDone,
   clearPostSplashLanguageSeen,
   readFirstAppWalkthroughDone,
   readPostSplashLanguageSeen,
   writeFirstAppWalkthroughDone,
   writePostSplashLanguageSeen,
 } from "./lib/firstLaunchFlow";
-import { buildGoogleMapsUrl, openGoogleMapsUrl } from "./lib/googleMapsUrl";
+import { buildGoogleMapsNameSearchUrl, openGoogleMapsUrl } from "./lib/googleMapsUrl";
 
 const FIRST_APP_ONBOARDING_SLIDE_COUNT = 3;
 
@@ -117,7 +118,7 @@ const ASSUMED_FALLBACK_ADDRESS: CurrentAddress = {
 const GUEST_DISPLAY_NAME_KEY = "trad-trav-guest-display-name";
 
 function AppContent() {
-  const { t, language } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
   const [showSplash, setShowSplash] = useState(true);
@@ -153,6 +154,7 @@ function AppContent() {
   const mapTabTutorialRef = useRef<MapTabTutorialHandle | null>(null);
   const mannerTutorialRef = useRef<MannerTutorialHandle | null>(null);
   const mypageTutorialRef = useRef<MyPageTutorialHandle | null>(null);
+  const tutorialAdvancingRef = useRef(false);
   const [guestDisplayName, setGuestDisplayName] = useState("");
   const [playerProgress, setPlayerProgress] = useState<PlayerProgress>(() => defaultPlayerProgress());
   const locationWatchIdRef = useRef<number | null>(null);
@@ -192,12 +194,13 @@ function AppContent() {
 
   const handlePostSplashLanguageDismiss = useCallback(() => {
     writePostSplashLanguageSeen();
+    setLanguage(language);
     setShowPostSplashLanguage(false);
     if (!readFirstAppWalkthroughDone()) {
       setFirstAppWalkthroughStepIndex(0);
       setShowFirstAppWalkthrough(true);
     }
-  }, []);
+  }, [language, setLanguage]);
 
   const handleFirstWalkthroughSkip = useCallback(() => {
     writeFirstAppWalkthroughDone();
@@ -370,6 +373,24 @@ function AppContent() {
     clearGuestPlayerProgress();
     saveGuestPlayerProgress(fresh);
     setPlayerProgress(fresh);
+  }, [user?.id]);
+
+  const handleClearGuestStorageDev = useCallback(async () => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.removeItem(GUEST_DISPLAY_NAME_KEY);
+      window.localStorage.removeItem("trad-trav-helpful-favorites");
+      clearGuestPlayerProgress();
+      if (!user?.id) {
+        window.localStorage.removeItem("trad-trav-cosmetics-coins-v1");
+        resetTutorialProgress();
+        clearPostSplashLanguageSeen();
+        clearFirstAppWalkthroughDone();
+      }
+    } catch {
+      /* ignore */
+    }
+    window.location.reload();
   }, [user?.id]);
 
   useEffect(() => {
@@ -721,12 +742,14 @@ function AppContent() {
 
   const handleTutorialNext = useCallback(() => {
     if (!activeTutorialScreen || !activeTutorialStep) return;
+    if (tutorialAdvancingRef.current) return;
     const isLast = activeTutorialStepIndex >= activeTutorialSteps.length - 1;
     if (isLast) {
       completeTutorial(activeTutorialScreen);
       return;
     }
     const tid = activeTutorialStep.targetId;
+    tutorialAdvancingRef.current = true;
     if (activeTutorialScreen === "now") {
       if (tid === "now.location-update-button") {
         handleRequestLocationPermission();
@@ -738,7 +761,31 @@ function AppContent() {
     } else if (activeTutorialScreen === "mypage") {
       mypageTutorialRef.current?.applyTutorialAutomation(tid);
     }
-    setActiveTutorialStepIndex((prev) => prev + 1);
+
+    const nextStep = activeTutorialSteps[activeTutorialStepIndex + 1];
+    const nextTargetId = nextStep?.targetId;
+
+    const advance = () => {
+      setActiveTutorialStepIndex((prev) => prev + 1);
+      tutorialAdvancingRef.current = false;
+    };
+
+    if (!nextTargetId || typeof window === "undefined") {
+      advance();
+      return;
+    }
+
+    const started = Date.now();
+    const timeoutMs = 2400;
+    const poll = () => {
+      const exists = document.querySelector(`[data-tutorial-id="${nextTargetId}"]`);
+      if (exists || Date.now() - started >= timeoutMs) {
+        advance();
+        return;
+      }
+      window.setTimeout(poll, 80);
+    };
+    window.setTimeout(poll, 120);
   }, [
     activeTutorialScreen,
     activeTutorialStep,
@@ -824,10 +871,8 @@ function AppContent() {
   const handleJumpToSpot = useCallback((spotId: number, spotNameHint?: string) => {
     const spot = recommendedSpots.find((s) => s.id === spotId);
     const url = spot
-      ? buildGoogleMapsUrl({ lat: spot.lat, lng: spot.lng, label: spot.name })
-      : buildGoogleMapsUrl({
-          query: spotNameHint?.trim() ? `${spotNameHint.trim()} 宮城県` : undefined,
-        });
+      ? buildGoogleMapsNameSearchUrl(spot.name)
+      : buildGoogleMapsNameSearchUrl(spotNameHint?.trim() || "", "宮城県");
     openGoogleMapsUrl(url);
   }, []);
 
@@ -915,8 +960,8 @@ function AppContent() {
         />
       )}
 
-      {/* メインコンテンツ */}
-      {!showSplash && !showDiagnosis && (
+      {/* メインコンテンツ（言語選択・初回ガイドより後にマウント） */}
+      {!showSplash && !showDiagnosis && !showPostSplashLanguage && !showFirstAppWalkthrough && (
         <div className="flex h-full min-h-0 flex-col">
           <div className="relative min-h-0 flex-1">
             {tabsEverMounted.map && (
@@ -1009,6 +1054,9 @@ function AppContent() {
                   onClaimQuest={(questId) => void bumpPlayerProgress({ type: "quest_claim", questId })}
                   onResetPlayerProgressDev={
                     process.env.NODE_ENV === "development" ? handleResetPlayerProgressDev : undefined
+                  }
+                  onClearGuestStorageDev={
+                    process.env.NODE_ENV === "development" ? handleClearGuestStorageDev : undefined
                   }
                 />
               </div>

@@ -33,6 +33,8 @@ const BUBBLE_EST_HEIGHT_PX = 300;
 const BUBBLE_TARGET_GAP_PX = 16;
 /** 下部固定ボタン列のためのビューポート下端の予約（px） */
 const BOTTOM_UI_RESERVE_PX = 100;
+/** レイアウトのサブピクセル揺れで state を更新しない（吹き出しの点滅・振動防止） */
+const RECT_EPSILON_PX = 4;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -49,13 +51,22 @@ function getExpandedRect(rect: DOMRect): RectLike {
   const height = rect.height + SPOTLIGHT_PADDING * 2;
 
   return {
-    top,
-    left,
-    width,
-    height,
-    right: left + width,
-    bottom: top + height,
+    top: Math.round(top),
+    left: Math.round(left),
+    width: Math.round(width),
+    height: Math.round(height),
+    right: Math.round(left + width),
+    bottom: Math.round(top + height),
   };
+}
+
+function rectNearlyEqual(a: RectLike, b: RectLike, eps = RECT_EPSILON_PX): boolean {
+  return (
+    Math.abs(a.top - b.top) <= eps &&
+    Math.abs(a.left - b.left) <= eps &&
+    Math.abs(a.width - b.width) <= eps &&
+    Math.abs(a.height - b.height) <= eps
+  );
 }
 
 export default function TutorialOverlay({
@@ -76,6 +87,8 @@ export default function TutorialOverlay({
   const [mounted, setMounted] = useState(false);
   /** 同一ステップで scrollIntoView を繰り返さない（要素が遅れて出る場合は interval で再試行） */
   const scrolledForStepRef = useRef("");
+  const lastCommittedRectRef = useRef<RectLike | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -83,48 +96,81 @@ export default function TutorialOverlay({
 
   useEffect(() => {
     scrolledForStepRef.current = "";
+    lastCommittedRectRef.current = null;
     const scrollKey = `${targetId}:${stepIndex}`;
 
-    const updatePosition = () => {
-      setViewport({
-        width: window.innerWidth,
-        height: window.innerHeight,
+    const commitRect = (next: RectLike | null) => {
+      if (next == null) {
+        if (lastCommittedRectRef.current !== null) {
+          lastCommittedRectRef.current = null;
+          setTargetRect(null);
+        }
+        return;
+      }
+      const prev = lastCommittedRectRef.current;
+      if (prev != null && rectNearlyEqual(prev, next)) {
+        return;
+      }
+      lastCommittedRectRef.current = next;
+      setTargetRect(next);
+    };
+
+    const measure = () => {
+      const vw = Math.round(window.innerWidth);
+      const vh = Math.round(window.innerHeight);
+      setViewport((prev) => {
+        if (prev.width === vw && prev.height === vh) return prev;
+        return { width: vw, height: vh };
       });
 
       const element = getTutorialTarget(targetId);
       if (!element) {
-        setTargetRect(null);
+        commitRect(null);
         return;
       }
 
       if (scrolledForStepRef.current !== scrollKey) {
         scrolledForStepRef.current = scrollKey;
-        element.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
-        window.setTimeout(updatePosition, 450);
+        element.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(scheduleMeasure);
+        });
       }
 
-      setTargetRect(getExpandedRect(element.getBoundingClientRect()));
+      commitRect(getExpandedRect(element.getBoundingClientRect()));
     };
 
-    updatePosition();
+    const scheduleMeasure = () => {
+      if (rafRef.current != null) return;
+      rafRef.current = window.requestAnimationFrame(() => {
+        rafRef.current = null;
+        measure();
+      });
+    };
+
+    measure();
 
     const handleScroll = () => {
-      updatePosition();
+      scheduleMeasure();
     };
 
-    window.addEventListener("resize", updatePosition);
+    window.addEventListener("resize", scheduleMeasure);
     window.addEventListener("scroll", handleScroll, true);
-    const intervalId = window.setInterval(updatePosition, 250);
+    const intervalId = window.setInterval(scheduleMeasure, 400);
 
     let observer: ResizeObserver | null = null;
     const target = getTutorialTarget(targetId);
     if (target && typeof ResizeObserver !== "undefined") {
-      observer = new ResizeObserver(() => updatePosition());
+      observer = new ResizeObserver(() => scheduleMeasure());
       observer.observe(target);
     }
 
     return () => {
-      window.removeEventListener("resize", updatePosition);
+      if (rafRef.current != null) {
+        window.cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      window.removeEventListener("resize", scheduleMeasure);
       window.removeEventListener("scroll", handleScroll, true);
       window.clearInterval(intervalId);
       observer?.disconnect();

@@ -5,6 +5,7 @@ import type { Spot, SpotInfoType } from "../data/spots";
 import {
   ClockIcon,
   LocationIcon,
+  MapPinIcon,
   GlobeIcon,
   PhoneIcon,
   PriceIcon,
@@ -20,6 +21,7 @@ import {
 import { MAIN_TAB_BAR_BOTTOM_INSET } from "./BottomNavigation";
 import { useLanguage } from "../i18n/LanguageContext";
 import { isPlacePhotoKnownFailed, markPlacePhotoFailed } from "../lib/placePhotoLoadCache";
+import { buildGoogleMapsNameSearchUrl } from "../lib/googleMapsUrl";
 
 interface SpotDetailSheetProps {
   spot: Spot | null;
@@ -30,6 +32,8 @@ interface SpotDetailSheetProps {
   onOpenLanguageHelper?: (spotName: string) => void;
   /** Google マップで場所を開く */
   onShowMap?: () => void;
+  /** マップ検索クエリに付ける地域（例: 宮城県）。未指定なら施設名のみ */
+  googleMapsSearchRegionHint?: string;
   /** お役立ちの豆知識・旅ガイド（体験前の流れなど）へ */
   onOpenReservationGuide?: () => void;
   /**
@@ -211,6 +215,7 @@ function InfoListItem({
 const InfoIcons: Record<SpotInfoType, React.ReactNode> = {
   hours: <ClockIcon />,
   address: <LocationIcon />,
+  maps: <MapPinIcon />,
   website: <GlobeIcon />,
   phone: <PhoneIcon />,
   price: <PriceIcon />,
@@ -222,7 +227,16 @@ const InfoIcons: Record<SpotInfoType, React.ReactNode> = {
 };
 
 // リンクになる情報タイプ
-function getHrefForInfo(type: SpotInfoType, value: string): string | undefined {
+function getHrefForInfo(
+  type: SpotInfoType,
+  value: string,
+  opts?: { spotName?: string; mapsRegionHint?: string }
+): string | undefined {
+  if (type === "maps") {
+    const name = opts?.spotName?.trim();
+    if (name) return buildGoogleMapsNameSearchUrl(name, opts?.mapsRegionHint);
+    return value.startsWith("http") ? value : undefined;
+  }
   if (type === "website") return value;
   if (type === "phone") return `tel:${value}`;
   if (type === "reservation" && value.startsWith("http")) return value;
@@ -230,8 +244,12 @@ function getHrefForInfo(type: SpotInfoType, value: string): string | undefined {
 }
 
 // 表示用のテキストを取得
-function getDisplayText(type: SpotInfoType, value: string): string {
-  if (type === "website") {
+function getDisplayText(type: SpotInfoType, value: string, spotName?: string): string {
+  if (type === "maps") {
+    const n = spotName?.trim();
+    if (n) return n;
+  }
+  if (type === "maps" || type === "website") {
     try {
       return new URL(value).hostname.replace("www.", "");
     } catch {
@@ -252,11 +270,13 @@ function OverviewTab({
   isLoadingInfo,
   onShowMap,
   onOpenReservationGuide,
+  googleMapsSearchRegionHint,
 }: {
   spot: Spot;
   isLoadingInfo?: boolean;
   onShowMap?: () => void;
   onOpenReservationGuide?: () => void;
+  googleMapsSearchRegionHint?: string;
 }) {
   const { t } = useLanguage();
   // 予約以外の情報をフィルタリング
@@ -289,7 +309,7 @@ function OverviewTab({
             style={{ marginTop: "16px", backgroundColor: "#e88fa3" }}
           >
             <span className="flex min-w-0 justify-end" aria-hidden>
-              <LocationIcon size={20} color="#ffffff" />
+              <MapPinIcon size={20} color="#ffffff" />
             </span>
             <span className="whitespace-nowrap text-center">{t.spotDetail.openInGoogleMaps}</span>
             <span className="min-w-0" aria-hidden />
@@ -341,16 +361,19 @@ function OverviewTab({
             <InfoListItem 
               key={`${info.type}-${index}`}
               icon={InfoIcons[info.type]}
-              href={getHrefForInfo(info.type, info.value)}
+              href={getHrefForInfo(info.type, info.value, {
+                spotName: spot.name,
+                mapsRegionHint: googleMapsSearchRegionHint,
+              })}
               isLast={index === infosWithoutReservation.length - 1}
               alignTop={info.type === "address" || info.type === "access" || info.type === "hours"}
             >
               {info.type === "hours" ? (
                 <span style={{ whiteSpace: "pre-line" }}>
-                  {formatOpeningHoursForDisplay(getDisplayText(info.type, info.value))}
+                  {formatOpeningHoursForDisplay(getDisplayText(info.type, info.value, spot.name))}
                 </span>
               ) : (
-                getDisplayText(info.type, info.value)
+                getDisplayText(info.type, info.value, spot.name)
               )}
             </InfoListItem>
           ))
@@ -538,6 +561,7 @@ export default function SpotDetailSheet({
   isLoadingInfo = false,
   onOpenLanguageHelper,
   onShowMap,
+  googleMapsSearchRegionHint,
   onOpenReservationGuide,
   reserveMainBottomNav = true,
   onTutorialAction,
@@ -809,6 +833,7 @@ export default function SpotDetailSheet({
               isLoadingInfo={isLoadingInfo}
               onShowMap={onShowMap}
               onOpenReservationGuide={onOpenReservationGuide}
+              googleMapsSearchRegionHint={googleMapsSearchRegionHint}
             />
           )}
           {activeTab === "reviews" && <ReviewsTab spot={spot} />}

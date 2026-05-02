@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    console.log("GoogleAPI called");
     const res = await fetch(
       `https://maps.googleapis.com/maps/api/geocode/json?latlng=${encodeURIComponent(lat)},${encodeURIComponent(lng)}&language=${encodeURIComponent(language)}&region=jp&key=${encodeURIComponent(apiKey)}`,
       {

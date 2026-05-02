@@ -143,6 +143,7 @@ async function searchTextMiyagiExpansion(
   textQuery: string,
   placesLanguageCode: string
 ): Promise<GoogleTextSearchPlace[]> {
+  console.log("GoogleAPI called");
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
@@ -250,6 +251,7 @@ async function fetchPhotoNameByTextSearch(
   locationBias?: { lat: number; lng: number }
 ): Promise<string | null> {
   const textQuery = queryBase.includes("宮城") ? queryBase : `${queryBase} 宮城県`;
+  console.log("GoogleAPI called");
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
@@ -341,6 +343,7 @@ async function ensureCuratedPhotos(
 
 async function getCuratedPlace(apiKey: string, placeId: string, placesLanguageCode: string) {
   const id = normalizePlaceIdForV1(placeId);
+  console.log("GoogleAPI called");
   const res = await fetch(
     `https://places.googleapis.com/v1/places/${encodeURIComponent(id)}?languageCode=${encodeURIComponent(placesLanguageCode)}&regionCode=JP`,
     {
@@ -382,6 +385,7 @@ async function searchCuratedPlaceByText(
   fallbackName: string,
   placesLanguageCode: string
 ) {
+  console.log("GoogleAPI called");
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {

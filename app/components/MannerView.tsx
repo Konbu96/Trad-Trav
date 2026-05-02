@@ -48,6 +48,10 @@ function isTopicStepGuideDetail(detail: HelpfulDetail | null): detail is Extract
   return detail?.kind === "topic" && Boolean(detail.topic.guideSteps?.length);
 }
 
+function isFullScreenHelpfulDetail(detail: HelpfulDetail | null): boolean {
+  return Boolean(detail && (detail.kind === "manner" || detail.kind === "mannerItem" || isTopicStepGuideDetail(detail)));
+}
+
 function tabParamToHelpfulTabId(value: string | null): HelpfulTabId {
   if (value === "manner") return "manner";
   if (value === "trivia") return "trivia";
@@ -85,6 +89,8 @@ const MannerView = forwardRef<MannerTutorialHandle, MannerViewProps>(function Ma
   const [helperMessages, setHelperMessages] = useState<HelperMessage[]>([]);
   const [helperLoading, setHelperLoading] = useState(false);
   const closeTimerRef = useRef<number | null>(null);
+  /** router.replace 後、searchParams がまだ古い間は true（その間は state を URL で復元しない） */
+  const pendingDetailCloseRef = useRef(false);
   const visibleDetailRef = useRef<HelpfulDetail | null>(null);
   const isClosingDetailRef = useRef(false);
   const [visibleDetail, setVisibleDetail] = useState<HelpfulDetail | null>(() => {
@@ -153,8 +159,19 @@ const MannerView = forwardRef<MannerTutorialHandle, MannerViewProps>(function Ma
   }, [selectedDetailParam, isClosingDetail]);
 
   useEffect(() => {
+    if (!pendingDetailCloseRef.current) return;
+    const d = getHelpfulDetail(selectedDetailParam);
+    if (!isFullScreenHelpfulDetail(d)) {
+      pendingDetailCloseRef.current = false;
+      setVisibleDetail(null);
+      setIsClosingDetail(false);
+    }
+  }, [selectedDetailParam]);
+
+  useEffect(() => {
     if (!preferredTab) return;
 
+    pendingDetailCloseRef.current = false;
     setActiveTab(preferredTab);
     setVisibleDetail(null);
     setIsClosingDetail(false);
@@ -220,6 +237,7 @@ const MannerView = forwardRef<MannerTutorialHandle, MannerViewProps>(function Ma
   }, []);
 
   const handleChangeTab = (nextTab: HelpfulTabId) => {
+    pendingDetailCloseRef.current = false;
     setActiveTab(nextTab);
     const params = new URLSearchParams(searchParams.toString());
     params.set("guideTab", nextTab);
@@ -238,6 +256,7 @@ const MannerView = forwardRef<MannerTutorialHandle, MannerViewProps>(function Ma
       window.clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
+    pendingDetailCloseRef.current = false;
 
     if (nextDetail.kind === "topic") {
       const topicTab = nextDetail.topic.tabId;
@@ -286,6 +305,7 @@ const MannerView = forwardRef<MannerTutorialHandle, MannerViewProps>(function Ma
   };
 
   const closeDetailPage = () => {
+    pendingDetailCloseRef.current = false;
     setIsClosingDetail(true);
     if (closeTimerRef.current) {
       window.clearTimeout(closeTimerRef.current);
@@ -295,8 +315,7 @@ const MannerView = forwardRef<MannerTutorialHandle, MannerViewProps>(function Ma
       params.delete("guideDetail");
       params.delete("manner");
       const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-      setVisibleDetail(null);
-      setIsClosingDetail(false);
+      pendingDetailCloseRef.current = true;
       router.replace(nextUrl, { scroll: false });
       closeTimerRef.current = null;
     }, DETAIL_ANIMATION_MS);

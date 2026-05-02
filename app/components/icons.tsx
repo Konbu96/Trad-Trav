@@ -31,6 +31,16 @@ export function LocationIcon({ size = defaultProps.size, color = defaultProps.co
   );
 }
 
+// マップピン（Googleマップで開く等）— 外枠は涙型、中央に丸で LocationIcon と差をつける
+export function MapPinIcon({ size = defaultProps.size, color = defaultProps.color }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 21s-8-4.35-8-11a8 8 0 1 1 16 0c0 6.65-8 11-8 11z" />
+      <circle cx="12" cy="9" r="2.5" />
+    </svg>
+  );
+}
+
 // 地球アイコン（Webサイト）
 export function GlobeIcon({ size = defaultProps.size, color = defaultProps.color }: IconProps) {
   return (

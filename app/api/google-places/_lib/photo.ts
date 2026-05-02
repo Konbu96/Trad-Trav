@@ -88,6 +88,7 @@ export async function fetchPlacePhotoImage(apiKey: string, photoName: string): P
   const requestUrl = `https://places.googleapis.com/v1/${pathCore}/media?${params.toString()}`;
 
   try {
+    console.log("GoogleAPI called");
     const res = await fetch(requestUrl, {
       redirect: "follow",
       cache: "no-store",
@@ -119,6 +120,7 @@ export async function fetchPlacePhotoImage(apiKey: string, photoName: string): P
           return null;
         }
         const photoUri = normalizePhotoUri(raw);
+        console.log("GoogleAPI called");
         const imgRes = await fetch(photoUri, { redirect: "follow", cache: "no-store" });
         if (!imgRes.ok) {
           return null;
@@ -153,6 +155,7 @@ export async function getPhotoUri(apiKey: string, photoName: string) {
   const requestUrl = `https://places.googleapis.com/v1/${pathCore}/media?${params.toString()}`;
 
   try {
+    console.log("GoogleAPI called");
     const res = await fetch(requestUrl, {
       cache: "no-store",
       redirect: "manual",

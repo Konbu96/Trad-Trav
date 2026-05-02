@@ -3,6 +3,21 @@
 import { useState } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
 import type { TraditionalGenreId } from "../data/traditionalGenres";
+import type { Review } from "../data/spots";
+
+export type LocalizedSearchLocationFields = {
+  name?: string;
+  formattedAddress?: string;
+  summary?: string;
+  overview?: string;
+  generativeOverview?: string;
+  generativeOverviewDisclosure?: string;
+  reviewSummary?: string;
+  reviewSummaryDisclosure?: string;
+  primaryTypeDisplayName?: string;
+  reviews?: Review[];
+  hours?: string;
+};
 
 // 検索結果の位置情報の型
 export interface SearchLocation {
@@ -13,13 +28,31 @@ export interface SearchLocation {
   formattedAddress?: string;
   photos?: string[];
   summary?: string;
+  /** Places の editorial summary（概要の先頭説明） */
+  overview?: string;
+  /** Places の AI 施設要約（generativeSummary.overview） */
+  generativeOverview?: string;
+  generativeOverviewDisclosure?: string;
+  /** Places の口コミ要約（reviewSummary） */
+  reviewSummary?: string;
+  reviewSummaryDisclosure?: string;
+  rating?: number;
+  userRatingCount?: number;
+  /** Places の primaryType の表示名（言語に応じた短いラベル） */
+  primaryTypeDisplayName?: string;
+  localized?: Partial<Record<"en" | "zh" | "ko", LocalizedSearchLocationFields>>;
+  reviews?: Review[];
+  hours?: string;
+  website?: string;
+  phone?: string;
+  mapsUrl?: string;
   officialSourceUrl?: string;
   genreLabel?: string;
   /** 伝統文化の大分類（なう情報の近傍体験施設など） */
   traditionalGenre?: TraditionalGenreId;
   /** 一覧などで見せる具体的な体験・行事ラベル（例: 陶芸体験、地域祭り） */
   experienceCategory?: string;
-  source?: "google";
+  source?: "google" | "local";
   osm_id?: number;
   osm_type?: string;
   category?: string;

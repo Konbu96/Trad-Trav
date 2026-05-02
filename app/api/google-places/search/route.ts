@@ -181,6 +181,7 @@ function getExperienceScore(place: GoogleTextSearchPlace, query: string) {
 }
 
 async function searchPlaces(apiKey: string, textQuery: string, placesLanguageCode: string) {
+  console.log("GoogleAPI called");
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {

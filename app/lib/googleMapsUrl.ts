@@ -1,4 +1,22 @@
 /**
+ * 施設名で Google マップの検索結果を開く（テキスト検索）。
+ * @param regionHint 例: `宮城県`。名前に既に含まれていれば付与しない。
+ * @see https://developers.google.com/maps/documentation/urls/get-started
+ */
+export function buildGoogleMapsNameSearchUrl(spotName: string, regionHint?: string): string {
+  const name = spotName.trim();
+  const hint = regionHint?.trim();
+  let query = name;
+  if (hint && name && !name.includes(hint)) {
+    query = `${name} ${hint}`;
+  }
+  if (!query) {
+    query = hint || "宮城県";
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
+/**
  * Build a Google Maps (web) URL. Prefer place_id when available for accuracy.
  * @see https://developers.google.com/maps/documentation/urls/get-started
  */

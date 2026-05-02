@@ -124,6 +124,8 @@ interface MyPageViewProps {
   onClaimQuest?: (questId: string) => void;
   /** 開発時のみ: 経験値・クエスト等を初期化 */
   onResetPlayerProgressDev?: () => void | Promise<void>;
+  /** 開発時のみ: ゲスト向け localStorage 等を消去して再読み込み */
+  onClearGuestStorageDev?: () => void | Promise<void>;
 }
 
 const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function MyPageView(
@@ -153,6 +155,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
     playerProgress: playerProgressProp,
   onClaimQuest,
   onResetPlayerProgressDev,
+  onClearGuestStorageDev,
   },
   ref
 ) {
@@ -645,7 +648,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
           )}
         </div>
 
-        {onResetPlayerProgressDev && (
+        {(onResetPlayerProgressDev || onClearGuestStorageDev) && (
           <div
             style={{
               marginTop: "12px",
@@ -667,31 +670,72 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
             >
               {t.mypage.developerToolsSection}
             </p>
-            <p style={{ fontSize: "11px", color: "#6b7280", lineHeight: 1.65, marginBottom: "12px" }}>
-              {t.mypage.developerQuestResetHelp}
-            </p>
-            <button
-              type="button"
-              onClick={async () => {
-                if (typeof window !== "undefined" && !window.confirm(t.mypage.developerQuestResetConfirm)) {
-                  return;
-                }
-                await onResetPlayerProgressDev();
-              }}
-              style={{
-                width: "100%",
-                borderRadius: "12px",
-                border: "1px solid #fecdd3",
-                backgroundColor: "#fdf2f8",
-                color: "#9d174d",
-                padding: "10px 14px",
-                fontSize: "12px",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              {t.mypage.developerQuestResetButton}
-            </button>
+            {onResetPlayerProgressDev && (
+              <>
+                <p style={{ fontSize: "11px", color: "#6b7280", lineHeight: 1.65, marginBottom: "12px" }}>
+                  {t.mypage.developerQuestResetHelp}
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (typeof window !== "undefined" && !window.confirm(t.mypage.developerQuestResetConfirm)) {
+                      return;
+                    }
+                    await onResetPlayerProgressDev();
+                  }}
+                  style={{
+                    width: "100%",
+                    borderRadius: "12px",
+                    border: "1px solid #fecdd3",
+                    backgroundColor: "#fdf2f8",
+                    color: "#9d174d",
+                    padding: "10px 14px",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  {t.mypage.developerQuestResetButton}
+                </button>
+              </>
+            )}
+            {onClearGuestStorageDev && (
+              <>
+                <p
+                  style={{
+                    fontSize: "11px",
+                    color: "#6b7280",
+                    lineHeight: 1.65,
+                    marginBottom: "12px",
+                    marginTop: onResetPlayerProgressDev ? "14px" : 0,
+                  }}
+                >
+                  {t.mypage.developerGuestStorageClearHelp}
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (typeof window !== "undefined" && !window.confirm(t.mypage.developerGuestStorageClearConfirm)) {
+                      return;
+                    }
+                    await onClearGuestStorageDev();
+                  }}
+                  style={{
+                    width: "100%",
+                    borderRadius: "12px",
+                    border: "1px solid #bfdbfe",
+                    backgroundColor: "#eff6ff",
+                    color: "#1e40af",
+                    padding: "10px 14px",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  {t.mypage.developerGuestStorageClearButton}
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

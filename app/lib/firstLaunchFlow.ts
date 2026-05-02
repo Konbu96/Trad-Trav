@@ -49,3 +49,13 @@ export function writeFirstAppWalkthroughDone(): void {
     /* ignore */
   }
 }
+
+/** 開発用リセットなどで、初回タブガイドを再度表示できるようにする */
+export function clearFirstAppWalkthroughDone(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(FIRST_APP_WALKTHROUGH_DONE_KEY);
+  } catch {
+    /* ignore */
+  }
+}

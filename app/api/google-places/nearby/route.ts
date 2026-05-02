@@ -107,6 +107,7 @@ async function searchNearbyContext(
   longitude: number,
   placesLanguageCode: string
 ) {
+  console.log("GoogleAPI called");
   const res = await fetch("https://places.googleapis.com/v1/places:searchNearby", {
     method: "POST",
     headers: {
@@ -156,6 +157,7 @@ async function searchExperiencePlaces(
   textQuery: string,
   placesLanguageCode: string
 ) {
+  console.log("GoogleAPI called");
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {

@@ -264,6 +264,11 @@ const translationsJaEn = {
       developerQuestResetButton: "クエスト・経験値をリセット",
       developerQuestResetConfirm:
         "クエストと経験値を初期状態に戻します。よろしいですか？（この操作は取り消せません）",
+      developerGuestStorageClearHelp:
+        "未ログイン時: 表示名・「ためになる」お気に入り・端末上のプレイヤー進捗・着せ替えコイン・タブチュートリアル進捗に加え、スプラッシュ直後の言語選択と初回タブガイドの「済み」記録も消して再読み込みします（次回は言語選択から始まります）。ログイン中は端末に残ったゲスト用キーのみ削除し、クラウドのデータは変わりません。",
+      developerGuestStorageClearButton: "ゲスト端末データをクリア",
+      developerGuestStorageClearConfirm:
+        "ゲスト向けの端末保存データを削除して再読み込みします。よろしいですか？",
 
       locationSectionTitle: "位置情報の利用",
       locationSectionLead:
@@ -467,6 +472,9 @@ const translationsJaEn = {
       genreCraft: "工芸・手しごと",
       genreDefault: "工芸・手しごと",
       spotDescriptionFallback: "{category}を楽しめるスポットです。",
+      spotIntroGoogleRatingWithCount: "Google {rating} · 口コミ {count}件",
+      spotIntroGoogleRatingOnly: "Google {rating}",
+      spotIntroAiNote: "※ {text}",
       mapAria: "Googleマップで開く",
       guideAria: "ガイドへ",
       mapLabel: "Googleマップ",
@@ -927,6 +935,11 @@ const translationsJaEn = {
       developerQuestResetButton: "Reset quests & XP",
       developerQuestResetConfirm:
         "Reset quests and XP to a fresh state? This cannot be undone.",
+      developerGuestStorageClearHelp:
+        "When signed out: clears display name, helpful favorites, guest player progress, dress-up coins, and tab tutorial progress, and resets the post-splash language prompt and first tab onboarding flags so the next launch starts from language selection again, then reloads. When signed in, only leftover guest keys on the device are removed; cloud data is unchanged.",
+      developerGuestStorageClearButton: "Clear guest device data",
+      developerGuestStorageClearConfirm:
+        "Delete guest data stored on this device and reload the page?",
 
       locationSectionTitle: "Location",
       locationSectionLead:
@@ -1135,6 +1148,9 @@ const translationsJaEn = {
       genreCraft: "Crafts & hands-on",
       genreDefault: "Crafts & hands-on",
       spotDescriptionFallback: "A place to enjoy {category}.",
+      spotIntroGoogleRatingWithCount: "Google {rating} · {count} reviews",
+      spotIntroGoogleRatingOnly: "Google {rating}",
+      spotIntroAiNote: "※ {text}",
       mapAria: "Open in Google Maps",
       guideAria: "Open guide",
       mapLabel: "Google Maps",

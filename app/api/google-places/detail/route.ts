@@ -18,13 +18,29 @@ type GooglePlacePhoto = {
   name?: string;
 };
 
+type LocalizedText = { text?: string };
+
 type GooglePlaceDetailResponse = {
   displayName?: { text?: string };
   formattedAddress?: string;
   primaryType?: string;
+  primaryTypeDisplayName?: LocalizedText;
   websiteUri?: string;
   nationalPhoneNumber?: string;
   googleMapsUri?: string;
+  editorialSummary?: LocalizedText;
+  generativeSummary?: {
+    overview?: LocalizedText;
+    /** 旧レスポンス互換 */
+    disclaimerText?: LocalizedText;
+    disclosureText?: LocalizedText;
+  };
+  reviewSummary?: {
+    text?: LocalizedText;
+    disclosureText?: LocalizedText;
+  };
+  rating?: number;
+  userRatingCount?: number;
   regularOpeningHours?: {
     weekdayDescriptions?: string[];
   };
@@ -54,6 +70,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const id = placeId.replace(/^places\//, "");
+    console.log("GoogleAPI called");
     const res = await fetch(
       `https://places.googleapis.com/v1/places/${encodeURIComponent(id)}?languageCode=${encodeURIComponent(languageCode)}&regionCode=JP`,
       {
@@ -63,9 +80,15 @@ export async function GET(req: NextRequest) {
             "displayName",
             "formattedAddress",
             "primaryType",
+            "primaryTypeDisplayName",
             "websiteUri",
             "nationalPhoneNumber",
             "googleMapsUri",
+            "editorialSummary",
+            "generativeSummary",
+            "reviewSummary",
+            "rating",
+            "userRatingCount",
             "regularOpeningHours.weekdayDescriptions",
             "reviews",
             "photos",
@@ -103,10 +126,25 @@ export async function GET(req: NextRequest) {
 
     const name = await maybeTranslateJapanesePlaceName(data.displayName?.text, appLang);
 
+    const generativeOverview = data.generativeSummary?.overview?.text?.trim();
+    const generativeDisc =
+      data.generativeSummary?.disclosureText?.text?.trim() ||
+      data.generativeSummary?.disclaimerText?.text?.trim();
+    const reviewSummary = data.reviewSummary?.text?.text?.trim();
+    const reviewDisc = data.reviewSummary?.disclosureText?.text?.trim();
+
     return NextResponse.json({
       name,
       address: data.formattedAddress,
       category: data.primaryType,
+      primaryTypeDisplayName: data.primaryTypeDisplayName?.text?.trim(),
+      overview: data.editorialSummary?.text?.trim(),
+      generativeOverview: generativeOverview || undefined,
+      generativeOverviewDisclosure: generativeDisc || undefined,
+      reviewSummary: reviewSummary || undefined,
+      reviewSummaryDisclosure: reviewDisc || undefined,
+      rating: typeof data.rating === "number" ? data.rating : undefined,
+      userRatingCount: typeof data.userRatingCount === "number" ? data.userRatingCount : undefined,
       phone: data.nationalPhoneNumber,
       website: data.websiteUri,
       mapsUrl: data.googleMapsUri,

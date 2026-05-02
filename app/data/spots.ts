@@ -2,6 +2,7 @@
 export type SpotInfoType = 
   | "hours"       // 営業時間
   | "address"     // 住所
+  | "maps"        // Googleマップ
   | "website"     // Webサイト
   | "phone"       // 電話番号
   | "price"       // 料金
@@ -34,6 +35,8 @@ export interface Spot {
   infos: SpotInfo[];  // 情報をリストで管理
   photos?: string[];
   videos?: string[];
+  /** キュレーションの summary。詳細 API で本文を組み直すときに再マージする */
+  curatedSummary?: string;
 }
 
 export interface Review {
