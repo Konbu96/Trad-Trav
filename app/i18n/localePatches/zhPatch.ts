@@ -154,6 +154,7 @@ export const zhPatch = {
     playerQuestDoneSaved: "已完成",
     playerQuestClaimablePoints: "+{xp} 积分",
     playerQuestClaimToast: "达成！获得 {n} 积分！",
+    playerQuestClaimAll: "一键领取",
     playerXpGainLine: "获得经验值",
     playerRewardTapToContinue: "点击继续",
     cosmeticsShopTitle: "装扮商店",

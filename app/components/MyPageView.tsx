@@ -122,6 +122,8 @@ interface MyPageViewProps {
   playerProgress?: PlayerProgress;
   /** クエスト報酬の受け取り（「達成」押下） */
   onClaimQuest?: (questId: string) => void;
+  /** 表示中タブで達成済み・未受け取りのクエストを一括受け取り */
+  onClaimAllQuestsInCategory?: (category: QuestCategory) => void | Promise<void>;
   /** 開発時のみ: 経験値・クエスト等を初期化 */
   onResetPlayerProgressDev?: () => void | Promise<void>;
   /** 開発時のみ: ゲスト向け localStorage 等を消去して再読み込み */
@@ -154,6 +156,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
     onSaveDisplayName,
     playerProgress: playerProgressProp,
   onClaimQuest,
+  onClaimAllQuestsInCategory,
   onResetPlayerProgressDev,
   onClearGuestStorageDev,
   },
@@ -253,6 +256,15 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
   const questUnclaimedBadges = useMemo(
     () => getQuestUnclaimedBadgeCounts(playerProgress),
     [playerProgress]
+  );
+
+  const claimableQuestRowsInTab = useMemo(
+    () => questRowsSorted.filter((r) => r.done && !r.rewardClaimed),
+    [questRowsSorted]
+  );
+  const claimableQuestXpSumInTab = useMemo(
+    () => claimableQuestRowsInTab.reduce((sum, r) => sum + r.quest.xpReward, 0),
+    [claimableQuestRowsInTab]
   );
 
   const levelBarPercent =
@@ -1553,7 +1565,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                   </p>
                 ) : null}
               </div>
-            ) : resolvedDisplayName || user ? (
+            ) : (
               <button
                 type="button"
                 onClick={beginEditName}
@@ -1568,12 +1580,13 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                   alignItems: "center",
                   gap: "8px",
                   padding: 0,
+                  textAlign: "left",
                 }}
               >
-                {resolvedDisplayName || (user ? t.mypage.guest : "")}
+                {user ? resolvedDisplayName : resolvedDisplayName || t.mypage.editName}
                 <span style={{ fontSize: "14px", opacity: 0.7 }}>✏️</span>
               </button>
-            ) : null}
+            )}
             {user ? (
               <p style={{ fontSize: "13px", color: "#4b5563", marginTop: "4px" }}>
                 {t.mypage.accountDisplayNameLabel}
@@ -1825,6 +1838,40 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
               })}
             </div>
           </div>
+          {claimableQuestRowsInTab.length > 0 ? (
+            <button
+              type="button"
+              disabled={!onClaimAllQuestsInCategory}
+              onClick={() => {
+                setXpGainOverlay({ xp: claimableQuestXpSumInTab });
+                void onClaimAllQuestsInCategory?.(questCategory);
+              }}
+              style={{
+                width: "100%",
+                marginBottom: "12px",
+                border: "none",
+                borderRadius: "14px",
+                padding: "12px 14px",
+                fontSize: "13px",
+                fontWeight: 800,
+                cursor: onClaimAllQuestsInCategory ? "pointer" : "default",
+                opacity: onClaimAllQuestsInCategory ? 1 : 0.55,
+                background: "linear-gradient(135deg, #fbcfe8 0%, #e88fa3 55%, #f472b6 100%)",
+                color: "white",
+                boxShadow: onClaimAllQuestsInCategory ? "0 4px 14px rgba(232,143,163,0.35)" : "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                flexWrap: "wrap",
+              }}
+            >
+              <span>{t.mypage.playerQuestClaimAll}</span>
+              <span style={{ fontWeight: 900, opacity: 0.95 }}>
+                {t.mypage.playerQuestClaimablePoints.replace("{xp}", String(claimableQuestXpSumInTab))}
+              </span>
+            </button>
+          ) : null}
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {questRowsSorted.map(({ quest, done, rewardClaimed, current, target }) => {
               const byId = t.mypage.questById[quest.id as keyof typeof t.mypage.questById];

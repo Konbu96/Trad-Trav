@@ -154,6 +154,7 @@ export const koPatch = {
     playerQuestDoneSaved: "완료됨",
     playerQuestClaimablePoints: "+{xp} 포인트",
     playerQuestClaimToast: "달성! {n} 포인트 획득!",
+    playerQuestClaimAll: "한 번에 받기",
     playerXpGainLine: "경험치를 획득했습니다",
     playerRewardTapToContinue: "탭하여 계속",
     cosmeticsShopTitle: "꾸미기 상점",
