@@ -3,7 +3,7 @@
 import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
 import { LANGUAGE_PICKER_ROW_LABEL } from "../i18n/languagePickerLabels";
-import { ClockIcon, DefaultAvatarIcon, GearIcon, HeartIcon, PenIcon } from "./icons";
+import { ClockIcon, GearIcon, HeartIcon, PenIcon } from "./icons";
 import { TIPS_TOPICS } from "../data/helpfulInfo";
 import { recommendedSpots } from "../data/spots";
 import { localizeHelpfulCard } from "../lib/localizeHelpfulLibrary";
@@ -13,6 +13,15 @@ import {
   loadCosmeticsCoins,
   saveCosmeticsCoins,
 } from "../lib/cosmeticsCoins";
+import {
+  AVATAR_FRAME_SHOP_ITEMS,
+  AVATAR_SHOP_ITEMS,
+  AVATAR_SHOP_PRICE,
+  addPurchasedAvatarFrameId,
+  addPurchasedShopAvatarId,
+  loadPurchasedAvatarFrameIds,
+  loadPurchasedShopAvatarIds,
+} from "../lib/avatarShop";
 import { locationIssueMessage } from "../lib/locationIssue";
 import type { LocationIssueCode } from "../lib/locationIssue";
 import {
@@ -39,6 +48,74 @@ interface ViewHistoryItem {
 }
 
 type MypagePanel = "main" | "history" | "favorites" | "settings" | "cosmetics" | "editDisplayName";
+
+const FREE_AVATAR_OPTIONS = [
+  { id: "preset-1", src: "/avatar-presets/preset-1.png" },
+  { id: "preset-2", src: "/avatar-presets/preset-2.png" },
+  { id: "preset-3", src: "/avatar-presets/preset-3.png" },
+  { id: "preset-4", src: "/avatar-presets/preset-4.png" },
+  { id: "preset-5", src: "/avatar-presets/preset-5.png" },
+] as const;
+const AVATAR_PRESET_STORAGE_KEY = "trad-trav-avatar-preset-id";
+const AVATAR_FRAME_STORAGE_KEY = "trad-trav-avatar-frame-id";
+const NO_AVATAR_FRAME_ID = "frame-none";
+
+const FREE_AVATAR_FRAME_OPTIONS = [
+  { id: "free-frame-pink", src: "/avatar-frames/free-pink.png" },
+  { id: "free-frame-yellow", src: "/avatar-frames/free-yellow.png" },
+  { id: "free-frame-purple", src: "/avatar-frames/free-purple.png" },
+  { id: "free-frame-green", src: "/avatar-frames/free-green.png" },
+  { id: "free-frame-blue", src: "/avatar-frames/free-blue.png" },
+] as const;
+
+function shopAvatarLabel(
+  id: string,
+  m: {
+    avatarShopNameKappa: string;
+    avatarShopNameKitsune: string;
+    avatarShopNameManeki: string;
+    avatarShopNameTengu: string;
+    avatarShopNameTanuki: string;
+  }
+): string {
+  switch (id) {
+    case "shop-kappa":
+      return m.avatarShopNameKappa;
+    case "shop-kitsune":
+      return m.avatarShopNameKitsune;
+    case "shop-maneki":
+      return m.avatarShopNameManeki;
+    case "shop-tengu":
+      return m.avatarShopNameTengu;
+    case "shop-tanuki":
+      return m.avatarShopNameTanuki;
+    default:
+      return id;
+  }
+}
+
+function shopFrameLabel(
+  id: string,
+  m: {
+    frameShopNameSweets: string;
+    frameShopNameSakura: string;
+    frameShopNameWagara: string;
+    frameShopNameKoi: string;
+  }
+): string {
+  switch (id) {
+    case "frame-sweets":
+      return m.frameShopNameSweets;
+    case "frame-sakura":
+      return m.frameShopNameSakura;
+    case "frame-wagara":
+      return m.frameShopNameWagara;
+    case "frame-koi":
+      return m.frameShopNameKoi;
+    default:
+      return id;
+  }
+}
 
 export type MyPageTutorialHandle = {
   applyTutorialAutomation: (targetId: string) => void;
@@ -164,6 +241,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
 ) {
   const playerProgress = playerProgressProp ?? defaultPlayerProgress();
   const levelRingGradId = useId().replace(/:/g, "");
+  const nameEditFieldId = useId();
   const { language, setLanguage, t } = useLanguage();
   const { level: playerLevel, current: xpInLevel, need: xpNeedForLevel } = xpIntoCurrentLevel(playerProgress.xp);
   const [questCategory, setQuestCategory] = useState<QuestCategory>("daily");
@@ -270,9 +348,13 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
   const levelBarPercent =
     xpNeedForLevel > 0 ? Math.min(100, Math.round((xpInLevel / xpNeedForLevel) * 100)) : 0;
   const xpToNextLevel = Math.max(0, xpNeedForLevel - xpInLevel);
-  const RING_SIZE = 92;
-  const RING_R = 40;
+  const RING_SIZE = 108;
+  /** 進捗リングの半径（stroke の内側に顔写真を大きく収める） */
+  const RING_R = 47;
+  const RING_STROKE = 5;
   const ringCircumference = 2 * Math.PI * RING_R;
+  /** stroke 内側に収まる最大の円直径（余白を詰めた顔表示用） */
+  const avatarInnerPx = Math.floor(2 * (RING_R - RING_STROKE / 2) - 1);
   const ringDashOffset = ringCircumference * (1 - levelBarPercent / 100);
   const savedRawDisplayName = user ? (user.name ?? "") : guestDisplayName;
   /** 保存名が空のときはローカライズしたデフォルト（名無しさん 等）を表示 */
@@ -280,6 +362,15 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
   const [draftName, setDraftName] = useState(savedRawDisplayName);
   const [savingName, setSavingName] = useState(false);
   const [saveNameError, setSaveNameError] = useState("");
+  const [selectedAvatarPresetId, setSelectedAvatarPresetId] = useState<string>(FREE_AVATAR_OPTIONS[0].id);
+  const [selectedAvatarFrameId, setSelectedAvatarFrameId] = useState<string>(NO_AVATAR_FRAME_ID);
+  const [purchasedShopAvatarIds, setPurchasedShopAvatarIds] = useState<string[]>(() =>
+    typeof window === "undefined" ? [] : loadPurchasedShopAvatarIds()
+  );
+  const [purchasedAvatarFrameIds, setPurchasedAvatarFrameIds] = useState<string[]>(() =>
+    typeof window === "undefined" ? [] : loadPurchasedAvatarFrameIds()
+  );
+  const [shopAvatarError, setShopAvatarError] = useState("");
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [panel, setPanel] = useState<MypagePanel>("main");
   const [subPanelEntered, setSubPanelEntered] = useState(false);
@@ -287,6 +378,28 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
   const [cosmeticsCoins, setCosmeticsCoins] = useState(() => loadCosmeticsCoins());
   const prevLevelCoinRef = useRef(playerLevel);
   const coinLevelMountedRef = useRef(false);
+
+  const selectableAvatarOptions = useMemo(() => {
+    const unlockedShop = AVATAR_SHOP_ITEMS.filter((item) => purchasedShopAvatarIds.includes(item.id));
+    return [...FREE_AVATAR_OPTIONS, ...unlockedShop];
+  }, [purchasedShopAvatarIds]);
+
+  const selectedAvatarPresetSrc = useMemo(
+    () =>
+      selectableAvatarOptions.find((opt) => opt.id === selectedAvatarPresetId)?.src ?? FREE_AVATAR_OPTIONS[0].src,
+    [selectableAvatarOptions, selectedAvatarPresetId]
+  );
+  const selectableFrameOptions = useMemo(
+    () => [
+      ...FREE_AVATAR_FRAME_OPTIONS,
+      ...AVATAR_FRAME_SHOP_ITEMS.filter((item) => purchasedAvatarFrameIds.includes(item.id)),
+    ],
+    [purchasedAvatarFrameIds]
+  );
+  const selectedAvatarFrameSrc = useMemo(
+    () => selectableFrameOptions.find((opt) => opt.id === selectedAvatarFrameId)?.src ?? null,
+    [selectableFrameOptions, selectedAvatarFrameId]
+  );
 
   useEffect(() => {
     if (!coinLevelMountedRef.current) {
@@ -304,6 +417,63 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
     }
     prevLevelCoinRef.current = playerLevel;
   }, [playerLevel]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const savedId = window.localStorage.getItem(AVATAR_PRESET_STORAGE_KEY);
+      const purchased = loadPurchasedShopAvatarIds();
+      const purchasedFrames = loadPurchasedAvatarFrameIds();
+      setPurchasedShopAvatarIds(purchased);
+      setPurchasedAvatarFrameIds(purchasedFrames);
+      if (savedId) {
+        const allowed =
+          FREE_AVATAR_OPTIONS.some((opt) => opt.id === savedId) || purchased.includes(savedId);
+        if (allowed) {
+          setSelectedAvatarPresetId(savedId);
+        }
+      }
+      const savedFrameId = window.localStorage.getItem(AVATAR_FRAME_STORAGE_KEY);
+      if (
+        savedFrameId === NO_AVATAR_FRAME_ID ||
+        (savedFrameId &&
+          (FREE_AVATAR_FRAME_OPTIONS.some((opt) => opt.id === savedFrameId) || purchasedFrames.includes(savedFrameId)))
+      ) {
+        setSelectedAvatarFrameId(savedFrameId);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectableAvatarOptions.some((o) => o.id === selectedAvatarPresetId)) return;
+    setSelectedAvatarPresetId(FREE_AVATAR_OPTIONS[0].id);
+  }, [selectableAvatarOptions, selectedAvatarPresetId]);
+
+  useEffect(() => {
+    if (selectedAvatarFrameId === NO_AVATAR_FRAME_ID) return;
+    if (selectableFrameOptions.some((o) => o.id === selectedAvatarFrameId)) return;
+    setSelectedAvatarFrameId(NO_AVATAR_FRAME_ID);
+  }, [selectableFrameOptions, selectedAvatarFrameId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(AVATAR_PRESET_STORAGE_KEY, selectedAvatarPresetId);
+    } catch {
+      /* ignore */
+    }
+  }, [selectedAvatarPresetId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(AVATAR_FRAME_STORAGE_KEY, selectedAvatarFrameId);
+    } catch {
+      /* ignore */
+    }
+  }, [selectedAvatarFrameId]);
 
   useEffect(() => {
     if (panel === "main") {
@@ -444,6 +614,46 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
       setSavingName(false);
     }
   }, [beginCloseSubPanel, draftName, onSaveDisplayName, t.mypage.saveDisplayNameFailed]);
+
+  const handlePurchaseShopAvatar = useCallback(
+    (itemId: string) => {
+      if (purchasedShopAvatarIds.includes(itemId)) return;
+      if (cosmeticsCoins < AVATAR_SHOP_PRICE) {
+        setShopAvatarError(t.mypage.cosmeticsAvatarNotEnoughCoins);
+        return;
+      }
+      setShopAvatarError("");
+      const nextCoins = cosmeticsCoins - AVATAR_SHOP_PRICE;
+      setCosmeticsCoins(nextCoins);
+      saveCosmeticsCoins(nextCoins);
+      addPurchasedShopAvatarId(itemId);
+      setPurchasedShopAvatarIds((prev) => (prev.includes(itemId) ? prev : [...prev, itemId]));
+    },
+    [cosmeticsCoins, purchasedShopAvatarIds, t.mypage.cosmeticsAvatarNotEnoughCoins]
+  );
+
+  const handlePurchaseAvatarFrame = useCallback(
+    (itemId: string) => {
+      if (purchasedAvatarFrameIds.includes(itemId)) return;
+      if (cosmeticsCoins < AVATAR_SHOP_PRICE) {
+        setShopAvatarError(t.mypage.cosmeticsAvatarNotEnoughCoins);
+        return;
+      }
+      setShopAvatarError("");
+      const nextCoins = cosmeticsCoins - AVATAR_SHOP_PRICE;
+      setCosmeticsCoins(nextCoins);
+      saveCosmeticsCoins(nextCoins);
+      addPurchasedAvatarFrameId(itemId);
+      setPurchasedAvatarFrameIds((prev) => (prev.includes(itemId) ? prev : [...prev, itemId]));
+    },
+    [cosmeticsCoins, purchasedAvatarFrameIds, t.mypage.cosmeticsAvatarNotEnoughCoins]
+  );
+
+  useEffect(() => {
+    if (panel === "cosmetics") {
+      setShopAvatarError("");
+    }
+  }, [panel]);
 
   const getLocationErrorGuide = () => {
     if (locationPermissionState === "denied") {
@@ -746,7 +956,11 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
   );
 
   const showSubPanelLayer =
-    panel === "history" || panel === "favorites" || panel === "settings" || panel === "cosmetics";
+    panel === "history" ||
+    panel === "favorites" ||
+    panel === "settings" ||
+    panel === "cosmetics" ||
+    panel === "editDisplayName";
 
   return (
     <div
@@ -1313,6 +1527,264 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
         </>
       )}
 
+      {panel === "editDisplayName" && (
+        <>
+          <MypageSubHeader title={t.mypage.editDisplayNameTitle} onBack={beginCloseSubPanel} />
+          <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px 100px" }}>
+            <p style={{ fontSize: "14px", color: "#4b5563", lineHeight: 1.65, margin: "0 0 16px" }}>
+              {user ? t.mypage.accountDisplayNameLabel : t.mypage.guestTravelerNameLabel}
+            </p>
+            <div
+              style={{
+                marginBottom: "20px",
+                padding: "18px 16px",
+                borderRadius: "20px",
+                background: "linear-gradient(135deg, #ffffff 0%, #fff5f8 100%)",
+                border: "1px solid #f7dfe5",
+                boxShadow: "0 4px 16px rgba(232,143,163,0.12)",
+                textAlign: "center",
+              }}
+            >
+              <p style={{ margin: "0 0 14px", fontSize: "12px", fontWeight: 900, color: "#b85f74" }}>
+                {t.mypage.editPreviewLabel}
+              </p>
+              <div
+                style={{
+                  position: "relative",
+                  width: "112px",
+                  height: "112px",
+                  margin: "0 auto",
+                }}
+                aria-hidden
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: "50%",
+                    transform: "translate(-50%, -50%)",
+                    width: "90px",
+                    height: "90px",
+                    borderRadius: "50%",
+                    overflow: "hidden",
+                    backgroundColor: "#fdf3f5",
+                    border: "4px solid #f3b6c3",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      backgroundImage: `url(${selectedAvatarPresetSrc})`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                    }}
+                  />
+                </div>
+                {selectedAvatarFrameSrc ? (
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      backgroundImage: `url(${selectedAvatarFrameSrc})`,
+                      backgroundSize: "contain",
+                      backgroundRepeat: "no-repeat",
+                      backgroundPosition: "center",
+                      pointerEvents: "none",
+                    }}
+                  />
+                ) : null}
+              </div>
+              <p
+                style={{
+                  margin: "10px 0 0",
+                  fontSize: "17px",
+                  fontWeight: 800,
+                  color: "#111827",
+                  lineHeight: 1.35,
+                  wordBreak: "break-word",
+                }}
+              >
+                {draftName.trim() || t.mypage.defaultDisplayName}
+              </p>
+            </div>
+            <label htmlFor={nameEditFieldId} style={{ display: "block", fontSize: "12px", fontWeight: 800, color: "#b85f74", marginBottom: "8px" }}>
+              {t.mypage.editName}
+            </label>
+            <input
+              id={nameEditFieldId}
+              type="text"
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+              disabled={savingName}
+              autoFocus
+              placeholder={t.mypage.defaultDisplayName}
+              style={{
+                backgroundColor: "#fff",
+                border: "1px solid #f3d1da",
+                borderRadius: "14px",
+                padding: "14px 16px",
+                color: "#111827",
+                fontSize: "17px",
+                fontWeight: 600,
+                outline: "none",
+                width: "100%",
+                boxSizing: "border-box",
+                boxShadow: "inset 0 1px 2px rgba(232,143,163,0.06)",
+              }}
+            />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "20px" }}>
+              <button
+                type="button"
+                disabled={savingName}
+                onClick={() => void handleConfirmSaveName()}
+                style={{
+                  border: "none",
+                  background: "linear-gradient(135deg, #e88fa3 0%, #f3a7b8 100%)",
+                  color: "white",
+                  borderRadius: "12px",
+                  padding: "12px 22px",
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  cursor: savingName ? "default" : "pointer",
+                  opacity: savingName ? 0.7 : 1,
+                }}
+              >
+                {savingName ? t.common.loading : t.common.save}
+              </button>
+              <button
+                type="button"
+                disabled={savingName}
+                onClick={beginCloseSubPanel}
+                style={{
+                  border: "1px solid #e5e7eb",
+                  background: "white",
+                  color: "#374151",
+                  borderRadius: "12px",
+                  padding: "12px 22px",
+                  fontSize: "15px",
+                  fontWeight: 600,
+                  cursor: savingName ? "default" : "pointer",
+                }}
+              >
+                {t.common.cancel}
+              </button>
+            </div>
+            <div style={{ marginTop: "22px" }}>
+              <p style={{ margin: "0 0 8px", fontSize: "12px", fontWeight: 800, color: "#b85f74" }}>
+                {t.mypage.cosmeticsShopSectionAvatars}
+              </p>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(52px, 1fr))",
+                  gap: "8px",
+                }}
+              >
+                {selectableAvatarOptions.map((opt, idx) => {
+                  const selected = selectedAvatarPresetId === opt.id;
+                  const aria =
+                    opt.id.startsWith("shop-") ? shopAvatarLabel(opt.id, t.mypage) : `アイコン${idx + 1}`;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setSelectedAvatarPresetId(opt.id)}
+                      aria-label={aria}
+                      style={{
+                        borderRadius: "10px",
+                        border: selected ? "2px solid #e88fa3" : "1px solid #e5e7eb",
+                        backgroundColor: selected ? "#fff5f8" : "#fff",
+                        padding: "2px",
+                        cursor: "pointer",
+                        boxShadow: selected ? "0 0 0 2px rgba(232,143,163,0.14)" : "none",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "100%",
+                          aspectRatio: "1 / 1",
+                          borderRadius: "8px",
+                          backgroundImage: `url(${opt.src})`,
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                        }}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ marginTop: "22px" }}>
+              <p style={{ margin: "0 0 8px", fontSize: "12px", fontWeight: 800, color: "#b85f74" }}>
+                {t.mypage.cosmeticsShopSectionFrames}
+              </p>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(62px, 1fr))",
+                  gap: "8px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setSelectedAvatarFrameId(NO_AVATAR_FRAME_ID)}
+                  aria-label={t.mypage.cosmeticsFrameNone}
+                  style={{
+                    minHeight: "62px",
+                    borderRadius: "10px",
+                    border: selectedAvatarFrameId === NO_AVATAR_FRAME_ID ? "2px solid #e88fa3" : "1px solid #e5e7eb",
+                    backgroundColor: selectedAvatarFrameId === NO_AVATAR_FRAME_ID ? "#fff5f8" : "#fff",
+                    padding: "4px",
+                    cursor: "pointer",
+                    color: "#6b7280",
+                    fontSize: "11px",
+                    fontWeight: 800,
+                    boxShadow:
+                      selectedAvatarFrameId === NO_AVATAR_FRAME_ID ? "0 0 0 2px rgba(232,143,163,0.14)" : "none",
+                  }}
+                >
+                  {t.mypage.cosmeticsFrameNone}
+                </button>
+                {selectableFrameOptions.map((opt, idx) => {
+                  const selected = selectedAvatarFrameId === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setSelectedAvatarFrameId(opt.id)}
+                      aria-label={opt.id.startsWith("frame-") ? shopFrameLabel(opt.id, t.mypage) : `初期フレーム${idx + 1}`}
+                      style={{
+                        borderRadius: "10px",
+                        border: selected ? "2px solid #e88fa3" : "1px solid #e5e7eb",
+                        backgroundColor: selected ? "#fff5f8" : "#fff",
+                        padding: "2px",
+                        cursor: "pointer",
+                        boxShadow: selected ? "0 0 0 2px rgba(232,143,163,0.14)" : "none",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "100%",
+                          aspectRatio: "1 / 1",
+                          borderRadius: "8px",
+                          backgroundImage: `url(${opt.src})`,
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                        }}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {saveNameError ? (
+              <p style={{ fontSize: "13px", color: "#dc2626", marginTop: "14px", marginBottom: 0 }}>{saveNameError}</p>
+            ) : null}
+          </div>
+        </>
+      )}
+
       {panel === "cosmetics" && (
         <>
           <MypageSubHeader title={t.mypage.cosmeticsShopTitle} onBack={beginCloseSubPanel} />
@@ -1340,6 +1812,190 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
             <p style={{ fontSize: "13px", color: "#4b5563", lineHeight: 1.75, margin: "0 0 20px" }}>
               {t.mypage.cosmeticsShopLead}
             </p>
+
+            <div
+              style={{
+                marginBottom: "20px",
+                padding: "16px",
+                borderRadius: "16px",
+                backgroundColor: "white",
+                border: "1px solid #f7dfe5",
+                boxShadow: "0 2px 10px rgba(232,143,163,0.08)",
+              }}
+            >
+              <h2 style={{ margin: "0 0 6px", fontSize: "15px", fontWeight: 800, color: "#111827" }}>
+                {t.mypage.cosmeticsShopSectionAvatars}
+              </h2>
+              <p style={{ margin: "0 0 14px", fontSize: "12px", color: "#6b7280", lineHeight: 1.6 }}>
+                {t.mypage.cosmeticsAvatarShopLead}
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {AVATAR_SHOP_ITEMS.map((item) => {
+                  const purchased = purchasedShopAvatarIds.includes(item.id);
+                  return (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px",
+                        padding: "10px 12px",
+                        borderRadius: "14px",
+                        border: "1px solid #f3f4f6",
+                        backgroundColor: purchased ? "#fdf3f5" : "#fff",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "56px",
+                          height: "56px",
+                          flexShrink: 0,
+                          borderRadius: "12px",
+                          backgroundImage: `url(${item.src})`,
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                          border: "1px solid #f3f4f6",
+                        }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#111827" }}>
+                          {shopAvatarLabel(item.id, t.mypage)}
+                        </p>
+                        <p style={{ margin: "4px 0 0", fontSize: "12px", fontWeight: 700, color: "#b45309" }}>
+                          🪙 {AVATAR_SHOP_PRICE}
+                        </p>
+                      </div>
+                      {purchased ? (
+                        <span
+                          style={{
+                            flexShrink: 0,
+                            fontSize: "12px",
+                            fontWeight: 800,
+                            color: "#b85f74",
+                          }}
+                        >
+                          {t.mypage.cosmeticsAvatarPurchased}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handlePurchaseShopAvatar(item.id)}
+                          style={{
+                            flexShrink: 0,
+                            border: "none",
+                            borderRadius: "999px",
+                            padding: "8px 14px",
+                            fontSize: "12px",
+                            fontWeight: 800,
+                            color: "white",
+                            background: "linear-gradient(135deg, #e88fa3 0%, #f3a7b8 100%)",
+                            cursor: "pointer",
+                            boxShadow: "0 2px 8px rgba(232,143,163,0.25)",
+                          }}
+                        >
+                          {t.mypage.cosmeticsAvatarBuy}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {shopAvatarError ? (
+                <p style={{ fontSize: "12px", color: "#dc2626", margin: "12px 0 0", marginBottom: 0 }}>
+                  {shopAvatarError}
+                </p>
+              ) : null}
+            </div>
+
+            <div
+              style={{
+                marginBottom: "20px",
+                padding: "16px",
+                borderRadius: "16px",
+                backgroundColor: "white",
+                border: "1px solid #f7dfe5",
+                boxShadow: "0 2px 10px rgba(232,143,163,0.08)",
+              }}
+            >
+              <h2 style={{ margin: "0 0 6px", fontSize: "15px", fontWeight: 800, color: "#111827" }}>
+                {t.mypage.cosmeticsShopSectionFrames}
+              </h2>
+              <p style={{ margin: "0 0 14px", fontSize: "12px", color: "#6b7280", lineHeight: 1.6 }}>
+                {t.mypage.cosmeticsFrameShopLead}
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {AVATAR_FRAME_SHOP_ITEMS.map((item) => {
+                  const purchased = purchasedAvatarFrameIds.includes(item.id);
+                  return (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px",
+                        padding: "10px 12px",
+                        borderRadius: "14px",
+                        border: "1px solid #f3f4f6",
+                        backgroundColor: purchased ? "#fdf3f5" : "#fff",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "56px",
+                          height: "56px",
+                          flexShrink: 0,
+                          borderRadius: "12px",
+                          backgroundImage: `url(${item.src})`,
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                          border: "1px solid #f3f4f6",
+                        }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#111827" }}>
+                          {shopFrameLabel(item.id, t.mypage)}
+                        </p>
+                        <p style={{ margin: "4px 0 0", fontSize: "12px", fontWeight: 700, color: "#b45309" }}>
+                          🪙 {AVATAR_SHOP_PRICE}
+                        </p>
+                      </div>
+                      {purchased ? (
+                        <span
+                          style={{
+                            flexShrink: 0,
+                            fontSize: "12px",
+                            fontWeight: 800,
+                            color: "#b85f74",
+                          }}
+                        >
+                          {t.mypage.cosmeticsAvatarPurchased}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handlePurchaseAvatarFrame(item.id)}
+                          style={{
+                            flexShrink: 0,
+                            border: "none",
+                            borderRadius: "999px",
+                            padding: "8px 14px",
+                            fontSize: "12px",
+                            fontWeight: 800,
+                            color: "white",
+                            background: "linear-gradient(135deg, #e88fa3 0%, #f3a7b8 100%)",
+                            cursor: "pointer",
+                            boxShadow: "0 2px 8px rgba(232,143,163,0.25)",
+                          }}
+                        >
+                          {t.mypage.cosmeticsAvatarBuy}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             {(
               [
                 { emoji: "🏅", title: t.mypage.cosmeticsShopSectionBadges },
@@ -1399,6 +2055,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
       <div style={{ padding: "20px 24px 0" }}>
         <div
           style={{
+            position: "relative",
             backgroundColor: "white",
             borderRadius: "22px",
             padding: "18px 16px",
@@ -1407,7 +2064,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
           }}
         >
           <div style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}>
-            <div style={{ position: "relative", width: RING_SIZE, height: RING_SIZE, flexShrink: 0 }}>
+            <div style={{ width: RING_SIZE, height: RING_SIZE, flexShrink: 0 }}>
               <div
                 className={ringPulseOn ? "trad-trav-avatar-ring-pulse-on" : undefined}
                 style={{
@@ -1431,7 +2088,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                     r={RING_R}
                     fill="none"
                     stroke="#f3f4f6"
-                    strokeWidth={6}
+                    strokeWidth={RING_STROKE}
                   />
                   <circle
                     key={`xp-ring-${playerLevel}`}
@@ -1440,7 +2097,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                     r={RING_R}
                     fill="none"
                     stroke={`url(#${levelRingGradId})`}
-                    strokeWidth={6}
+                    strokeWidth={RING_STROKE}
                     strokeLinecap="round"
                     strokeDasharray={ringCircumference}
                     strokeDashoffset={ringDashOffset}
@@ -1461,128 +2118,46 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                     left: "50%",
                     top: "50%",
                     transform: "translate(-50%, -50%)",
-                    width: "70px",
-                    height: "70px",
+                    width: `${avatarInnerPx}px`,
+                    height: `${avatarInnerPx}px`,
                     borderRadius: "50%",
                     overflow: "hidden",
                     backgroundColor: "#fdf3f5",
                     pointerEvents: "none",
                   }}
                 >
-                  <DefaultAvatarIcon size={70} backgroundColor="#fdf3f5" silhouetteColor="#f3a7b8" />
-                </div>
-              </div>
-              {!isEditingName ? (
-                <button
-                  type="button"
-                  onClick={beginEditName}
-                  aria-label={t.mypage.editName}
-                  style={{
-                    position: "absolute",
-                    right: "-4px",
-                    bottom: "-4px",
-                    width: "30px",
-                    height: "30px",
-                    borderRadius: "50%",
-                    border: "2px solid #ffffff",
-                    background: "linear-gradient(135deg, #e88fa3 0%, #f3a7b8 100%)",
-                    boxShadow: "0 2px 8px rgba(232, 143, 163, 0.45)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    padding: 0,
-                    zIndex: 2,
-                  }}
-                >
-                  <PenIcon size={15} color="#ffffff" />
-                </button>
-              ) : null}
-            </div>
-
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: "12px", fontWeight: 800, color: "#b85f74", margin: "0 0 4px" }}>
-              {t.mypage.playerProgressLevel.replace("{level}", String(playerLevel))}
-            </p>
-            {isEditingName ? (
-              <div style={{ width: "100%" }}>
-                <input
-                  type="text"
-                  value={draftName}
-                  onChange={(e) => setDraftName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      void handleConfirmSaveName();
-                    }
-                  }}
-                  disabled={savingName}
-                  autoFocus
-                  placeholder={t.mypage.defaultDisplayName}
-                  style={{
-                    backgroundColor: "#fdf3f5",
-                    border: "1px solid #f3d1da",
-                    borderRadius: "10px",
-                    padding: "8px 12px",
-                    color: "#111827",
-                    fontSize: "18px",
-                    fontWeight: "600",
-                    outline: "none",
-                    width: "100%",
-                    boxSizing: "border-box",
-                  }}
-                />
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "8px",
-                    marginTop: "10px",
-                  }}
-                >
-                  <button
-                    type="button"
-                    disabled={savingName}
-                    onClick={() => void handleConfirmSaveName()}
+                  <div
                     style={{
-                      border: "none",
-                      background: "linear-gradient(135deg, #e88fa3 0%, #f3a7b8 100%)",
-                      color: "white",
-                      borderRadius: "10px",
-                      padding: "8px 16px",
-                      fontSize: "14px",
-                      fontWeight: 700,
-                      cursor: savingName ? "default" : "pointer",
-                      opacity: savingName ? 0.7 : 1,
+                      width: "100%",
+                      height: "100%",
+                      backgroundImage: `url(${selectedAvatarPresetSrc})`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
                     }}
-                  >
-                    {savingName ? t.common.loading : t.common.save}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={savingName}
-                    onClick={handleCancelNameEdit}
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      background: "white",
-                      color: "#374151",
-                      borderRadius: "10px",
-                      padding: "8px 16px",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      cursor: savingName ? "default" : "pointer",
-                    }}
-                  >
-                    {t.common.cancel}
-                  </button>
+                  />
                 </div>
-                {saveNameError ? (
-                  <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "8px", marginBottom: 0 }}>
-                    {saveNameError}
-                  </p>
+                {selectedAvatarFrameSrc ? (
+                  <div
+                    aria-hidden
+                    style={{
+                      position: "absolute",
+                      inset: "-5px",
+                      borderRadius: "50%",
+                      backgroundImage: `url(${selectedAvatarFrameSrc})`,
+                      backgroundSize: "contain",
+                      backgroundRepeat: "no-repeat",
+                      backgroundPosition: "center",
+                      pointerEvents: "none",
+                    }}
+                  />
                 ) : null}
               </div>
-            ) : (
+            </div>
+
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: "12px", fontWeight: 800, color: "#b85f74", margin: "0 0 4px" }}>
+                {t.mypage.playerProgressLevel.replace("{level}", String(playerLevel))}
+              </p>
               <p
                 style={{
                   margin: 0,
@@ -1595,13 +2170,12 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
               >
                 {resolvedDisplayName}
               </p>
-            )}
-            {user ? (
-              <p style={{ fontSize: "13px", color: "#4b5563", marginTop: "4px" }}>
-                {t.mypage.accountDisplayNameLabel}
-              </p>
-            ) : null}
-          </div>
+              {user ? (
+                <p style={{ fontSize: "13px", color: "#4b5563", marginTop: "4px" }}>
+                  {t.mypage.accountDisplayNameLabel}
+                </p>
+              ) : null}
+            </div>
           </div>
 
           <div
@@ -1609,6 +2183,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
               marginTop: "14px",
               paddingTop: "14px",
               borderTop: "1px solid #f3f4f6",
+              paddingRight: onSaveDisplayName ? "42px" : undefined,
             }}
           >
             <p style={{ fontSize: "14px", fontWeight: 700, color: "#1f2937", margin: "0 0 6px" }}>
@@ -1618,6 +2193,33 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
               {t.mypage.playerXpCurrent.replace("{xp}", String(playerProgress.xp))}
             </p>
           </div>
+
+          {onSaveDisplayName ? (
+            <button
+              type="button"
+              onClick={beginEditName}
+              aria-label={t.mypage.editName}
+              style={{
+                position: "absolute",
+                right: "12px",
+                bottom: "12px",
+                width: "32px",
+                height: "32px",
+                borderRadius: "50%",
+                border: "2px solid #ffffff",
+                background: "linear-gradient(135deg, #e88fa3 0%, #f3a7b8 100%)",
+                boxShadow: "0 2px 10px rgba(232, 143, 163, 0.4)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                padding: 0,
+                zIndex: 1,
+              }}
+            >
+              <PenIcon size={16} color="#ffffff" />
+            </button>
+          ) : null}
         </div>
 
         <div style={{ display: "flex", gap: "12px", marginTop: "14px" }}>
