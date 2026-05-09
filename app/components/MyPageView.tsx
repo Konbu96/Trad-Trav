@@ -1633,43 +1633,6 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                 boxShadow: "inset 0 1px 2px rgba(232,143,163,0.06)",
               }}
             />
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "20px" }}>
-              <button
-                type="button"
-                disabled={savingName}
-                onClick={() => void handleConfirmSaveName()}
-                style={{
-                  border: "none",
-                  background: "linear-gradient(135deg, #e88fa3 0%, #f3a7b8 100%)",
-                  color: "white",
-                  borderRadius: "12px",
-                  padding: "12px 22px",
-                  fontSize: "15px",
-                  fontWeight: 700,
-                  cursor: savingName ? "default" : "pointer",
-                  opacity: savingName ? 0.7 : 1,
-                }}
-              >
-                {savingName ? t.common.loading : t.common.save}
-              </button>
-              <button
-                type="button"
-                disabled={savingName}
-                onClick={beginCloseSubPanel}
-                style={{
-                  border: "1px solid #e5e7eb",
-                  background: "white",
-                  color: "#374151",
-                  borderRadius: "12px",
-                  padding: "12px 22px",
-                  fontSize: "15px",
-                  fontWeight: 600,
-                  cursor: savingName ? "default" : "pointer",
-                }}
-              >
-                {t.common.cancel}
-              </button>
-            </div>
             <div style={{ marginTop: "22px" }}>
               <p style={{ margin: "0 0 8px", fontSize: "12px", fontWeight: 800, color: "#b85f74" }}>
                 {t.mypage.cosmeticsShopSectionAvatars}
@@ -1781,6 +1744,45 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
             {saveNameError ? (
               <p style={{ fontSize: "13px", color: "#dc2626", marginTop: "14px", marginBottom: 0 }}>{saveNameError}</p>
             ) : null}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "24px" }}>
+              <button
+                type="button"
+                disabled={savingName}
+                onClick={() => void handleConfirmSaveName()}
+                style={{
+                  flex: "1 1 160px",
+                  border: "none",
+                  background: "linear-gradient(135deg, #e88fa3 0%, #f3a7b8 100%)",
+                  color: "white",
+                  borderRadius: "12px",
+                  padding: "13px 22px",
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  cursor: savingName ? "default" : "pointer",
+                  opacity: savingName ? 0.7 : 1,
+                }}
+              >
+                {savingName ? t.common.loading : t.common.save}
+              </button>
+              <button
+                type="button"
+                disabled={savingName}
+                onClick={beginCloseSubPanel}
+                style={{
+                  flex: "1 1 120px",
+                  border: "1px solid #e5e7eb",
+                  background: "white",
+                  color: "#374151",
+                  borderRadius: "12px",
+                  padding: "13px 22px",
+                  fontSize: "15px",
+                  fontWeight: 600,
+                  cursor: savingName ? "default" : "pointer",
+                }}
+              >
+                {t.common.cancel}
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -1998,8 +2000,6 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
 
             {(
               [
-                { emoji: "🏅", title: t.mypage.cosmeticsShopSectionBadges },
-                { emoji: "✨", title: t.mypage.cosmeticsShopSectionTitles },
                 { emoji: "🐰", title: t.mypage.cosmeticsShopSectionCharacter },
               ] as const
             ).map((row) => (
