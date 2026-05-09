@@ -859,9 +859,45 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
               <span style={{ fontSize: "14px", color: "#9ca3af" }}>›</span>
             </button>
           )}
+          {onClearGuestStorageDev && (
+            <button
+              type="button"
+              onClick={async () => {
+                if (typeof window !== "undefined" && !window.confirm(t.mypage.developerGuestStorageClearConfirm)) {
+                  return;
+                }
+                await onClearGuestStorageDev();
+              }}
+              style={{
+                width: "100%",
+                padding: "16px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                background: "none",
+                border: "none",
+                borderTop: "1px solid #f3f4f6",
+                cursor: "pointer",
+                textAlign: "left",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
+                <span style={{ fontSize: "20px", flexShrink: 0 }}>🧹</span>
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: "15px", color: "#374151" }}>
+                    {t.mypage.developerGuestStorageClearButton}
+                  </span>
+                  <span style={{ display: "block", marginTop: "3px", fontSize: "11px", color: "#9ca3af", lineHeight: 1.45 }}>
+                    {t.mypage.developerGuestStorageClearHelp}
+                  </span>
+                </div>
+              </div>
+              <span style={{ fontSize: "14px", color: "#9ca3af", flexShrink: 0 }}>›</span>
+            </button>
+          )}
         </div>
 
-        {(onResetPlayerProgressDev || onClearGuestStorageDev) && (
+        {onResetPlayerProgressDev && (
           <div
             style={{
               marginTop: "12px",
@@ -909,43 +945,6 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                   }}
                 >
                   {t.mypage.developerQuestResetButton}
-                </button>
-              </>
-            )}
-            {onClearGuestStorageDev && (
-              <>
-                <p
-                  style={{
-                    fontSize: "11px",
-                    color: "#6b7280",
-                    lineHeight: 1.65,
-                    marginBottom: "12px",
-                    marginTop: onResetPlayerProgressDev ? "14px" : 0,
-                  }}
-                >
-                  {t.mypage.developerGuestStorageClearHelp}
-                </p>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (typeof window !== "undefined" && !window.confirm(t.mypage.developerGuestStorageClearConfirm)) {
-                      return;
-                    }
-                    await onClearGuestStorageDev();
-                  }}
-                  style={{
-                    width: "100%",
-                    borderRadius: "12px",
-                    border: "1px solid #bfdbfe",
-                    backgroundColor: "#eff6ff",
-                    color: "#1e40af",
-                    padding: "10px 14px",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  {t.mypage.developerGuestStorageClearButton}
                 </button>
               </>
             )}
