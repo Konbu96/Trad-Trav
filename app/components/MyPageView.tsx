@@ -23,6 +23,7 @@ import {
   loadPurchasedShopAvatarIds,
 } from "../lib/avatarShop";
 import { locationIssueMessage } from "../lib/locationIssue";
+import { readLocalItem, writeLocalItem } from "../lib/localPersistence";
 import type { LocationIssueCode } from "../lib/locationIssue";
 import {
   QUESTS,
@@ -419,9 +420,8 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
   }, [playerLevel]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
     try {
-      const savedId = window.localStorage.getItem(AVATAR_PRESET_STORAGE_KEY);
+      const savedId = readLocalItem(AVATAR_PRESET_STORAGE_KEY);
       const purchased = loadPurchasedShopAvatarIds();
       const purchasedFrames = loadPurchasedAvatarFrameIds();
       setPurchasedShopAvatarIds(purchased);
@@ -433,7 +433,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
           setSelectedAvatarPresetId(savedId);
         }
       }
-      const savedFrameId = window.localStorage.getItem(AVATAR_FRAME_STORAGE_KEY);
+      const savedFrameId = readLocalItem(AVATAR_FRAME_STORAGE_KEY);
       if (
         savedFrameId === NO_AVATAR_FRAME_ID ||
         (savedFrameId &&
@@ -458,21 +458,11 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
   }, [selectableFrameOptions, selectedAvatarFrameId]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(AVATAR_PRESET_STORAGE_KEY, selectedAvatarPresetId);
-    } catch {
-      /* ignore */
-    }
+    writeLocalItem(AVATAR_PRESET_STORAGE_KEY, selectedAvatarPresetId);
   }, [selectedAvatarPresetId]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(AVATAR_FRAME_STORAGE_KEY, selectedAvatarFrameId);
-    } catch {
-      /* ignore */
-    }
+    writeLocalItem(AVATAR_FRAME_STORAGE_KEY, selectedAvatarFrameId);
   }, [selectedAvatarFrameId]);
 
   useEffect(() => {

@@ -1,5 +1,7 @@
 /** 着せ替えショップ：プロフィールアイコン・フレーム（コイン購入） */
 
+import { readLocalItem, writeLocalItem } from "./localPersistence";
+
 export const AVATAR_SHOP_PRICE = 250;
 
 const PURCHASED_STORAGE_KEY = "trad-trav-avatar-shop-purchased-v1";
@@ -26,9 +28,8 @@ export const AVATAR_FRAME_SHOP_ITEMS: readonly AvatarShopItem[] = [
 ] as const;
 
 function loadPurchasedIds(storageKey: string): string[] {
-  if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(storageKey);
+    const raw = readLocalItem(storageKey);
     if (raw == null) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
@@ -39,12 +40,7 @@ function loadPurchasedIds(storageKey: string): string[] {
 }
 
 function savePurchasedIds(storageKey: string, ids: readonly string[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(storageKey, JSON.stringify([...ids]));
-  } catch {
-    /* ignore */
-  }
+  writeLocalItem(storageKey, JSON.stringify([...ids]));
 }
 
 function addPurchasedId(storageKey: string, id: string): void {

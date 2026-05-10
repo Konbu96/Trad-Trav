@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { readPostSplashLanguageSeen } from "../lib/firstLaunchFlow";
+import { readLocalItem, writeLocalItem } from "../lib/localPersistence";
 import { translations, type Language, type Translations } from "./translations";
 
 interface LanguageContextType {
@@ -23,7 +24,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     } catch {
       return;
     }
-    const saved = localStorage.getItem("language") as Language;
+    const saved = readLocalItem("language") as Language;
     if (saved && (saved === "ja" || saved === "en" || saved === "zh" || saved === "ko")) {
       setLanguageState(saved);
     }
@@ -31,7 +32,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem("language", lang);
+    writeLocalItem("language", lang);
   };
 
   const t = translations[language];

@@ -1,6 +1,7 @@
 "use client";
 
 import type { Translations } from "../i18n/translations";
+import { readLocalItem, writeLocalItem } from "./localPersistence";
 
 export type TutorialTabId = "map" | "now" | "manner" | "mypage";
 
@@ -23,12 +24,8 @@ export const DEFAULT_TUTORIAL_PROGRESS: TutorialProgress = {
 };
 
 export function loadTutorialProgress(): TutorialProgress {
-  if (typeof window === "undefined") {
-    return DEFAULT_TUTORIAL_PROGRESS;
-  }
-
   try {
-    const raw = window.localStorage.getItem(TUTORIAL_STORAGE_KEY);
+    const raw = readLocalItem(TUTORIAL_STORAGE_KEY);
     if (!raw) {
       return DEFAULT_TUTORIAL_PROGRESS;
     }
@@ -46,15 +43,7 @@ export function loadTutorialProgress(): TutorialProgress {
 }
 
 export function saveTutorialProgress(progress: TutorialProgress) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(TUTORIAL_STORAGE_KEY, JSON.stringify(progress));
-  } catch {
-    // Ignore storage errors so the app remains usable.
-  }
+  writeLocalItem(TUTORIAL_STORAGE_KEY, JSON.stringify(progress));
 }
 
 export function resetTutorialProgress() {

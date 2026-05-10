@@ -17,6 +17,8 @@ export type PlayerStats = {
   tutorials: Partial<Record<TutorialTabId, boolean>>;
 };
 
+import { readLocalItem, removeLocalItem, writeLocalItem } from "./localPersistence";
+
 export type QuestCategory = "daily" | "normal";
 
 export type DailyQuestState = {
@@ -521,9 +523,8 @@ export function mergePlayerProgress(remote: PlayerProgress, local: PlayerProgres
 }
 
 export function loadGuestPlayerProgress(): PlayerProgress {
-  if (typeof window === "undefined") return defaultPlayerProgress();
   try {
-    const raw = window.localStorage.getItem(GUEST_PLAYER_PROGRESS_KEY);
+    const raw = readLocalItem(GUEST_PLAYER_PROGRESS_KEY);
     if (!raw) return defaultPlayerProgress();
     return normalizePlayerProgress(JSON.parse(raw) as unknown);
   } catch {
@@ -532,19 +533,9 @@ export function loadGuestPlayerProgress(): PlayerProgress {
 }
 
 export function saveGuestPlayerProgress(progress: PlayerProgress): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(GUEST_PLAYER_PROGRESS_KEY, JSON.stringify(recomputePlayerXp(progress)));
-  } catch {
-    /* ignore */
-  }
+  writeLocalItem(GUEST_PLAYER_PROGRESS_KEY, JSON.stringify(recomputePlayerXp(progress)));
 }
 
 export function clearGuestPlayerProgress(): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(GUEST_PLAYER_PROGRESS_KEY);
-  } catch {
-    /* ignore */
-  }
+  removeLocalItem(GUEST_PLAYER_PROGRESS_KEY);
 }

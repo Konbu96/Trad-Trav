@@ -1,3 +1,5 @@
+import { readLocalItem, writeLocalItem } from "./localPersistence";
+
 const STORAGE_KEY = "trad-trav-cosmetics-coins-v1";
 
 /** レベル11以降のレベルアップ時に付与するアプリ内コイン（着せ替えショップ用） */
@@ -17,9 +19,8 @@ export function cosmeticsCoinsForLevelUp(newLevel: number): number {
 }
 
 export function loadCosmeticsCoins(): number {
-  if (typeof window === "undefined") return 0;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = readLocalItem(STORAGE_KEY);
     if (raw == null) return 0;
     const n = Number.parseInt(raw, 10);
     return Number.isFinite(n) && n >= 0 ? n : 0;
@@ -29,10 +30,5 @@ export function loadCosmeticsCoins(): number {
 }
 
 export function saveCosmeticsCoins(amount: number): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, String(Math.max(0, Math.floor(amount))));
-  } catch {
-    /* ignore */
-  }
+  writeLocalItem(STORAGE_KEY, String(Math.max(0, Math.floor(amount))));
 }

@@ -77,6 +77,7 @@ import {
   writePostSplashLanguageSeen,
 } from "./lib/firstLaunchFlow";
 import { buildGoogleMapsNameSearchUrl, openGoogleMapsUrl } from "./lib/googleMapsUrl";
+import { readLocalItem, removeLocalItem, writeLocalItem } from "./lib/localPersistence";
 
 const FIRST_APP_ONBOARDING_SLIDE_COUNT = 3;
 
@@ -238,11 +239,11 @@ function AppContent() {
     if (typeof window === "undefined") return;
     const ONCE = "trad-trav-demo-guest-storage-cleared-v1";
     try {
-      if (window.localStorage.getItem(ONCE) === "1") return;
-      window.localStorage.setItem(ONCE, "1");
-      window.localStorage.removeItem(GUEST_DISPLAY_NAME_KEY);
-      window.localStorage.removeItem("trad-trav-helpful-favorites");
-      window.localStorage.removeItem(GUEST_PLAYER_PROGRESS_KEY);
+      if (readLocalItem(ONCE) === "1") return;
+      writeLocalItem(ONCE, "1");
+      removeLocalItem(GUEST_DISPLAY_NAME_KEY);
+      removeLocalItem("trad-trav-helpful-favorites");
+      removeLocalItem(GUEST_PLAYER_PROGRESS_KEY);
       clearPostSplashLanguageSeen();
       setGuestDisplayName("");
       setHelpfulFavoriteKeys([]);
@@ -257,12 +258,8 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    try {
-      const v = window.localStorage.getItem(GUEST_DISPLAY_NAME_KEY);
-      if (v != null) setGuestDisplayName(v);
-    } catch {
-      /* ignore */
-    }
+    const v = readLocalItem(GUEST_DISPLAY_NAME_KEY);
+    if (v != null) setGuestDisplayName(v);
   }, []);
 
   const handleSaveDisplayName = useCallback(
@@ -272,11 +269,7 @@ function AppContent() {
         await saveTravelerDisplayName(user.id, trimmed);
         setUser((u) => (u ? { ...u, name: trimmed } : u));
       } else {
-        try {
-          window.localStorage.setItem(GUEST_DISPLAY_NAME_KEY, trimmed);
-        } catch {
-          /* ignore */
-        }
+        writeLocalItem(GUEST_DISPLAY_NAME_KEY, trimmed);
         setGuestDisplayName(trimmed);
       }
     },
@@ -402,11 +395,11 @@ function AppContent() {
   const handleClearGuestStorageDev = useCallback(async () => {
     if (typeof window === "undefined") return;
     try {
-      window.localStorage.removeItem(GUEST_DISPLAY_NAME_KEY);
-      window.localStorage.removeItem("trad-trav-helpful-favorites");
+      removeLocalItem(GUEST_DISPLAY_NAME_KEY);
+      removeLocalItem("trad-trav-helpful-favorites");
       clearGuestPlayerProgress();
       if (!user?.id) {
-        window.localStorage.removeItem("trad-trav-cosmetics-coins-v1");
+        removeLocalItem("trad-trav-cosmetics-coins-v1");
         resetTutorialProgress();
         clearPostSplashLanguageSeen();
         clearFirstAppWalkthroughDone();

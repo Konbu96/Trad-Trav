@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { readLocalItem, writeLocalItem } from "../lib/localPersistence";
 
 // 日本の祝日
 const HOLIDAYS: Record<string, string> = {
@@ -818,14 +819,14 @@ export default function ScheduleView() {
   // ローカルストレージ読み込み
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = readLocalItem(STORAGE_KEY);
       if (saved) setEvents(JSON.parse(saved));
     } catch { /* ignore */ }
   }, []);
 
   const saveEvents = (list: ScheduleEvent[]) => {
     setEvents(list);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch { /* ignore */ }
+    writeLocalItem(STORAGE_KEY, JSON.stringify(list));
   };
 
   const handleSave = (ev: ScheduleEvent) => {

@@ -22,6 +22,7 @@ import { MAIN_TAB_BAR_BOTTOM_INSET } from "./BottomNavigation";
 import { useLanguage } from "../i18n/LanguageContext";
 import { isPlacePhotoKnownFailed, markPlacePhotoFailed } from "../lib/placePhotoLoadCache";
 import { buildGoogleMapsNameSearchUrl } from "../lib/googleMapsUrl";
+import { readLocalItem, writeLocalItem } from "../lib/localPersistence";
 
 interface SpotDetailSheetProps {
   spot: Spot | null;
@@ -577,16 +578,14 @@ export default function SpotDetailSheet({
     : "92vh";
 
   useEffect(() => {
-    if (spot && typeof window !== "undefined" && !localStorage.getItem(TAB_TUTORIAL_KEY)) {
+    if (spot && !readLocalItem(TAB_TUTORIAL_KEY)) {
       setShowTabTutorial(true);
     }
   }, [spot]);
 
   const handleCloseTutorial = () => {
     setShowTabTutorial(false);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(TAB_TUTORIAL_KEY, "1");
-    }
+    writeLocalItem(TAB_TUTORIAL_KEY, "1");
   };
 
   const handleTabChange = (tab: "overview" | "reviews" | "photos") => {
