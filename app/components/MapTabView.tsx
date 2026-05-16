@@ -3,29 +3,23 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type Spot } from "../data/spots";
-import { TRADITIONAL_GENRES, type TraditionalGenreId } from "../data/traditionalGenres";
+import type { TraditionalGenreId } from "../data/traditionalGenres";
 import { LOCAL_TRADITIONAL_LOCATIONS } from "../data/localTraditionalLocations";
 import { useLanguage } from "../i18n/LanguageContext";
 import type { Translations } from "../i18n/translations";
 import SpotDetailSheet from "./SpotDetailSheet";
-import type { LocalizedSearchLocationFields, SearchLocation } from "./SearchBar";
+import type { SearchLocation } from "./SearchBar";
 import { buildGoogleMapsNameSearchUrl, openGoogleMapsUrl } from "../lib/googleMapsUrl";
+import { fetchGooglePlaceDetail, mergeGooglePlaceDetailIntoSpot } from "../lib/googlePlaceDetail";
 import { isPlacePhotoKnownFailed, markPlacePhotoFailed } from "../lib/placePhotoLoadCache";
-import { buildSpotIntroFromPlaces } from "../lib/spotIntroFromPlaces";
+import {
+  buildPanelSpotFromSearchLocation,
+  genreHeading,
+  type PanelSpot,
+  TRADITIONAL_GENRE_LIST as GENRES,
+} from "../lib/panelSpotFromSearchLocation";
 
-const GENRES = TRADITIONAL_GENRES;
 type GenreId = TraditionalGenreId;
-
-const GENRE_HEADING: Record<GenreId, (t: Translations) => string> = {
-  festival: (t) => t.mapTab.genreFestival,
-  performing: (t) => t.mapTab.genrePerforming,
-  history: (t) => t.mapTab.genreHistory,
-  craft: (t) => t.mapTab.genreCraft,
-};
-
-function genreHeading(id: GenreId, t: Translations): string {
-  return (GENRE_HEADING[id] ?? (() => t.mapTab.genreDefault))(t);
-}
 
 /** トップ一覧のジャンル棚に並べる最大件数 */
 const GENRE_SHELF_PREVIEW_MAX = 5;
@@ -46,130 +40,23 @@ interface MapTabViewProps {
   onTutorialAction?: (actionId: string) => void;
 }
 
-type SearchPanelSpot = Spot & { placeId?: string; source?: "google" | "local" };
-
 type GoogleSearchResponse = {
   locations?: SearchLocation[];
   error?: string;
 };
 
-type GooglePlaceDetailResponse = {
-  name?: string;
-  address?: string;
-  category?: string;
-  phone?: string;
-  website?: string;
-  mapsUrl?: string;
-  hours?: string;
-  reviews?: Spot["reviews"];
-  photos?: string[];
-  overview?: string;
-  generativeOverview?: string;
-  generativeOverviewDisclosure?: string;
-  reviewSummary?: string;
-  reviewSummaryDisclosure?: string;
-  rating?: number;
-  userRatingCount?: number;
-  primaryTypeDisplayName?: string;
-  error?: string;
-};
-
 interface SpotShelfCardProps {
-  spot: SearchPanelSpot | Spot;
+  spot: PanelSpot | Spot;
   fallbackEmoji: string;
   onOpen: () => void;
   tutorialDataId?: string;
 }
 
 interface SpotGridCardProps {
-  spot: SearchPanelSpot | Spot;
+  spot: PanelSpot | Spot;
   fallbackEmoji: string;
   onOpen: () => void;
   tutorialDataId?: string;
-}
-
-/** Places の primaryType / types から体験発掘のジャンル ID を推定（表示ラベルは `genreHeading`） */
-function inferTraditionalGenreFromGoogleTypes(category?: string, type?: string): GenreId {
-  const source = `${category || ""} ${type || ""}`;
-  if (/festival|event/.test(source)) return "festival";
-  if (/performing_arts|dance|music/.test(source)) return "performing";
-  if (/museum|art_gallery|historical|history_museum/.test(source)) return "history";
-  if (/educational_institution|store|point_of_interest|tourist_attraction|manufacturer/.test(source)) return "craft";
-  return "craft";
-}
-
-function resolveMapSpotCategoryLabel(
-  t: Translations,
-  traditionalGenre: TraditionalGenreId | undefined,
-  googleCategory?: string,
-  googleType?: string
-): string {
-  const id = traditionalGenre ?? inferTraditionalGenreFromGoogleTypes(googleCategory, googleType);
-  return genreHeading(id, t);
-}
-
-function searchLocationToPanelSpot(
-  location: SearchLocation,
-  index: number,
-  spotDescriptionFallback: string,
-  addressLabel: string,
-  t: Translations,
-  language: "ja" | "en" | "zh" | "ko"
-): SearchPanelSpot {
-  const localized = (language === "ja" ? undefined : location.localized?.[language]) as LocalizedSearchLocationFields | undefined;
-  const name = localized?.name?.trim() || location.name;
-  const formattedAddress = localized?.formattedAddress?.trim() || location.formattedAddress;
-  const summary = localized?.summary;
-  const overview = localized?.overview ?? (language === "ja" ? location.overview : undefined);
-  const generativeOverview = localized?.generativeOverview ?? (language === "ja" ? location.generativeOverview : undefined);
-  const generativeOverviewDisclosure =
-    localized?.generativeOverviewDisclosure ?? (language === "ja" ? location.generativeOverviewDisclosure : undefined);
-  const reviewSummary = localized?.reviewSummary ?? (language === "ja" ? location.reviewSummary : undefined);
-  const reviewSummaryDisclosure =
-    localized?.reviewSummaryDisclosure ?? (language === "ja" ? location.reviewSummaryDisclosure : undefined);
-  const primaryTypeDisplayName = localized?.primaryTypeDisplayName ?? (language === "ja" ? location.primaryTypeDisplayName : undefined);
-  const reviews = localized?.reviews ?? (language === "ja" ? location.reviews : undefined);
-  const hours = localized?.hours ?? (language === "ja" ? location.hours : undefined);
-
-  const genreId = location.traditionalGenre ?? inferTraditionalGenreFromGoogleTypes(location.category, location.type);
-  const category = genreHeading(genreId, t);
-  const address = formattedAddress || name;
-  const curated = summary?.trim() || (language === "ja" ? location.summary?.trim() : undefined);
-  const description = buildSpotIntroFromPlaces(
-    {
-      overview,
-      generativeOverview,
-      reviewSummary,
-      curatedSummary: curated,
-      generativeOverviewDisclosure,
-      reviewSummaryDisclosure,
-      rating: location.rating,
-      userRatingCount: location.userRatingCount,
-      primaryTypeDisplayName,
-    },
-    { t, categoryLabel: category, fallbackDescription: spotDescriptionFallback }
-  );
-  const infos: Spot["infos"] = [{ type: "address", label: addressLabel, value: address }];
-  if (hours?.trim()) infos.push({ type: "hours", label: t.spot.hours, value: hours.trim() });
-  if (location.phone?.trim()) infos.push({ type: "phone", label: t.spot.phone, value: location.phone.trim() });
-  if (location.website?.trim()) infos.push({ type: "website", label: t.spot.website, value: location.website.trim() });
-  if (location.mapsUrl?.trim()) infos.push({ type: "maps", label: t.map.googleMaps, value: location.mapsUrl.trim() });
-
-  return {
-    id: -5000 - index,
-    name,
-    lat: location.lat,
-    lng: location.lng,
-    description,
-    category,
-    traditionalGenre: genreId,
-    reviews: reviews?.length ? [...reviews] : [],
-    infos,
-    photos: location.photos,
-    placeId: location.placeId,
-    source: location.source,
-    curatedSummary: curated || undefined,
-  };
 }
 
 function findLocalTraditionalByPlaceId(placeId: string): { loc: SearchLocation; index: number } | null {
@@ -183,20 +70,20 @@ function findLocalTraditionalByPlaceId(placeId: string): { loc: SearchLocation; 
 
 /** 言語を日本語に戻したとき、スナップショットからローカル施設の表示を組み直す（一覧・詳細の id は維持） */
 function rebuildLocalPanelSpotFromSnapshot(
-  prevSpot: SearchPanelSpot,
+  prevSpot: PanelSpot,
   t: Translations,
   spotDescriptionFallback: string,
   addressLabel: string,
   language: "ja" | "en" | "zh" | "ko"
-): SearchPanelSpot | null {
+): PanelSpot | null {
   if (prevSpot.source !== "local" || !prevSpot.placeId) return null;
   const hit = findLocalTraditionalByPlaceId(prevSpot.placeId);
   if (!hit) return null;
-  const fresh = searchLocationToPanelSpot(hit.loc, hit.index, spotDescriptionFallback, addressLabel, t, language);
+  const fresh = buildPanelSpotFromSearchLocation(hit.loc, hit.index, spotDescriptionFallback, addressLabel, t, language);
   return { ...fresh, id: prevSpot.id };
 }
 
-function getPrimaryPhoto(spot: SearchPanelSpot | Spot) {
+function getPrimaryPhoto(spot: PanelSpot | Spot) {
   return spot.photos?.[0] || null;
 }
 
@@ -298,11 +185,11 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [selectedSpot, setSelectedSpot] = useState<SearchPanelSpot | Spot | null>(null);
+  const [selectedSpot, setSelectedSpot] = useState<PanelSpot | Spot | null>(null);
   const [isFetchingSpotInfo, setIsFetchingSpotInfo] = useState(false);
-  const [searchResults, setSearchResults] = useState<SearchPanelSpot[]>([]);
+  const [searchResults, setSearchResults] = useState<PanelSpot[]>([]);
   const [searchResultLocations, setSearchResultLocations] = useState<SearchLocation[] | null>(null);
-  const [genreResults, setGenreResults] = useState<Partial<Record<GenreId, SearchPanelSpot[]>>>({});
+  const [genreResults, setGenreResults] = useState<Partial<Record<GenreId, PanelSpot[]>>>({});
   const [genreLocations, setGenreLocations] = useState<Partial<Record<GenreId, SearchLocation[]>>>({});
   const [genreLoading, setGenreLoading] = useState<Partial<Record<GenreId, boolean>>>({});
   /** キュレーション取得失敗（文言は表示時に t.mapTab.fetchFailed で出す＝言語切替に追随） */
@@ -341,7 +228,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     setGenreResults(prev => ({
       ...prev,
       [genreId]: locations.map((loc, i) =>
-        searchLocationToPanelSpot(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address, t, language)
+        buildPanelSpotFromSearchLocation(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address, t, language)
       ),
     }));
   }, [language, t]);
@@ -366,65 +253,23 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     };
   }, []);
 
-  const enrichSpotDetail = useCallback(async (spot: SearchPanelSpot | Spot) => {
+  const enrichSpotDetail = useCallback(async (spot: PanelSpot | Spot) => {
     if (!("placeId" in spot) || !spot.placeId) return;
     // ローカル（スナップショット）施設は API を呼ばず静的データのみ利用
     if ("source" in spot && spot.source === "local") return;
 
     setIsFetchingSpotInfo(true);
     try {
-      const res = await fetch(
-        `/api/google-places/detail?placeId=${encodeURIComponent(spot.placeId)}&lang=${encodeURIComponent(language)}`
-      );
-      const info: GooglePlaceDetailResponse = await res.json();
-
-      if (!res.ok) {
-        throw new Error(info.error || "detail fetch failed");
-      }
-
-      const extraInfos: Spot["infos"] = [];
-      if (info.hours)   extraInfos.push({ type: "hours", label: t.spot.hours, value: info.hours });
-      if (info.address) extraInfos.push({ type: "address", label: t.spot.address, value: info.address });
-      if (info.phone)   extraInfos.push({ type: "phone", label: t.spot.phone, value: info.phone });
-      if (info.website) extraInfos.push({ type: "website", label: t.spot.website, value: info.website });
-      if (info.mapsUrl) extraInfos.push({ type: "maps", label: t.map.googleMaps, value: info.mapsUrl });
-
-      setSelectedSpot(prev => {
+      const info = await fetchGooglePlaceDetail(spot.placeId, language);
+      setSelectedSpot((prev) => {
         if (!prev) return prev;
         if (!("placeId" in prev) || prev.placeId !== spot.placeId) return prev;
-
-        const categoryNext = info.category
-          ? resolveMapSpotCategoryLabel(t, prev.traditionalGenre, info.category, info.category)
-          : prev.category;
-        const descriptionNext = buildSpotIntroFromPlaces(
-          {
-            overview: info.overview,
-            generativeOverview: info.generativeOverview,
-            reviewSummary: info.reviewSummary,
-            curatedSummary: prev.curatedSummary,
-            generativeOverviewDisclosure: info.generativeOverviewDisclosure,
-            reviewSummaryDisclosure: info.reviewSummaryDisclosure,
-            rating: info.rating,
-            userRatingCount: info.userRatingCount,
-            primaryTypeDisplayName: info.primaryTypeDisplayName,
-          },
-          { t, categoryLabel: categoryNext, fallbackDescription: t.mapTab.spotDescriptionFallback }
+        return mergeGooglePlaceDetailIntoSpot(
+          prev as PanelSpot,
+          info,
+          t,
+          t.mapTab.spotDescriptionFallback
         );
-
-        return {
-          ...prev,
-          name: info.name || prev.name,
-          category: categoryNext,
-          description: descriptionNext,
-          reviews: info.reviews?.length ? info.reviews : prev.reviews,
-          photos: info.photos?.length ? info.photos : prev.photos,
-          infos: [
-            ...prev.infos.filter(prevInfo =>
-              !extraInfos.some(nextInfo => nextInfo.type === prevInfo.type && nextInfo.label === prevInfo.label)
-            ),
-            ...extraInfos,
-          ],
-        };
       });
     } catch (error) {
       console.warn("Google Places 詳細取得に失敗:", error);
@@ -437,7 +282,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
   useEffect(() => {
     setGenreResults((prev) => {
       let changed = false;
-      const next: Partial<Record<GenreId, SearchPanelSpot[]>> = { ...prev };
+      const next: Partial<Record<GenreId, PanelSpot[]>> = { ...prev };
       for (const g of GENRES) {
         const list = prev[g.id];
         if (!list?.length) continue;
@@ -468,8 +313,8 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
       return changed ? rebuilt : list;
     });
     setSelectedSpot((cur) => {
-      if (!cur || !("placeId" in cur) || (cur as SearchPanelSpot).source !== "local") return cur;
-      const r = rebuildLocalPanelSpotFromSnapshot(cur as SearchPanelSpot, t, t.mapTab.spotDescriptionFallback, t.spot.address, language);
+      if (!cur || !("placeId" in cur) || (cur as PanelSpot).source !== "local") return cur;
+      const r = rebuildLocalPanelSpotFromSnapshot(cur as PanelSpot, t, t.mapTab.spotDescriptionFallback, t.spot.address, language);
       return r ?? cur;
     });
   }, [language, t]);
@@ -482,7 +327,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedSpot は言語変更時の再取得対象に含めない（二重取得防止）
   }, [language, enrichSpotDetail]);
 
-  const openSpotDetail = useCallback((spot: SearchPanelSpot | Spot) => {
+  const openSpotDetail = useCallback((spot: PanelSpot | Spot) => {
     setSelectedSpot(spot);
     onSpotView({ id: spot.id, name: spot.name, category: spot.category });
     void enrichSpotDetail(spot);
@@ -580,7 +425,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
       setSearchResultLocations(locations);
       setSearchResults(
         locations.map((loc, i) =>
-          searchLocationToPanelSpot(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address, t, language)
+          buildPanelSpotFromSearchLocation(loc, i, t.mapTab.spotDescriptionFallback, t.spot.address, t, language)
         )
       );
     } catch (error) {
@@ -642,7 +487,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     ? GENRES.find(genre => genre.id === selectedGenre) || null
     : null;
   const groupedSearchSections = useMemo(() => {
-    const grouped = new Map<string, SearchPanelSpot[]>();
+    const grouped = new Map<string, PanelSpot[]>();
 
     displayedSpots.forEach((spot) => {
       const key = spot.category || "その他";
@@ -673,7 +518,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
   }, [displayedSpots, t]);
 
   const openGoogleMapsForSpot = useCallback(
-    (spot: SearchPanelSpot | Spot) => {
+    (spot: PanelSpot | Spot) => {
       onSpotView({ id: spot.id, name: spot.name, category: spot.category });
       openGoogleMapsUrl(buildGoogleMapsNameSearchUrl(spot.name, "宮城県"));
     },
@@ -682,7 +527,7 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
 
   const renderGenreState = (
     genreId: GenreId,
-    spots: SearchPanelSpot[],
+    spots: PanelSpot[],
     isGenreLoading?: boolean,
     expandedRetry?: boolean
   ) => {

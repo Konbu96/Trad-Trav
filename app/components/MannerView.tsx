@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { CloseIcon, SearchIcon } from "./icons";
 import HelpfulAiMarkdown from "./HelpfulAiMarkdown";
 import HelpfulGuideStepPage from "./HelpfulGuideStepPage";
@@ -24,6 +24,7 @@ import { getLocalizedHelpfulDetailTitle, localizeHelpfulCard } from "../lib/loca
 
 export type MannerTutorialHandle = {
   applyTutorialAutomation: (targetId: string) => void;
+  resetToRoot: () => void;
 };
 
 interface MannerViewProps {
@@ -321,9 +322,29 @@ const MannerView = forwardRef<MannerTutorialHandle, MannerViewProps>(function Ma
     }, DETAIL_ANIMATION_MS);
   };
 
+  const resetToRoot = useCallback(() => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    pendingDetailCloseRef.current = false;
+    isClosingDetailRef.current = false;
+    setActiveTab("manner");
+    setVisibleDetail(null);
+    setIsClosingDetail(false);
+    setIsHelperOpen(false);
+    setQuery("");
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("guideDetail");
+    params.delete("manner");
+    params.set("guideTab", "manner");
+    router.replace(params.toString() ? `${pathname}?${params.toString()}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
+
   useImperativeHandle(
     ref,
     () => ({
+      resetToRoot,
       applyTutorialAutomation(targetId: string) {
         switch (targetId) {
           case "nav.manner":
@@ -359,7 +380,7 @@ const MannerView = forwardRef<MannerTutorialHandle, MannerViewProps>(function Ma
         }
       },
     }),
-    [closeDetailPage, handleChangeTab, onToggleHelpfulFavorite, openDetailPage]
+    [closeDetailPage, handleChangeTab, onToggleHelpfulFavorite, openDetailPage, resetToRoot]
   );
 
   const handleAskHelper = async (nextQuery: string) => {

@@ -9,10 +9,24 @@ import { recommendedSpots } from "../data/spots";
 import { localizeHelpfulCard } from "../lib/localizeHelpfulLibrary";
 import type { CurrentAddress, LocationPermissionState } from "../page";
 import {
+  addCosmeticsCoinsEarned,
   cosmeticsCoinsForLevelUp,
+  DEV_GRANT_COINS_AMOUNT,
+  grantCosmeticsCoins,
   loadCosmeticsCoins,
+  loadCosmeticsCoinsEarnedTotal,
   saveCosmeticsCoins,
 } from "../lib/cosmeticsCoins";
+import AchievementBadgesSection from "./AchievementBadgesSection";
+import {
+  ACHIEVEMENT_TITLES,
+  NO_ACHIEVEMENT_TITLE_ID,
+  getUnlockedAchievementTitleIds,
+  loadSelectedAchievementTitleId,
+  resolveAchievementTitleLabel,
+  saveSelectedAchievementTitleId,
+  type AchievementTitleId,
+} from "../lib/achievementTitles";
 import {
   AVATAR_FRAME_SHOP_ITEMS,
   AVATAR_SHOP_ITEMS,
@@ -120,6 +134,7 @@ function shopFrameLabel(
 
 export type MyPageTutorialHandle = {
   applyTutorialAutomation: (targetId: string) => void;
+  resetToRoot: () => void;
 };
 
 function MypageSubHeader({
@@ -377,6 +392,27 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
   const [subPanelEntered, setSubPanelEntered] = useState(false);
   const locationSectionRef = useRef<HTMLDivElement | null>(null);
   const [cosmeticsCoins, setCosmeticsCoins] = useState(() => loadCosmeticsCoins());
+  const [coinsEarnedTotal, setCoinsEarnedTotal] = useState(() => loadCosmeticsCoinsEarnedTotal());
+  const achievementStats = useMemo(
+    () => ({
+      spotViews: playerProgress.stats.spotViews,
+      coinsEarnedTotal,
+      playerLevel,
+    }),
+    [playerProgress.stats.spotViews, coinsEarnedTotal, playerLevel]
+  );
+  const unlockedTitleIds = useMemo(
+    () => getUnlockedAchievementTitleIds(achievementStats),
+    [achievementStats]
+  );
+  const [selectedTitleId, setSelectedTitleId] = useState<AchievementTitleId>(() =>
+    typeof window === "undefined" ? NO_ACHIEVEMENT_TITLE_ID : loadSelectedAchievementTitleId()
+  );
+  const resolvedTitleLabel = useMemo(() => {
+    if (selectedTitleId === NO_ACHIEVEMENT_TITLE_ID) return null;
+    if (!unlockedTitleIds.includes(selectedTitleId)) return null;
+    return resolveAchievementTitleLabel(selectedTitleId, t.mypage.achievementTitleById);
+  }, [selectedTitleId, unlockedTitleIds, t.mypage.achievementTitleById]);
   const prevLevelCoinRef = useRef(playerLevel);
   const coinLevelMountedRef = useRef(false);
 
@@ -413,8 +449,10 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
       setCosmeticsCoins((c) => {
         const next = c + delta;
         saveCosmeticsCoins(next);
+        addCosmeticsCoinsEarned(delta);
         return next;
       });
+      setCoinsEarnedTotal((prev) => prev + delta);
     }
     prevLevelCoinRef.current = playerLevel;
   }, [playerLevel]);
@@ -462,6 +500,17 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
   }, [selectedAvatarPresetId]);
 
   useEffect(() => {
+    if (selectedTitleId === NO_ACHIEVEMENT_TITLE_ID) return;
+    if (unlockedTitleIds.includes(selectedTitleId)) return;
+    setSelectedTitleId(NO_ACHIEVEMENT_TITLE_ID);
+    saveSelectedAchievementTitleId(NO_ACHIEVEMENT_TITLE_ID);
+  }, [selectedTitleId, unlockedTitleIds]);
+
+  useEffect(() => {
+    saveSelectedAchievementTitleId(selectedTitleId);
+  }, [selectedTitleId]);
+
+  useEffect(() => {
     writeLocalItem(AVATAR_FRAME_STORAGE_KEY, selectedAvatarFrameId);
   }, [selectedAvatarFrameId]);
 
@@ -489,9 +538,18 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
     [subPanelEntered]
   );
 
+  const resetToRoot = useCallback(() => {
+    setShowLanguageModal(false);
+    setPanel("main");
+    setSubPanelEntered(false);
+    setShopAvatarError("");
+    setSaveNameError("");
+  }, []);
+
   useImperativeHandle(
     ref,
     () => ({
+      resetToRoot,
       applyTutorialAutomation(targetId: string) {
         switch (targetId) {
           case "nav.mypage":
@@ -527,7 +585,7 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
         }
       },
     }),
-    []
+    [resetToRoot]
   );
 
   const favoriteDisplayRows = favoriteSpotIds.map((id) => {
@@ -604,6 +662,15 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
       setSavingName(false);
     }
   }, [beginCloseSubPanel, draftName, onSaveDisplayName, t.mypage.saveDisplayNameFailed]);
+
+  const handleDevGrantCoins = useCallback(() => {
+    const n = DEV_GRANT_COINS_AMOUNT;
+    const confirmMsg = t.mypage.developerGrantCoinsConfirm.replace("{n}", n.toLocaleString());
+    if (typeof window !== "undefined" && !window.confirm(confirmMsg)) return;
+    const { balance, earnedTotal } = grantCosmeticsCoins(n);
+    setCosmeticsCoins(balance);
+    setCoinsEarnedTotal(earnedTotal);
+  }, [t.mypage.developerGrantCoinsConfirm]);
 
   const handlePurchaseShopAvatar = useCallback(
     (itemId: string) => {
@@ -935,6 +1002,32 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                   }}
                 >
                   {t.mypage.developerQuestResetButton}
+                </button>
+                <p style={{ fontSize: "11px", color: "#6b7280", lineHeight: 1.65, margin: "12px 0" }}>
+                  {t.mypage.developerGrantCoinsHelp.replace(
+                    "{n}",
+                    DEV_GRANT_COINS_AMOUNT.toLocaleString()
+                  )}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleDevGrantCoins}
+                  style={{
+                    width: "100%",
+                    borderRadius: "12px",
+                    border: "1px solid #fde68a",
+                    backgroundColor: "#fffbeb",
+                    color: "#b45309",
+                    padding: "10px 14px",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  {t.mypage.developerGrantCoinsButton.replace(
+                    "{n}",
+                    DEV_GRANT_COINS_AMOUNT.toLocaleString()
+                  )}
                 </button>
               </>
             )}
@@ -1596,6 +1689,26 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
               >
                 {draftName.trim() || t.mypage.defaultDisplayName}
               </p>
+              {resolveAchievementTitleLabel(
+                selectedTitleId,
+                t.mypage.achievementTitleById
+              ) ? (
+                <p
+                  style={{
+                    display: "inline-block",
+                    margin: "8px 0 0",
+                    padding: "4px 10px",
+                    borderRadius: "999px",
+                    background: "linear-gradient(135deg, #fff5f8 0%, #fce7f3 100%)",
+                    border: "1px solid #f3d1da",
+                    fontSize: "12px",
+                    fontWeight: 800,
+                    color: "#b85f74",
+                  }}
+                >
+                  {resolveAchievementTitleLabel(selectedTitleId, t.mypage.achievementTitleById)}
+                </p>
+              ) : null}
             </div>
             <label htmlFor={nameEditFieldId} style={{ display: "block", fontSize: "12px", fontWeight: 800, color: "#b85f74", marginBottom: "8px" }}>
               {t.mypage.editName}
@@ -1622,6 +1735,63 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                 boxShadow: "inset 0 1px 2px rgba(232,143,163,0.06)",
               }}
             />
+            <div style={{ marginTop: "22px" }}>
+              <p style={{ margin: "0 0 6px", fontSize: "12px", fontWeight: 800, color: "#b85f74" }}>
+                {t.mypage.achievementTitlesSection}
+              </p>
+              <p style={{ margin: "0 0 10px", fontSize: "11px", color: "#6b7280", lineHeight: 1.55 }}>
+                {t.mypage.achievementTitlesSectionHint}
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTitleId(NO_ACHIEVEMENT_TITLE_ID)}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    borderRadius: "12px",
+                    border:
+                      selectedTitleId === NO_ACHIEVEMENT_TITLE_ID ? "2px solid #e88fa3" : "1px solid #e5e7eb",
+                    backgroundColor: selectedTitleId === NO_ACHIEVEMENT_TITLE_ID ? "#fff5f8" : "#fff",
+                    padding: "12px 14px",
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    color: "#374151",
+                    cursor: "pointer",
+                    boxShadow:
+                      selectedTitleId === NO_ACHIEVEMENT_TITLE_ID ? "0 0 0 2px rgba(232,143,163,0.14)" : "none",
+                  }}
+                >
+                  {t.mypage.achievementTitleNone}
+                </button>
+                {ACHIEVEMENT_TITLES.filter((title) => unlockedTitleIds.includes(title.id)).map((title) => {
+                  const label = t.mypage.achievementTitleById[title.id] ?? title.id;
+                  const selected = selectedTitleId === title.id;
+                  return (
+                    <button
+                      key={title.id}
+                      type="button"
+                      onClick={() => setSelectedTitleId(title.id)}
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        borderRadius: "12px",
+                        border: selected ? "2px solid #e88fa3" : "1px solid #e5e7eb",
+                        backgroundColor: selected ? "#fff5f8" : "#fff",
+                        padding: "12px 14px",
+                        fontSize: "14px",
+                        fontWeight: 700,
+                        color: "#b85f74",
+                        cursor: "pointer",
+                        boxShadow: selected ? "0 0 0 2px rgba(232,143,163,0.14)" : "none",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div style={{ marginTop: "22px" }}>
               <p style={{ margin: "0 0 8px", fontSize: "12px", fontWeight: 800, color: "#b85f74" }}>
                 {t.mypage.cosmeticsShopSectionAvatars}
@@ -2159,6 +2329,24 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
               >
                 {resolvedDisplayName}
               </p>
+              {resolvedTitleLabel ? (
+                <p
+                  style={{
+                    display: "inline-block",
+                    margin: "8px 0 0",
+                    padding: "4px 10px",
+                    borderRadius: "999px",
+                    background: "linear-gradient(135deg, #fff5f8 0%, #fce7f3 100%)",
+                    border: "1px solid #f3d1da",
+                    fontSize: "12px",
+                    fontWeight: 800,
+                    color: "#b85f74",
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {resolvedTitleLabel}
+                </p>
+              ) : null}
               {user ? (
                 <p style={{ fontSize: "13px", color: "#4b5563", marginTop: "4px" }}>
                   {t.mypage.accountDisplayNameLabel}
@@ -2340,6 +2528,14 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
             🪙 {cosmeticsCoins}
           </div>
         </button>
+      </div>
+
+      <div style={{ padding: "14px 16px 0" }}>
+        <AchievementBadgesSection
+          spotViews={playerProgress.stats.spotViews}
+          coinsEarnedTotal={coinsEarnedTotal}
+          playerLevel={playerLevel}
+        />
       </div>
 
       <div style={{ padding: "24px 24px 16px" }}>

@@ -1,19 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Spot } from "../data/spots";
 import type { TraditionalGenreId } from "../data/traditionalGenres";
 import { getRecommendedHelpfulTopicsByScenes } from "../data/helpfulInfo";
 import { useLanguage } from "../i18n/LanguageContext";
 import type { Translations } from "../i18n/translations";
 import { estimateDrivingMinutesFromCrowMeters, getDistanceMeters } from "../lib/geoEstimate";
+import { fetchGooglePlaceDetail, mergeGooglePlaceDetailIntoSpot } from "../lib/googlePlaceDetail";
+import { buildGoogleMapsNameSearchUrl, openGoogleMapsUrl } from "../lib/googleMapsUrl";
 import { makeLocationKey } from "../lib/location";
-import type { CurrentAddress, LocationPermissionState } from "../page";
-import type { SearchLocation } from "./SearchBar";
 import { locationIssueMessage } from "../lib/locationIssue";
 import type { LocationIssueCode } from "../lib/locationIssue";
 import { getLocalizedTopic } from "../lib/localizeHelpfulLibrary";
 import type { NearbyContextPayload } from "../lib/nearbyContextCopy";
+import {
+  buildPanelSpotFromSearchLocation,
+  type PanelSpot,
+} from "../lib/panelSpotFromSearchLocation";
 import { isPlacePhotoKnownFailed, markPlacePhotoFailed } from "../lib/placePhotoLoadCache";
+import type { CurrentAddress, LocationPermissionState } from "../page";
+import type { SearchLocation } from "./SearchBar";
+import SpotDetailSheet from "./SpotDetailSheet";
 
 interface NowInfoViewProps {
   locationPermissionState?: LocationPermissionState;
@@ -26,6 +34,11 @@ interface NowInfoViewProps {
   onTutorialAction?: (actionId: string) => void;
   /** 開発時のみ: 宮城県栗原市の固定座標を現在地として適用 */
   onUseDeveloperKuriharaLocation?: () => void;
+  onSpotView: (spot: { id: number; name: string; category: string }) => void;
+  favoriteSpotIds: number[];
+  onToggleFavorite: (spotId: number) => void;
+  onOpenLanguageHelper?: (spotName: string) => void;
+  onOpenReservationGuide?: () => void;
 }
 
 type NearbyResponse = {
@@ -61,10 +74,12 @@ function NearbySpotCard({
   location,
   origin,
   t,
+  onPress,
 }: {
   location: SearchLocation;
   origin: { latitude: number; longitude: number } | null;
   t: Translations;
+  onPress: () => void;
 }) {
   const photo = location.photos?.[0];
   const [photoFailed, setPhotoFailed] = useState(false);
@@ -81,13 +96,20 @@ function NearbySpotCard({
   const genreLabel = traditionalGenreLabel(location.traditionalGenre, t);
 
   return (
-    <article
+    <button
+      type="button"
+      onClick={onPress}
       style={{
+        display: "block",
+        width: "100%",
+        textAlign: "left",
+        cursor: "pointer",
         backgroundColor: "white",
         borderRadius: "20px",
         border: "1px solid #f7dfe5",
         overflow: "hidden",
         boxShadow: "0 2px 12px rgba(236,72,153,0.08)",
+        padding: 0,
       }}
     >
       <div style={{ display: "flex", gap: "12px", padding: "12px" }}>
@@ -147,7 +169,7 @@ function NearbySpotCard({
           ) : null}
         </div>
       </div>
-    </article>
+    </button>
   );
 }
 
@@ -212,8 +234,15 @@ export default function NowInfoView({
   onOpenLocationSettings,
   onTutorialAction,
   onUseDeveloperKuriharaLocation,
+  onSpotView,
+  favoriteSpotIds,
+  onToggleFavorite,
+  onOpenLanguageHelper,
+  onOpenReservationGuide,
 }: NowInfoViewProps) {
   const { t, language } = useLanguage();
+  const [selectedSpot, setSelectedSpot] = useState<PanelSpot | Spot | null>(null);
+  const [isFetchingSpotInfo, setIsFetchingSpotInfo] = useState(false);
   const [nearbyLocations, setNearbyLocations] = useState<SearchLocation[]>([]);
   const [nearbyContext, setNearbyContext] = useState<NearbyContextPayload | null>(null);
   const [nearbyError, setNearbyError] = useState("");
@@ -355,6 +384,60 @@ export default function NowInfoView({
   );
 
   const hasLocation = Boolean(currentPosition);
+
+  const enrichSpotDetail = useCallback(
+    async (spot: PanelSpot | Spot) => {
+      if (!("placeId" in spot) || !spot.placeId) return;
+      if ("source" in spot && spot.source === "local") return;
+
+      setIsFetchingSpotInfo(true);
+      try {
+        const info = await fetchGooglePlaceDetail(spot.placeId, language);
+        setSelectedSpot((prev) => {
+          if (!prev) return prev;
+          if (!("placeId" in prev) || prev.placeId !== spot.placeId) return prev;
+          return mergeGooglePlaceDetailIntoSpot(prev as PanelSpot, info, t, t.mapTab.spotDescriptionFallback);
+        });
+      } catch (error) {
+        console.warn("Google Places 詳細取得に失敗:", error);
+      } finally {
+        setIsFetchingSpotInfo(false);
+      }
+    },
+    [language, t]
+  );
+
+  useEffect(() => {
+    if (!selectedSpot || !("placeId" in selectedSpot) || !selectedSpot.placeId) return;
+    if ("source" in selectedSpot && selectedSpot.source === "local") return;
+    void enrichSpotDetail(selectedSpot);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedSpot は言語変更時の再取得対象に含めない（二重取得防止）
+  }, [language, enrichSpotDetail]);
+
+  const openNearbySpot = useCallback(
+    (location: SearchLocation, index: number) => {
+      const spot = buildPanelSpotFromSearchLocation(
+        location,
+        index,
+        t.mapTab.spotDescriptionFallback,
+        t.spot.address,
+        t,
+        language
+      );
+      setSelectedSpot(spot);
+      onSpotView({ id: spot.id, name: spot.name, category: spot.category });
+      void enrichSpotDetail(spot);
+    },
+    [enrichSpotDetail, language, onSpotView, t]
+  );
+
+  const openGoogleMapsForSpot = useCallback(
+    (spot: PanelSpot | Spot) => {
+      onSpotView({ id: spot.id, name: spot.name, category: spot.category });
+      openGoogleMapsUrl(buildGoogleMapsNameSearchUrl(spot.name, "宮城県"));
+    },
+    [onSpotView]
+  );
 
   return (
     <div
@@ -623,12 +706,13 @@ export default function NowInfoView({
 
               {!isLoadingNearby && !nearbyError && nearbyLocations.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  {nearbyLocations.map((location) => (
+                  {nearbyLocations.map((location, index) => (
                     <NearbySpotCard
                       key={`${location.placeId || location.name}-${location.lat}-${location.lng}`}
                       location={location}
                       origin={currentPosition}
                       t={t}
+                      onPress={() => openNearbySpot(location, index)}
                     />
                   ))}
                 </div>
@@ -689,6 +773,33 @@ export default function NowInfoView({
           </>
         )}
       </div>
+
+      {selectedSpot && (
+        <SpotDetailSheet
+          spot={selectedSpot}
+          onClose={() => setSelectedSpot(null)}
+          onTutorialAction={onTutorialAction}
+          isLoadingInfo={isFetchingSpotInfo}
+          isFavorite={favoriteSpotIds.includes(selectedSpot.id)}
+          onToggleFavorite={() => onToggleFavorite(selectedSpot.id)}
+          onOpenLanguageHelper={onOpenLanguageHelper}
+          googleMapsSearchRegionHint="宮城県"
+          onShowMap={() => {
+            const spot = selectedSpot;
+            if (!spot) return;
+            openGoogleMapsForSpot(spot);
+          }}
+          onOpenReservationGuide={
+            onOpenReservationGuide
+              ? () => {
+                  setSelectedSpot(null);
+                  onOpenReservationGuide();
+                }
+              : undefined
+          }
+          reserveMainBottomNav={false}
+        />
+      )}
     </div>
   );
 }

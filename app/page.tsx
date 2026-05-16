@@ -137,6 +137,7 @@ function AppContent() {
   const [favoriteSpotIds, setFavoriteSpotIds] = useState<number[]>([]);
   const [helpfulFavoriteKeys, setHelpfulFavoriteKeys] = useState<string[]>([]);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>("map");
+  const [mapResetKey, setMapResetKey] = useState(0);
   /** 一度開いたタブはアンマウントしない（戻ったときの再フェッチを防ぐ） */
   const [tabsEverMounted, setTabsEverMounted] = useState<Record<ScreenType, boolean>>({
     map: true,
@@ -400,6 +401,9 @@ function AppContent() {
       clearGuestPlayerProgress();
       if (!user?.id) {
         removeLocalItem("trad-trav-cosmetics-coins-v1");
+        removeLocalItem("trad-trav-cosmetics-coins-earned-total-v1");
+        removeLocalItem("trad-trav-selected-achievement-title-v1");
+        removeLocalItem("trad-trav-achievement-title-seen-axes-v1");
         resetTutorialProgress();
         clearPostSplashLanguageSeen();
         clearFirstAppWalkthroughDone();
@@ -419,7 +423,7 @@ function AppContent() {
   const handleDiagnosisComplete = async (result: DiagnosisResult) => {
     setDiagnosisResult(result);
     setShowDiagnosis(false);
-    setCurrentScreen("map");
+    goToScreen("map");
 
     if (user?.id) {
       try {
@@ -431,13 +435,37 @@ function AppContent() {
     void bumpPlayerProgress({ type: "diagnosis_complete" });
   };
 
-  const handleScreenChange = (screen: ScreenType) => {
-    setCurrentScreen(screen);
-    if (screen !== "manner") {
-      setMannerHelperSpot(null);
-      setPreferredHelpfulTab(null);
+  const resetTabToRoot = useCallback((screen: ScreenType) => {
+    switch (screen) {
+      case "map":
+        setMapResetKey((k) => k + 1);
+        break;
+      case "manner":
+        mannerTutorialRef.current?.resetToRoot();
+        break;
+      case "mypage":
+        mypageTutorialRef.current?.resetToRoot();
+        break;
+      case "now":
+        break;
     }
-  };
+  }, []);
+
+  const goToScreen = useCallback(
+    (screen: ScreenType) => {
+      if (screen !== currentScreen) {
+        resetTabToRoot(screen);
+      }
+      setCurrentScreen(screen);
+      if (screen !== "manner") {
+        setMannerHelperSpot(null);
+        setPreferredHelpfulTab(null);
+      }
+    },
+    [currentScreen, resetTabToRoot]
+  );
+
+  const handleScreenChange = goToScreen;
 
   useEffect(() => {
     setTabsEverMounted((prev) => (prev[currentScreen] ? prev : { ...prev, [currentScreen]: true }));
@@ -483,9 +511,9 @@ function AppContent() {
     resetTutorialProgress();
     setTutorialProgress(DEFAULT_TUTORIAL_PROGRESS);
     setActiveTutorialStepIndex(0);
-    setCurrentScreen("map");
+    goToScreen("map");
     setActiveTutorialScreen("map");
-  }, []);
+  }, [goToScreen]);
 
   useEffect(() => {
     if (
@@ -821,7 +849,7 @@ function AppContent() {
   }, []);
 
   const handleOpenLocationSettings = () => {
-    setCurrentScreen("mypage");
+    goToScreen("mypage");
     setSettingsOpenKey((prev) => prev + 1);
   };
 
@@ -988,6 +1016,7 @@ function AppContent() {
               >
                 <MapTabView
                   ref={mapTabTutorialRef}
+                  resetToSearchKey={mapResetKey}
                   onSpotView={handleSpotView}
                   favoriteSpotIds={favoriteSpotIds}
                   onToggleFavorite={handleToggleFavorite}
@@ -1034,6 +1063,11 @@ function AppContent() {
                   onUseDeveloperKuriharaLocation={
                     process.env.NODE_ENV === "development" ? handleUseDeveloperKuriharaLocation : undefined
                   }
+                  onSpotView={handleSpotView}
+                  favoriteSpotIds={favoriteSpotIds}
+                  onToggleFavorite={handleToggleFavorite}
+                  onOpenLanguageHelper={handleOpenLanguageHelper}
+                  onOpenReservationGuide={handleOpenReservationGuide}
                 />
               </div>
             )}
