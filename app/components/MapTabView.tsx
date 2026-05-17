@@ -201,20 +201,27 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
   const [hasSearched, setHasSearched] = useState(false);
   const genreResultsRef = useRef(genreResults);
   genreResultsRef.current = genreResults;
+  const genreLoadingRef = useRef(genreLoading);
+  genreLoadingRef.current = genreLoading;
+  const genreErrorsRef = useRef(genreErrors);
+  genreErrorsRef.current = genreErrors;
 
   const selectedGenreParam = searchParams.get("genre");
   const selectedGenre = GENRES.some(genre => genre.id === selectedGenreParam)
     ? (selectedGenreParam as GenreId)
     : null;
 
+  const searchParamsKey = searchParams.toString();
+
   const navigateWithoutGenre = useCallback(
     (method: "push" | "replace") => {
-      const params = new URLSearchParams(searchParams.toString());
+      if (!selectedGenreParam) return;
+      const params = new URLSearchParams(searchParamsKey);
       params.delete("genre");
       const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
       router[method](nextUrl, { scroll: false });
     },
-    [pathname, router, searchParams]
+    [pathname, router, searchParamsKey, selectedGenreParam]
   );
 
   const markGenreCuratedFailed = useCallback((genreId: GenreId) => {
@@ -336,12 +343,12 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
   const loadGenre = useCallback(async (genreId: GenreId, opts?: { retry?: boolean }) => {
     const genre = GENRES.find(item => item.id === genreId);
     if (!genre) return;
-    if (genreLoading[genreId]) return;
+    if (genreLoadingRef.current[genreId]) return;
     /** 失敗直後は useEffect の再実行で無限フェッチしない（「もう一度」のみ retry） */
-    if (genreErrors[genreId] && !opts?.retry) return;
+    if (genreErrorsRef.current[genreId] && !opts?.retry) return;
 
-    const hasLoadedGenre = Object.prototype.hasOwnProperty.call(genreResults, genreId);
-    if (hasLoadedGenre && !genreErrors[genreId] && !opts?.retry) return;
+    const hasLoadedGenre = Object.prototype.hasOwnProperty.call(genreResultsRef.current, genreId);
+    if (hasLoadedGenre && !genreErrorsRef.current[genreId] && !opts?.retry) return;
 
     setGenreLoading(prev => ({ ...prev, [genreId]: true }));
     setGenreErrors(prev => {
@@ -362,21 +369,14 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     } finally {
       setGenreLoading(prev => ({ ...prev, [genreId]: false }));
     }
-  }, [
-    applyGenreCuratedSuccess,
-    fetchCuratedGenreLocations,
-    genreErrors,
-    genreLoading,
-    genreResults,
-    markGenreCuratedFailed,
-  ]);
+  }, [applyGenreCuratedSuccess, fetchCuratedGenreLocations, markGenreCuratedFailed]);
 
   /** 「もっと見る」・URL直叩き用。キュレーション全件＋検索で最大30件 */
   const loadGenreExpanded = useCallback(async (genreId: GenreId, opts?: { retry?: boolean }) => {
     const genre = GENRES.find(item => item.id === genreId);
     if (!genre) return;
-    if (genreLoading[genreId]) return;
-    if (genreErrors[genreId] && !opts?.retry) return;
+    if (genreLoadingRef.current[genreId]) return;
+    if (genreErrorsRef.current[genreId] && !opts?.retry) return;
 
     setGenreLoading(prev => ({ ...prev, [genreId]: true }));
     setGenreErrors(prev => {
@@ -397,17 +397,16 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     } finally {
       setGenreLoading(prev => ({ ...prev, [genreId]: false }));
     }
-  }, [
-    applyGenreCuratedSuccess,
-    fetchCuratedGenreLocations,
-    genreErrors,
-    genreLoading,
-    markGenreCuratedFailed,
-  ]);
+  }, [applyGenreCuratedSuccess, fetchCuratedGenreLocations, markGenreCuratedFailed]);
 
-  /** `loadGenreExpanded` は state 更新のたびに参照が変わる → deps に入れると完了後に effect が再実行され無限ループになる */
+  /** state 更新でコールバック参照が変わる → effect の deps に入れると無限フェッチになる */
+  const loadGenreRef = useRef(loadGenre);
+  loadGenreRef.current = loadGenre;
   const loadGenreExpandedRef = useRef(loadGenreExpanded);
   loadGenreExpandedRef.current = loadGenreExpanded;
+  const navigateWithoutGenreRef = useRef(navigateWithoutGenre);
+  navigateWithoutGenreRef.current = navigateWithoutGenre;
+  const lastHandledMapResetKeyRef = useRef(0);
 
   const handleSearch = async () => {
     setHasSearched(true);
@@ -449,15 +448,15 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
 
   useEffect(() => {
     if (!hasSearched) {
-      const urlGenre = searchParams.get("genre");
+      const urlGenre = selectedGenreParam;
       const skipPreview =
         urlGenre && GENRES.some((g) => g.id === urlGenre) ? (urlGenre as GenreId) : null;
       GENRES.forEach((genre) => {
         if (skipPreview && genre.id === skipPreview) return;
-        void loadGenre(genre.id);
+        void loadGenreRef.current(genre.id);
       });
     }
-  }, [hasSearched, loadGenre, searchParams]);
+  }, [hasSearched, selectedGenreParam]);
 
   useEffect(() => {
     if (hasSearched || !selectedGenre) return;
@@ -465,7 +464,8 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
   }, [hasSearched, selectedGenre]);
 
   useEffect(() => {
-    if (!resetToSearchKey) return;
+    if (!resetToSearchKey || resetToSearchKey === lastHandledMapResetKeyRef.current) return;
+    lastHandledMapResetKeyRef.current = resetToSearchKey;
 
     setSelectedSpot(null);
     setKeyword("");
@@ -475,8 +475,8 @@ const MapTabView = forwardRef<MapTabTutorialHandle, MapTabViewProps>(function Ma
     setSearchFetchFailed(false);
     setGenreErrors({});
 
-    navigateWithoutGenre("replace");
-  }, [navigateWithoutGenre, resetToSearchKey]);
+    navigateWithoutGenreRef.current("replace");
+  }, [resetToSearchKey]);
 
   const displayedSpots = useMemo(() => (hasSearched ? searchResults : []), [hasSearched, searchResults]);
   const displayedLocations = useMemo(

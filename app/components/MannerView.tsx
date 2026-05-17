@@ -493,7 +493,7 @@ const MannerView = forwardRef<MannerTutorialHandle, MannerViewProps>(function Ma
         </div>
 
         <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
-          {(locationPermissionState === "granted" || spotName) && (
+          {spotName && (
             <div
               style={{
                 backgroundColor: "#fdf3f5",
@@ -502,26 +502,9 @@ const MannerView = forwardRef<MannerTutorialHandle, MannerViewProps>(function Ma
                 border: "1px solid #f3d1da",
               }}
             >
-              {locationPermissionState === "granted" && (
-                <>
-                  <p style={{ fontSize: "13px", color: "#b85f74", lineHeight: "1.7" }}>{t.manner.lead}</p>
-                  <p style={{ fontSize: "12px", color: "#166534", lineHeight: "1.6", marginTop: "8px", fontWeight: 700 }}>
-                    {isUsingMockLocation ? t.manner.mockLocationNote : t.manner.grantedLocationNote}
-                  </p>
-                </>
-              )}
-              {spotName && (
-                <p
-                  style={{
-                    fontSize: "12px",
-                    color: "#7c3aed",
-                    fontWeight: 700,
-                    marginTop: locationPermissionState === "granted" ? "6px" : 0,
-                  }}
-                >
-                  {t.manner.spotLinked.replace("{name}", spotName)}
-                </p>
-              )}
+              <p style={{ fontSize: "12px", color: "#7c3aed", fontWeight: 700 }}>
+                {t.manner.spotLinked.replace("{name}", spotName)}
+              </p>
             </div>
           )}
 

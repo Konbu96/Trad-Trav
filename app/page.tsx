@@ -1060,9 +1060,6 @@ function AppContent() {
                   onRequestLocationPermission={handleRequestLocationPermission}
                   onOpenLocationSettings={handleOpenLocationSettings}
                   onTutorialAction={handleTutorialAction}
-                  onUseDeveloperKuriharaLocation={
-                    process.env.NODE_ENV === "development" ? handleUseDeveloperKuriharaLocation : undefined
-                  }
                   onSpotView={handleSpotView}
                   favoriteSpotIds={favoriteSpotIds}
                   onToggleFavorite={handleToggleFavorite}
@@ -1109,6 +1106,9 @@ function AppContent() {
                   }
                   onClearGuestStorageDev={
                     process.env.NODE_ENV === "development" ? handleClearGuestStorageDev : undefined
+                  }
+                  onUseDeveloperKuriharaLocation={
+                    process.env.NODE_ENV === "development" ? handleUseDeveloperKuriharaLocation : undefined
                   }
                 />
               </div>

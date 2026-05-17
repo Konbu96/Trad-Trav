@@ -221,6 +221,8 @@ interface MyPageViewProps {
   onResetPlayerProgressDev?: () => void | Promise<void>;
   /** 開発時のみ: ゲスト向け localStorage 等を消去して再読み込み */
   onClearGuestStorageDev?: () => void | Promise<void>;
+  /** 開発時のみ: GPS を止め栗原市の固定座標を現在地にする */
+  onUseDeveloperKuriharaLocation?: () => void;
 }
 
 const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function MyPageView(
@@ -250,8 +252,9 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
     playerProgress: playerProgressProp,
   onClaimQuest,
   onClaimAllQuestsInCategory,
-  onResetPlayerProgressDev,
-  onClearGuestStorageDev,
+    onResetPlayerProgressDev,
+    onClearGuestStorageDev,
+    onUseDeveloperKuriharaLocation,
   },
   ref
 ) {
@@ -1029,6 +1032,27 @@ const MyPageView = forwardRef<MyPageTutorialHandle, MyPageViewProps>(function My
                     DEV_GRANT_COINS_AMOUNT.toLocaleString()
                   )}
                 </button>
+                {onUseDeveloperKuriharaLocation && (
+                  <button
+                    type="button"
+                    onClick={onUseDeveloperKuriharaLocation}
+                    style={{
+                      width: "100%",
+                      marginTop: "12px",
+                      borderRadius: "12px",
+                      border: "1px solid #d4d4d8",
+                      backgroundColor: "#f4f4f5",
+                      color: "#52525b",
+                      padding: "10px 14px",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {t.nowInfo.developerKuriharaLocationButton}
+                  </button>
+                )}
+
               </>
             )}
           </div>

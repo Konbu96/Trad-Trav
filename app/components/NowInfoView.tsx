@@ -32,8 +32,6 @@ interface NowInfoViewProps {
   onRequestLocationPermission?: () => void;
   onOpenLocationSettings?: () => void;
   onTutorialAction?: (actionId: string) => void;
-  /** 開発時のみ: 宮城県栗原市の固定座標を現在地として適用 */
-  onUseDeveloperKuriharaLocation?: () => void;
   onSpotView: (spot: { id: number; name: string; category: string }) => void;
   favoriteSpotIds: number[];
   onToggleFavorite: (spotId: number) => void;
@@ -233,7 +231,6 @@ export default function NowInfoView({
   onRequestLocationPermission,
   onOpenLocationSettings,
   onTutorialAction,
-  onUseDeveloperKuriharaLocation,
   onSpotView,
   favoriteSpotIds,
   onToggleFavorite,
@@ -608,47 +605,6 @@ export default function NowInfoView({
             </div>
           )}
 
-          {onUseDeveloperKuriharaLocation && (
-            <div
-              style={{
-                marginTop: "16px",
-                paddingTop: "14px",
-                borderTop: "1px dashed #d1d5db",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: "10px",
-                  fontWeight: 800,
-                  color: "#9ca3af",
-                  letterSpacing: "0.06em",
-                  marginBottom: "4px",
-                }}
-              >
-                {t.nowInfo.developerLocationSectionLabel}
-              </p>
-              <p style={{ fontSize: "11px", color: "#6b7280", lineHeight: 1.6, marginBottom: "10px" }}>
-                {t.nowInfo.developerKuriharaLocationHelp}
-              </p>
-              <button
-                type="button"
-                onClick={onUseDeveloperKuriharaLocation}
-                style={{
-                  width: "100%",
-                  borderRadius: "12px",
-                  border: "1px solid #d4d4d8",
-                  backgroundColor: "#f4f4f5",
-                  color: "#52525b",
-                  padding: "10px 14px",
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                {t.nowInfo.developerKuriharaLocationButton}
-              </button>
-            </div>
-          )}
         </section>
 
         {hasLocation && (

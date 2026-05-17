@@ -1,15 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  buildHelpfulFallbackReply,
+  parseOpenAiFailure,
+  type OpenAiFailureCode,
+} from "../../lib/helpfulAiFallbackReply";
 
 const MAX_MESSAGES = 24;
 const MAX_CONTENT_CHARS = 12000;
 
 type ChatRole = "user" | "assistant";
 
-export async function POST(req: NextRequest) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey?.trim()) {
-    return NextResponse.json({ error: "missing_key" }, { status: 503 });
+function lastUserContent(messages: { role: string; content: string }[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user" && messages[i].content.trim()) {
+      return messages[i].content;
+    }
   }
+  return "";
+}
+
+function fallbackResponse(
+  userQuery: string,
+  lang: "ja" | "en" | "zh" | "ko",
+  spotName: string | undefined,
+  reason: OpenAiFailureCode
+) {
+  const reply = buildHelpfulFallbackReply(userQuery, lang, spotName);
+  return NextResponse.json({ reply, fallback: true, fallbackReason: reason });
+}
+
+export async function POST(req: NextRequest) {
+  const apiKey = process.env.OPENAI_API_KEY?.trim() ?? "";
 
   let body: unknown;
   try {
@@ -49,10 +70,15 @@ export async function POST(req: NextRequest) {
 
   const lang =
     language === "en" ? "en" : language === "zh" ? "zh" : language === "ko" ? "ko" : "ja";
-  const spotLine =
-    typeof spotName === "string" && spotName.trim()
-      ? `The user is browsing in context of spot: "${spotName.trim()}".`
-      : "";
+  const spotNameStr =
+    typeof spotName === "string" && spotName.trim() ? spotName.trim() : undefined;
+  const userQuery = lastUserContent(normalized);
+
+  if (!apiKey) {
+    return fallbackResponse(userQuery, lang, spotNameStr, "missing_key");
+  }
+
+  const spotLine = spotNameStr ? `The user is browsing in context of spot: "${spotNameStr}".` : "";
 
   const replyLanguage =
     lang === "ja"
@@ -71,24 +97,31 @@ Use GitHub-flavored Markdown for readability: **bold** for important words, *ita
 
   const model = process.env.OPENAI_CHAT_MODEL?.trim() || "gpt-4o-mini";
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "system", content: system }, ...normalized],
-      temperature: 0.55,
-      max_tokens: 900,
-    }),
-  });
+  let res: Response;
+  try {
+    res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "system", content: system }, ...normalized],
+        temperature: 0.55,
+        max_tokens: 900,
+      }),
+    });
+  } catch (error) {
+    console.error("[helpful-chat] OpenAI fetch failed:", error);
+    return fallbackResponse(userQuery, lang, spotNameStr, "upstream");
+  }
 
   if (!res.ok) {
     const errBody = await res.text().catch(() => "");
-    console.error("[helpful-chat] OpenAI HTTP", res.status, errBody.slice(0, 500));
-    return NextResponse.json({ error: "upstream", status: res.status }, { status: 502 });
+    const failure = parseOpenAiFailure(res.status, errBody);
+    console.error("[helpful-chat] OpenAI HTTP", res.status, failure, errBody.slice(0, 500));
+    return fallbackResponse(userQuery, lang, spotNameStr, failure);
   }
 
   const data = (await res.json()) as {
@@ -96,7 +129,7 @@ Use GitHub-flavored Markdown for readability: **bold** for important words, *ita
   };
   const reply = data.choices?.[0]?.message?.content?.trim() ?? "";
   if (!reply) {
-    return NextResponse.json({ error: "empty_reply" }, { status: 502 });
+    return fallbackResponse(userQuery, lang, spotNameStr, "upstream");
   }
 
   return NextResponse.json({ reply });
